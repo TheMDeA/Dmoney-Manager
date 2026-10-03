@@ -29,3 +29,26 @@ abstract final class AppColors {
   static const expense = Color(0xFFF04444);
   static const warning = Color(0xFFF5C518);
 }
+
+/// Theme-aware colors for widget code. These adapt to light/dark mode —
+/// prefer them over the raw [AppColors] constants above, which are
+/// dark-mode values and turn invisible on light surfaces.
+extension AdaptiveColors on BuildContext {
+  /// Primary text and icons on surfaces.
+  Color get textPrimary => Theme.of(this).colorScheme.onSurface;
+
+  /// Secondary text and icons.
+  Color get textMuted => Theme.of(this).colorScheme.onSurfaceVariant;
+
+  /// Card and sheet backgrounds.
+  Color get surface => Theme.of(this).colorScheme.surface;
+
+  /// Raised elements: chips, inputs, icon tiles, tooltips, dropdowns.
+  Color get raised => Theme.of(this).colorScheme.surfaceContainerHighest;
+
+  /// Hairline dividers and borders.
+  Color get hairline => Theme.of(this).colorScheme.outline;
+
+  /// Base scaffold background.
+  Color get base => Theme.of(this).scaffoldBackgroundColor;
+}

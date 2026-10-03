@@ -48,9 +48,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           SwitchListTile(
             secondary: const Icon(Icons.savings_outlined),
             title: const Text('Budget alerts'),
-            subtitle: const Text(
+            subtitle: Text(
               'Notify when a budget reaches 80% and 100%',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
             value: _budgetAlerts,
             onChanged: (v) async {
@@ -62,9 +62,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           SwitchListTile(
             secondary: const Icon(Icons.alarm_outlined),
             title: const Text('Debt reminders'),
-            subtitle: const Text(
+            subtitle: Text(
               'Remind me a day before a debt is due',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
             value: _debtReminders,
             onChanged: (v) async {
@@ -73,11 +73,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               setState(() => _debtReminders = v);
             },
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Text(
               'Reminders are scheduled on this device when you add a debt with a due date.',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
           ),
         ],

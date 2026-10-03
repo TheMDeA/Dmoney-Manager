@@ -19,6 +19,10 @@ class AppPrefs {
   static Future<void> setThemeMode(ThemeMode m) =>
       _p.setInt('themeMode', m.index);
 
+  static String get accentId => _p.getString('accentId') ?? 'lime';
+  static Future<void> setAccentId(String v) =>
+      _p.setString('accentId', v);
+
   // --------------------------------- lock ---------------------------------
   static bool get lockEnabled => _p.getBool('lockEnabled') ?? false;
   static Future<void> setLockEnabled(bool v) =>

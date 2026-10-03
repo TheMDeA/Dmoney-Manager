@@ -1,7 +1,8 @@
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'core/theme/app_colors.dart';
+import 'core/theme/app_accents.dart';
 import 'core/theme/app_theme.dart';
 import 'features/lock/lock_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
@@ -17,24 +18,38 @@ class MoneyManagerApp extends ConsumerWidget {
     final lockEnabled = ref.watch(lockEnabledProvider);
     final locked = ref.watch(lockedProvider);
     final accounts = ref.watch(accountsStreamProvider);
+    final accentId = ref.watch(accentProvider);
 
-    return MaterialApp(
-      title: 'Dmoney Manager',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      themeMode: themeMode,
-      home: accounts.when(
-        // No accounts yet -> first-launch onboarding. Existing installs that
-        // already have (seeded) accounts skip straight to the app.
-        data: (list) => list.isEmpty
-            ? const OnboardingScreen()
-            : (lockEnabled && locked)
-                ? const LockScreen()
-                : const AppShell(),
-        loading: () => const _BootSplash(),
-        error: (_, _) => const _BootSplash(),
-      ),
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) {
+        // Fixed accents ignore the dynamic schemes; Material You takes
+        // the OS color, falling back to lime where dynamic is unavailable.
+        Color resolve(ColorScheme? dynamicScheme) {
+          final accent = accentById(accentId);
+          return accent.color ??
+              dynamicScheme?.primary ??
+              context.accent;
+        }
+
+        return MaterialApp(
+          title: 'Dmoney Manager',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(resolve(lightDynamic)),
+          darkTheme: AppTheme.dark(resolve(darkDynamic)),
+          themeMode: themeMode,
+          home: accounts.when(
+            // No accounts yet -> first-launch onboarding. Existing installs that
+            // already have (seeded) accounts skip straight to the app.
+            data: (list) => list.isEmpty
+                ? const OnboardingScreen()
+                : (lockEnabled && locked)
+                    ? const LockScreen()
+                    : const AppShell(),
+            loading: () => const _BootSplash(),
+            error: (_, _) => const _BootSplash(),
+          ),
+        );
+      },
     );
   }
 }
@@ -45,13 +60,13 @@ class _BootSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColors.bgBase,
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: Text(
           'Dmoney',
           style: TextStyle(
-            color: AppColors.lime,
+            color: context.accent,
             fontSize: 32,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,

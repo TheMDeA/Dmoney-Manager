@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/glass_card.dart';
 
@@ -29,7 +30,7 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
-          const GlassCard(
+          GlassCard(
             child: Row(
               children: [
                 Icon(Icons.info_outline,
@@ -41,7 +42,7 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
                     'currency only changes the symbol and formatting — '
                     'existing amounts are not converted.',
                     style: TextStyle(
-                        color: AppColors.textMuted, height: 1.5),
+                        color: context.textMuted, height: 1.5),
                   ),
                 ),
               ],
@@ -63,12 +64,12 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
       title: Text(
         c.label,
         style: TextStyle(
-          color: isSelected ? AppColors.lime : AppColors.textPrimary,
+          color: isSelected ? context.accent : context.textPrimary,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
       trailing: isSelected
-          ? const Icon(Icons.check, color: AppColors.lime)
+          ? Icon(Icons.check, color: context.accent)
           : null,
       onTap: _saving || isSelected ? null : () => _confirmSwitch(c),
     );

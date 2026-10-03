@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 
 /// Set (or change) the 4-digit app passcode: enter once, then confirm.
@@ -56,8 +56,7 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.lime : AppColors.brandBlue;
+    final accent = context.accent;
     return Scaffold(
       appBar: AppBar(title: Text(widget.isChange ? 'Change passcode' : 'Set passcode')),
       body: SafeArea(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/category_icons.dart';
 
@@ -69,18 +70,15 @@ class _PickIconScreenState extends State<PickIconScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: selected
-                            ? AppColors.brandBlue
-                            : AppColors.bgRaised,
+                            ? context.accent
+                            : context.raised,
                       ),
                       child: Icon(
                         entry.icon,
                         size: 28,
                         color: selected
-                            ? Colors.white
-                            : Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withValues(alpha: 0.75),
+                            ? onAccent(context.accent)
+                            : context.textMuted,
                       ),
                     ),
                   );

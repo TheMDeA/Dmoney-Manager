@@ -21,6 +21,19 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
 final themeModeProvider =
     NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
 
+class AccentNotifier extends Notifier<String> {
+  @override
+  String build() => AppPrefs.accentId;
+  Future<void> set(String id) async {
+    await AppPrefs.setAccentId(id);
+    state = id;
+  }
+}
+
+/// Selected theme accent id ('lime' default, or 'material_you').
+final accentProvider =
+    NotifierProvider<AccentNotifier, String>(AccentNotifier.new);
+
 /// Currently selected account filter on the Wallets screen (null = all).
 class SelectedAccountNotifier extends Notifier<int?> {
   @override

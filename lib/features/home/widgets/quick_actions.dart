@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_accents.dart';
 
 /// Thumb-zone quick actions row. All actions are wired by the parent.
 class QuickActions extends StatelessWidget {
@@ -55,15 +56,15 @@ class _Action extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: AppColors.lime.withValues(alpha: 0.14),
+                color: context.accent.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(icon, color: AppColors.lime, size: 24),
+              child: Icon(icon, color: context.accent, size: 24),
             ),
             const SizedBox(height: 6),
             Text(label,
                 style:
-                    const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                    TextStyle(fontSize: 12, color: context.textMuted)),
           ],
         ),
       ),

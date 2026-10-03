@@ -43,13 +43,13 @@ class GoalSpotlightCard extends ConsumerWidget {
                           child: CircularProgressIndicator(
                             value: ratio,
                             strokeWidth: 7,
-                            backgroundColor: AppColors.hairline,
+                            backgroundColor: context.hairline,
                             color: color,
                             strokeCap: StrokeCap.round,
                           ),
                         ),
                         Text('${(ratio * 100).toStringAsFixed(0)}%',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12, fontWeight: FontWeight.w700)),
                       ],
                     ),
@@ -59,9 +59,9 @@ class GoalSpotlightCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Savings goal',
+                        Text('Savings goal',
                             style: TextStyle(
-                                color: AppColors.textMuted, fontSize: 12)),
+                                color: context.textMuted, fontSize: 12)),
                         const SizedBox(height: 2),
                         Text(g.name,
                             style: const TextStyle(
@@ -69,13 +69,13 @@ class GoalSpotlightCard extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text(
                           '${formatMoney(g.saved)} of ${formatMoney(g.target)}',
-                          style: const TextStyle(
-                              color: AppColors.textMuted, fontSize: 12),
+                          style: TextStyle(
+                              color: context.textMuted, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                  Icon(Icons.chevron_right, color: context.textMuted),
                 ],
               ),
             ),

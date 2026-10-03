@@ -36,7 +36,7 @@ class StatSparklineCard extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
             const SizedBox(height: 4),
             Text(
