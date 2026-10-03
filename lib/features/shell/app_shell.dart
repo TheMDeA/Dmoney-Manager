@@ -7,6 +7,7 @@ import '../settings/settings_screen.dart';
 import '../stats/stats_screen.dart';
 import '../transactions/add_transaction_sheet.dart';
 import '../wallets/wallets_screen.dart';
+import '../../state/providers.dart';
 
 /// Bottom navigation with a center-docked FAB opening the add-transaction sheet.
 class AppShell extends ConsumerStatefulWidget {
@@ -17,8 +18,6 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  int _index = 0;
-
   static const _screens = [
     HomeScreen(),
     WalletsScreen(),
@@ -37,8 +36,9 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final index = ref.watch(tabIndexProvider);
     return Scaffold(
-      body: IndexedStack(index: _index, children: _screens),
+      body: IndexedStack(index: index, children: _screens),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAddSheet,
         child: const Icon(Icons.add, size: 28),
@@ -63,13 +63,13 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _navItem(int index, IconData icon, IconData activeIcon, String label) {
-    final active = _index == index;
+    final active = ref.watch(tabIndexProvider) == index;
     final color = active
         ? Theme.of(context).colorScheme.primary
         : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
     return Expanded(
       child: InkWell(
-        onTap: () => setState(() => _index = index),
+        onTap: () => ref.read(tabIndexProvider.notifier).go(index),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Column(

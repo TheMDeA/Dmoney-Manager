@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/budget_alerts.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
@@ -11,21 +12,51 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
 /// Bottom sheet for fast expense/income recording — the app's core loop.
+/// Also used for editing: pass [existing] to prefill and update instead of
+/// inserting. [attachedPhotoPath] attaches a receipt photo right after saving.
 class AddTransactionSheet extends ConsumerStatefulWidget {
-  const AddTransactionSheet({super.key});
+  const AddTransactionSheet({
+    super.key,
+    this.initialKind = 'expense',
+    this.existing,
+    this.attachedPhotoPath,
+  });
+
+  final String initialKind;
+  final TransactionWithDetails? existing;
+  final String? attachedPhotoPath;
 
   @override
-  ConsumerState<AddTransactionSheet> createState() => _AddTransactionSheetState();
+  ConsumerState<AddTransactionSheet> createState() =>
+      _AddTransactionSheetState();
 }
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
-  String _kind = 'expense';
+  late String _kind;
   int? _categoryId;
   int? _walletId;
   DateTime _date = DateTime.now();
   bool _saving = false;
+
+  bool get _editing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    if (e != null) {
+      _kind = e.transaction.kind;
+      _amountCtrl.text = e.transaction.amount.toString();
+      _noteCtrl.text = e.transaction.note;
+      _categoryId = e.transaction.categoryId;
+      _walletId = e.transaction.walletId;
+      _date = e.transaction.date;
+    } else {
+      _kind = widget.initialKind;
+    }
+  }
 
   @override
   void dispose() {
@@ -54,12 +85,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            if (_editing)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text('Edit record',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        )),
+              ),
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'expense', label: Text('Expense')),
@@ -140,7 +182,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 Expanded(
                   child: TextField(
                     controller: _noteCtrl,
-                    decoration: const InputDecoration(labelText: 'Note (optional)'),
+                    decoration:
+                        const InputDecoration(labelText: 'Note (optional)'),
                   ),
                 ),
               ],
@@ -159,7 +202,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                  : Text(_editing ? 'Save changes' : 'Save',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -174,7 +218,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(iconForKey(c.iconKey), size: 16, color: selected ? Colors.black : color),
+          Icon(iconForKey(c.iconKey),
+              size: 16, color: selected ? Colors.black : color),
           const SizedBox(width: 6),
           Text(c.name),
         ],
@@ -194,7 +239,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       return;
     }
     setState(() => _saving = true);
-    await ref.read(databaseProvider).addTransaction(
+    final db = ref.read(databaseProvider);
+    try {
+      if (_editing) {
+        final e = widget.existing!.transaction;
+        await db.updateTransaction(
+          id: e.id,
+          walletId: _walletId!,
+          categoryId: _categoryId!,
+          kind: _kind,
+          amount: amount,
+          note: _noteCtrl.text.trim(),
+          date: _date,
+        );
+      } else {
+        final id = await db.addTransaction(
           TransactionsCompanion.insert(
             walletId: _walletId!,
             categoryId: _categoryId!,
@@ -204,12 +263,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             date: _date,
           ),
         );
+        if (widget.attachedPhotoPath != null) {
+          await db.addPhoto(id, widget.attachedPhotoPath!);
+        }
+      }
+      await checkBudgetAlerts(ref);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
     if (mounted) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${_kind == 'income' ? 'Income' : 'Expense'} of ${formatIDR(amount)} saved',
+            _editing
+                ? 'Record updated'
+                : '${_kind == 'income' ? 'Income' : 'Expense'} of ${formatIDR(amount)} saved',
           ),
         ),
       );

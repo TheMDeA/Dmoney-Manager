@@ -11,16 +11,35 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'add_transaction_sheet.dart';
 
 /// Record detail screen with duplicate / edit / delete actions
 /// and attachable receipt photos ("Save Photos").
-class TransactionDetailScreen extends ConsumerWidget {
+class TransactionDetailScreen extends ConsumerStatefulWidget {
   const TransactionDetailScreen({super.key, required this.transactionId});
 
   final int transactionId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransactionDetailScreen> createState() =>
+      _TransactionDetailScreenState();
+}
+
+class _TransactionDetailScreenState
+    extends ConsumerState<TransactionDetailScreen> {
+  late Future<TransactionWithDetails?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load(ref.read(databaseProvider));
+  }
+
+  void _refresh() =>
+      setState(() => _future = _load(ref.read(databaseProvider)));
+
+  @override
+  Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
@@ -33,9 +52,24 @@ class TransactionDetailScreen extends ConsumerWidget {
           ),
           IconButton(
             tooltip: 'Edit',
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Editing opens the same sheet as + (TODO)')),
-            ),
+            onPressed: () async {
+              final d = await _future;
+              if (!context.mounted || d == null) return;
+              if (d.transaction.kind == 'transfer') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text(
+                          'Transfers can\'t be edited — delete and create a new one')),
+                );
+                return;
+              }
+              await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => AddTransactionSheet(existing: d),
+              );
+              _refresh();
+            },
             icon: const Icon(Icons.edit_outlined),
           ),
           IconButton(
@@ -46,7 +80,7 @@ class TransactionDetailScreen extends ConsumerWidget {
         ],
       ),
       body: FutureBuilder<TransactionWithDetails?>(
-        future: _load(db),
+        future: _future,
         builder: (context, snap) {
           final d = snap.data;
           if (d == null) {
@@ -55,6 +89,7 @@ class TransactionDetailScreen extends ConsumerWidget {
           final t = d.transaction;
           final c = d.category;
           final isIncome = t.kind == 'income';
+          final isTransfer = t.kind == 'transfer';
           final color = colorFromHex(c.colorHex);
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -86,12 +121,21 @@ class TransactionDetailScreen extends ConsumerWidget {
                 _row(
                   context,
                   'Amount',
-                  formatSignedIDR(t.amount, isIncome: isIncome),
-                  valueColor: isIncome ? AppColors.income : AppColors.expense,
+                  isTransfer
+                      ? formatIDR(t.amount)
+                      : formatSignedIDR(t.amount, isIncome: isIncome),
+                  valueColor: isTransfer
+                      ? null
+                      : (isIncome ? AppColors.income : AppColors.expense),
                 ),
                 _row(context, 'Date', formatDateTime(t.date)),
-                _row(context, 'Wallet', d.wallet.name),
-                _row(context, 'Type', isIncome ? 'Income' : 'Expense'),
+                if (isTransfer)
+                  _transferWalletRow(context, db, t)
+                else
+                  _row(context, 'Wallet', d.wallet.name),
+                _row(context, 'Type',
+                    isTransfer ? 'Transfer' : (isIncome ? 'Income' : 'Expense')),
+                if (t.note.isNotEmpty) _row(context, 'Note', t.note),
                 const SizedBox(height: 24),
                 Text('Receipt photos',
                     style: Theme.of(context)
@@ -114,10 +158,28 @@ class TransactionDetailScreen extends ConsumerWidget {
       DateTime(2100),
     );
     try {
-      return all.firstWhere((d) => d.transaction.id == transactionId);
+      return all.firstWhere((d) => d.transaction.id == widget.transactionId);
     } catch (_) {
       return null;
     }
+  }
+
+  Widget _transferWalletRow(
+      BuildContext context, AppDatabase db, Transaction t) {
+    if (t.toWalletId == null) return _row(context, 'Wallet', '');
+    return FutureBuilder<Wallet?>(
+      future: db.getWalletById(t.toWalletId!),
+      builder: (context, snap) {
+        final to = snap.data?.name ?? '…';
+        return FutureBuilder<Wallet?>(
+          future: db.getWalletById(t.walletId),
+          builder: (context, fromSnap) {
+            final from = fromSnap.data?.name ?? '…';
+            return _row(context, 'Wallet', '$from → $to');
+          },
+        );
+      },
+    );
   }
 
   Widget _row(BuildContext context, String label, String value, {Color? valueColor}) {
@@ -149,7 +211,7 @@ class TransactionDetailScreen extends ConsumerWidget {
     return SizedBox(
       height: 120,
       child: StreamBuilder<List<TransactionPhoto>>(
-        stream: db.watchPhotos(transactionId),
+        stream: db.watchPhotos(widget.transactionId),
         builder: (context, snap) {
           final photos = snap.data ?? const <TransactionPhoto>[];
           return ListView(
@@ -193,23 +255,32 @@ class TransactionDetailScreen extends ConsumerWidget {
     final picked =
         await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked != null) {
-      await ref.read(databaseProvider).addPhoto(transactionId, picked.path);
+      await ref.read(databaseProvider).addPhoto(widget.transactionId, picked.path);
     }
   }
 
   Future<void> _duplicate(BuildContext context, WidgetRef ref) async {
     final db = ref.read(databaseProvider);
     final all = await db.getTransactionsInRange(DateTime(2000), DateTime(2100));
-    final d = all.firstWhere((e) => e.transaction.id == transactionId);
+    final d = all.firstWhere((e) => e.transaction.id == widget.transactionId);
     final t = d.transaction;
-    await db.addTransaction(TransactionsCompanion.insert(
-      walletId: t.walletId,
-      categoryId: t.categoryId,
-      kind: t.kind,
-      amount: t.amount,
-      note: Value(t.note),
-      date: DateTime.now(),
-    ));
+    if (t.kind == 'transfer' && t.toWalletId != null) {
+      await db.addTransfer(
+        fromWalletId: t.walletId,
+        toWalletId: t.toWalletId!,
+        amount: t.amount,
+        note: t.note,
+      );
+    } else {
+      await db.addTransaction(TransactionsCompanion.insert(
+        walletId: t.walletId,
+        categoryId: t.categoryId,
+        kind: t.kind,
+        amount: t.amount,
+        note: Value(t.note),
+        date: DateTime.now(),
+      ));
+    }
     if (context.mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Record duplicated')));
@@ -234,7 +305,7 @@ class TransactionDetailScreen extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(databaseProvider).deleteTransaction(transactionId);
+      await ref.read(databaseProvider).deleteTransaction(widget.transactionId);
       if (context.mounted) Navigator.of(context).pop();
     }
   }

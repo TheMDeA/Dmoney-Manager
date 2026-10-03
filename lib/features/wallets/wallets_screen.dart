@@ -38,46 +38,58 @@ class WalletsScreen extends ConsumerWidget {
             builder: (context, walSnap) {
               final wallets = walSnap.data ?? const <Wallet>[];
               final total = wallets.fold<int>(0, (s, w) => s + w.balance);
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _accountChip(context, ref, null, 'All', selectedAccount == null),
-                        for (final a in accounts)
-                          _accountChip(context, ref, a.id, a.name, selectedAccount == a.id),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  GlassCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Combined balance',
-                            style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                        const SizedBox(height: 4),
-                        Text(formatIDR(total),
-                            style: AppTextStyles.displayBalance
-                                .copyWith(fontSize: 32, color: AppColors.textPrimary)),
-                        const SizedBox(height: 4),
-                        Text('${wallets.length} wallets',
-                            style: const TextStyle(
-                                color: AppColors.textMuted, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (wallets.isEmpty)
-                    const EmptyState(
-                      icon: Icons.wallet_outlined,
-                      message: 'No wallets here yet.',
-                    )
-                  else
-                    for (final w in wallets) _walletCard(context, w),
-                ],
+              return StreamBuilder<List<TransactionWithDetails>>(
+                stream: db.watchTransactions(limit: 60),
+                builder: (context, txSnap) {
+                  final recent = txSnap.data ?? const <TransactionWithDetails>[];
+                  final lastByWallet = <int, TransactionWithDetails>{};
+                  for (final d in recent) {
+                    lastByWallet.putIfAbsent(
+                        d.transaction.walletId, () => d);
+                  }
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _accountChip(context, ref, null, 'All', selectedAccount == null),
+                            for (final a in accounts)
+                              _accountChip(context, ref, a.id, a.name, selectedAccount == a.id),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      GlassCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Combined balance',
+                                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                            const SizedBox(height: 4),
+                            Text(formatIDR(total),
+                                style: AppTextStyles.displayBalance
+                                    .copyWith(fontSize: 32, color: AppColors.textPrimary)),
+                            const SizedBox(height: 4),
+                            Text('${wallets.length} wallets',
+                                style: const TextStyle(
+                                    color: AppColors.textMuted, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (wallets.isEmpty)
+                        const EmptyState(
+                          icon: Icons.wallet_outlined,
+                          message: 'No wallets here yet.',
+                        )
+                      else
+                        for (final w in wallets)
+                          _walletCard(context, w, lastByWallet[w.id]),
+                    ],
+                  );
+                },
               );
             },
           );
@@ -102,7 +114,8 @@ class WalletsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _walletCard(BuildContext context, Wallet w) {
+  Widget _walletCard(
+      BuildContext context, Wallet w, TransactionWithDetails? last) {
     final color = colorFromHex(w.colorHex);
     final negative = w.balance < 0;
     return Padding(
@@ -129,6 +142,16 @@ class WalletsScreen extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Text(_kindLabel(w.kind),
                       style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  if (last != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
+                      style: const TextStyle(
+                          color: AppColors.textMuted, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),

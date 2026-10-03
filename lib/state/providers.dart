@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/services/app_prefs.dart';
 import '../data/database/app_database.dart';
 
 /// The database is created in main() and injected here.
@@ -10,8 +11,11 @@ final databaseProvider = Provider<AppDatabase>(
 
 class ThemeModeNotifier extends Notifier<ThemeMode> {
   @override
-  ThemeMode build() => ThemeMode.system;
-  void set(ThemeMode mode) => state = mode;
+  ThemeMode build() => AppPrefs.themeMode;
+  Future<void> set(ThemeMode mode) async {
+    await AppPrefs.setThemeMode(mode);
+    state = mode;
+  }
 }
 
 final themeModeProvider =
@@ -27,6 +31,16 @@ class SelectedAccountNotifier extends Notifier<int?> {
 final selectedAccountProvider =
     NotifierProvider<SelectedAccountNotifier, int?>(SelectedAccountNotifier.new);
 
+/// Bottom-nav tab index, so quick actions can jump to a tab.
+class TabIndexNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+  void go(int i) => state = i;
+}
+
+final tabIndexProvider =
+    NotifierProvider<TabIndexNotifier, int>(TabIndexNotifier.new);
+
 /// 'day' | 'week' | 'month' — the Home screen date-range switcher.
 class DateRangeNotifier extends Notifier<String> {
   @override
@@ -39,8 +53,11 @@ final dateRangeProvider =
 
 class LockEnabledNotifier extends Notifier<bool> {
   @override
-  bool build() => false;
-  void set(bool value) => state = value;
+  bool build() => AppPrefs.lockEnabled;
+  Future<void> set(bool value) async {
+    await AppPrefs.setLockEnabled(value);
+    state = value;
+  }
 }
 
 final lockEnabledProvider =
@@ -54,3 +71,15 @@ class LockedNotifier extends Notifier<bool> {
 }
 
 final lockedProvider = NotifierProvider<LockedNotifier, bool>(LockedNotifier.new);
+
+class DisplayNameNotifier extends Notifier<String> {
+  @override
+  String build() => AppPrefs.displayName;
+  Future<void> set(String v) async {
+    await AppPrefs.setDisplayName(v);
+    state = v;
+  }
+}
+
+final displayNameProvider =
+    NotifierProvider<DisplayNameNotifier, String>(DisplayNameNotifier.new);
