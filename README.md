@@ -17,9 +17,15 @@ expressive tabular numerals, animated charts.
   daily burn chart vs. limit, pace stats), 80%/100% notifications
 - **Savings goals** — deposit/withdraw history grouped by day, deadlines
 - **Debts** — payable/receivable, partial repayments with wallet sync,
-  due-date reminders, per-debt detail view
-- **More** — categories + subcategories, CSV/Excel export, settings,
-  4-digit PIN + biometric lock
+  due-date reminders, per-debt detail view; debts can appear in the
+  transaction history ("Show in transaction history" toggle, on by
+  default) with a debt badge on linked entries; full-screen add-debt
+  form (I borrowed / I lent switcher, date + time, colors, due date,
+  optional wallet)
+- **More** — category manager (INCOME/EXPENSE tabs, drag-to-reorder,
+  icon picker, subcategories), CSV/Excel export, backup & restore
+  (full backup zip: database snapshot + receipt photos + preferences),
+  settings, 4-digit PIN + biometric lock
 
 State is managed with **Riverpod** (`lib/state/providers.dart`), persistence
 with **drift (SQLite)** (`lib/data/database/app_database.dart`). Amounts
@@ -54,13 +60,13 @@ lib/
     theme/                  # AppColors, AppTheme, AppTextStyles (design tokens)
     utils/                  # currency-aware formatting, category icon map
     widgets/                # GlassCard, AmountText, SectionHeader, EmptyState
-    services/               # notifications, preferences
+    services/               # notifications, preferences, backup & restore
   data/database/            # drift tables, queries, migrations, seed data
   state/                    # Riverpod providers
   features/                 # one folder per screen (screen + widgets)
     onboarding/             # first-launch setup flow
     home/ transactions/ wallets/ stats/ budgets/ debts/
-    categories/ search/ export/ lock/ settings/
+    categories/ search/ export/ backup/ lock/ settings/
 ```
 
 ## Building a release APK
@@ -79,10 +85,10 @@ no future update can share the same signature.
 
 Release checklist:
 
-1. Bump `version` in `pubspec.yaml` (e.g. `1.0.2+3`).
+1. Bump `version` in `pubspec.yaml` (e.g. `1.1.1+4`).
 2. Move the `[Unreleased]` changelog entries into a dated version section
    in `CHANGELOG.md`.
-3. Commit, then `git tag v1.0.2 && git push origin v1.0.2`.
+3. Commit, then `git tag v1.1.1 && git push origin v1.1.1`.
 
 ## App identity
 

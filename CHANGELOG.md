@@ -51,6 +51,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Android permissions for photos: `CAMERA` (scan receipt),
   `READ_MEDIA_IMAGES`, and `READ_EXTERNAL_STORAGE` (API ≤ 32).
 
+### Changed
+- README refreshed: debt history, the new add-debt form, the category
+  manager redesign, and backup & restore are now documented.
+
 ## [1.1.0] - 2026-10-03
 
 ### Added
