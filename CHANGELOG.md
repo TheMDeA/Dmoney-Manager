@@ -5,6 +5,11 @@ All notable changes to Dmoney Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+- Release signing: `android/app/build.gradle.kts` now signs release
+  builds with the release keystore when the `ANDROID_KEYSTORE_PATH`,
+  `ANDROID_KEYSTORE_PASSWORD`, and `ANDROID_KEY_ALIAS` env vars are set
+  (GitHub Actions), falling back to debug keys otherwise. The keystore
+  itself lives outside the repo (`your_files/keystore/dmoney-manager/`).
 
 ## [1.0.1] - 2026-10-03
 
