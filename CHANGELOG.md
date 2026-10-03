@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   that isn't in the repo, crashing the app before the first frame. The app now
   ships a bundled notification icon, and a notification failure can no longer
   prevent startup.
+- Amount fields now format thousand separators live while typing, following
+  the selected currency (e.g. `18.088.808` for IDR, `18,088,808` for USD).
 
 ### Changed
 - App icon currently falls back to the system default (custom launcher icons
