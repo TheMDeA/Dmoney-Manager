@@ -5,6 +5,7 @@ import '../../core/services/app_prefs.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/widgets/amount_field.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -127,15 +128,7 @@ class _AddDebtScreenState extends ConsumerState<AddDebtScreen> {
                 ),
                 const SizedBox(height: 20),
                 _label('Amount'),
-                TextField(
-                  controller: _amountCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [ThousandsSeparatorInputFormatter()],
-                  decoration: InputDecoration(
-                    prefixText: currencyFieldPrefix,
-                    hintText: '0',
-                  ),
-                ),
+                AmountField(controller: _amountCtrl),
                 const SizedBox(height: 20),
                 Row(
                   children: [

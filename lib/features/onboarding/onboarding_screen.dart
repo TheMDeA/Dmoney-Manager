@@ -573,8 +573,9 @@ class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
       widget.onRestored();
     } on BackupException catch (e) {
       setState(() => _error = e.message);
-    } catch (e) {
-      setState(() => _error = 'Restore failed: $e');
+    } catch (_) {
+      setState(() => _error =
+          'Restore failed. Please try again with a valid backup file.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
