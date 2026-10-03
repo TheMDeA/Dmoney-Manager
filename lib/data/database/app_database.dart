@@ -15,6 +15,7 @@ class Accounts extends Table {
 }
 
 /// Cash, bank accounts, e-wallets, credit cards.
+@TableIndex(name: 'idx_wallets_account', columns: {#accountId})
 class Wallets extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get accountId => integer().references(Accounts, #id)();
@@ -35,6 +36,9 @@ class Categories extends Table {
   IntColumn get parentId => integer().nullable().references(Categories, #id)();
 }
 
+@TableIndex(name: 'idx_transactions_date', columns: {#date})
+@TableIndex(name: 'idx_transactions_wallet', columns: {#walletId})
+@TableIndex(name: 'idx_transactions_category', columns: {#categoryId})
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get walletId => integer().references(Wallets, #id)();
@@ -49,6 +53,7 @@ class Transactions extends Table {
 }
 
 /// Receipt / record photos attached to a transaction ("Save Photos").
+@TableIndex(name: 'idx_photos_transaction', columns: {#transactionId})
 class TransactionPhotos extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get transactionId => integer().references(Transactions, #id)();
@@ -56,6 +61,7 @@ class TransactionPhotos extends Table {
 }
 
 /// Per-category monthly spending limits.
+@TableIndex(name: 'idx_budgets_month', columns: {#month})
 class Budgets extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get categoryId => integer().references(Categories, #id)();
@@ -73,6 +79,7 @@ class Goals extends Table {
 }
 
 /// Money you owe (payable) and money owed to you (receivable).
+@TableIndex(name: 'idx_debts_direction', columns: {#direction})
 class Debts extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get person => text()();
@@ -87,6 +94,7 @@ class Debts extends Table {
 }
 
 /// Partial repayments recorded against a debt.
+@TableIndex(name: 'idx_debt_payments_debt', columns: {#debtId})
 class DebtPayments extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get debtId => integer().references(Debts, #id)();
@@ -98,6 +106,7 @@ class DebtPayments extends Table {
 
 /// Deposit / withdrawal history for a savings goal.
 /// Positive amount = deposit, negative = withdrawal.
+@TableIndex(name: 'idx_goal_deposits_goal', columns: {#goalId})
 class GoalDeposits extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get goalId => integer().references(Goals, #id)();
@@ -121,6 +130,19 @@ class TransactionWithDetails {
   });
 }
 
+/// Per-category expense total for a period (donut chart).
+typedef CategoryTotal = ({int categoryId, int total});
+
+/// Per-month, per-kind total (bar chart + savings trend).
+/// [month] is 'yyyy-MM', [kind] is 'income' | 'expense'.
+typedef MonthlyTotal = ({String month, String kind, int total});
+
+/// Per-kind total for a period.
+typedef KindTotal = ({String kind, int total});
+
+/// Per-day, per-kind total. [day] is 'yyyy-MM-dd'.
+typedef DailyTotal = ({String day, String kind, int total});
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -141,7 +163,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -168,6 +190,19 @@ class AppDatabase extends _$AppDatabase {
               updates: {wallets},
             );
             await m.createTable(goalDeposits);
+          }
+          if (from < 5) {
+            // Indexes for hot filter columns (fresh installs get them via
+            // createAll; this covers upgrades from released versions).
+            await m.createIndex(idxWalletsAccount);
+            await m.createIndex(idxTransactionsDate);
+            await m.createIndex(idxTransactionsWallet);
+            await m.createIndex(idxTransactionsCategory);
+            await m.createIndex(idxPhotosTransaction);
+            await m.createIndex(idxBudgetsMonth);
+            await m.createIndex(idxDebtsDirection);
+            await m.createIndex(idxDebtPaymentsDebt);
+            await m.createIndex(idxGoalDepositsGoal);
           }
         },
       );
@@ -222,6 +257,103 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Stream<List<Transaction>> watchTransactionsRaw() => select(transactions).watch();
+
+  /// Transactions touching one wallet (as source or transfer destination),
+  /// newest first. Powers the wallet detail screen.
+  Stream<List<TransactionWithDetails>> watchTransactionsForWallet(
+      int walletId) {
+    final q = _joinedTransactions()
+      ..where(transactions.walletId.equals(walletId) |
+          transactions.toWalletId.equals(walletId));
+    return q.watch().map(_toDetails);
+  }
+
+  /// Transactions of one category inside [from, to]. Powers the budget
+  /// detail screen (pass the month's first/last instant).
+  Stream<List<TransactionWithDetails>> watchTransactionsForCategory(
+      int categoryId, DateTime from, DateTime to) {
+    final q = _joinedTransactions()
+      ..where(transactions.categoryId.equals(categoryId) &
+          transactions.date.isBetweenValues(from, to));
+    return q.watch().map(_toDetails);
+  }
+
+  /// Per-category expense totals inside [from, to], largest first.
+  /// The database aggregates; the UI only receives one row per category.
+  Stream<List<CategoryTotal>> watchCategoryExpenseTotals(
+      DateTime from, DateTime to) {
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions)
+      ..addColumns([transactions.categoryId, total])
+      ..where(transactions.kind.equals('expense') &
+          transactions.date.isBetweenValues(from, to))
+      ..groupBy([transactions.categoryId])
+      ..orderBy([OrderingTerm.desc(total)]);
+    return q.watch().map((rows) => rows
+        .map((row) => (
+              categoryId: row.read(transactions.categoryId)!,
+              total: row.read(total) ?? 0,
+            ))
+        .toList());
+  }
+
+  /// Per-kind totals inside [from, to]: one row per kind present.
+  /// Backs range summaries like the home balance card.
+  Stream<List<KindTotal>> watchKindTotals(DateTime from, DateTime to) {
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions)
+      ..addColumns([transactions.kind, total])
+      ..where(transactions.date.isBetweenValues(from, to))
+      ..groupBy([transactions.kind]);
+    return q.watch().map((rows) => rows
+        .map((row) => (
+              kind: row.read(transactions.kind) ?? '',
+              total: row.read(total) ?? 0,
+            ))
+        .toList());
+  }
+
+  /// Per-day, per-kind totals inside [from, to], oldest day first.
+  /// [day] is 'yyyy-MM-dd'. Backs the 7-day sparklines.
+  Stream<List<DailyTotal>> watchDailyKindTotals(
+      DateTime from, DateTime to) {
+    final dayExpr = CustomExpression<String>(
+        "strftime('%Y-%m-%d', transactions.date, 'unixepoch', 'localtime')");
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions)
+      ..addColumns([dayExpr, transactions.kind, total])
+      ..where(transactions.date.isBetweenValues(from, to))
+      ..groupBy([dayExpr, transactions.kind])
+      ..orderBy([OrderingTerm.asc(dayExpr)]);
+    return q.watch().map((rows) => rows
+        .map((row) => (
+              day: row.read(dayExpr) ?? '',
+              kind: row.read(transactions.kind) ?? '',
+              total: row.read(total) ?? 0,
+            ))
+        .toList());
+  }
+
+  /// Per-month income/expense totals inside [from, to], oldest month first.
+  /// Backs the 6-month bar chart and the net-savings trend.
+  Stream<List<MonthlyTotal>> watchMonthlyKindTotals(
+      DateTime from, DateTime to) {
+    final monthExpr = CustomExpression<String>(
+        "strftime('%Y-%m', transactions.date, 'unixepoch', 'localtime')");
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions)
+      ..addColumns([monthExpr, transactions.kind, total])
+      ..where(transactions.date.isBetweenValues(from, to))
+      ..groupBy([monthExpr, transactions.kind])
+      ..orderBy([OrderingTerm.asc(monthExpr)]);
+    return q.watch().map((rows) => rows
+        .map((row) => (
+              month: row.read(monthExpr) ?? '',
+              kind: row.read(transactions.kind) ?? '',
+              total: row.read(total) ?? 0,
+            ))
+        .toList());
+  }
 
   Stream<List<Budget>> watchBudgets(String month) =>
       (select(budgets)..where((b) => b.month.equals(month))).watch();
@@ -469,9 +601,11 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-  Future<void> deleteGoal(int id) async {
-    await (delete(goalDeposits)..where((d) => d.goalId.equals(id))).go();
-    await (delete(goals)..where((g) => g.id.equals(id))).go();
+  Future<void> deleteGoal(int id) {
+    return transaction(() async {
+      await (delete(goalDeposits)..where((d) => d.goalId.equals(id))).go();
+      await (delete(goals)..where((g) => g.id.equals(id))).go();
+    });
   }
 
   Stream<List<GoalDeposit>> watchGoalDeposits(int goalId) =>
@@ -487,25 +621,29 @@ class AppDatabase extends _$AppDatabase {
     required int amount,
     required DateTime date,
     String note = '',
-  }) async {
-    final goal = await getGoalById(goalId);
-    if (goal == null) return;
-    await into(goalDeposits).insert(GoalDepositsCompanion.insert(
-      goalId: goalId,
-      amount: amount,
-      date: date,
-      note: Value(note),
-    ));
-    await updateGoalSaved(goalId, goal.saved + amount);
+  }) {
+    return transaction(() async {
+      final goal = await getGoalById(goalId);
+      if (goal == null) return;
+      await into(goalDeposits).insert(GoalDepositsCompanion.insert(
+        goalId: goalId,
+        amount: amount,
+        date: date,
+        note: Value(note),
+      ));
+      await updateGoalSaved(goalId, goal.saved + amount);
+    });
   }
 
   /// Deletes one deposit/withdrawal entry, reversing the saved total.
-  Future<void> deleteGoalDeposit(GoalDeposit deposit) async {
-    final goal = await getGoalById(deposit.goalId);
-    await (delete(goalDeposits)..where((d) => d.id.equals(deposit.id))).go();
-    if (goal != null) {
-      await updateGoalSaved(deposit.goalId, goal.saved - deposit.amount);
-    }
+  Future<void> deleteGoalDeposit(GoalDeposit deposit) {
+    return transaction(() async {
+      final goal = await getGoalById(deposit.goalId);
+      await (delete(goalDeposits)..where((d) => d.id.equals(deposit.id))).go();
+      if (goal != null) {
+        await updateGoalSaved(deposit.goalId, goal.saved - deposit.amount);
+      }
+    });
   }
 
   Future<void> updateGoalSaved(int id, int saved) =>
@@ -525,20 +663,22 @@ class AppDatabase extends _$AppDatabase {
     int? walletId,
     String colorHex = '#A78BFA',
   }) async {
-    final id = await into(debts).insert(DebtsCompanion.insert(
-      person: person,
-      note: Value(note),
-      amount: amount,
-      direction: direction,
-      dueDate: Value(dueDate),
-      walletId: Value(walletId),
-      colorHex: Value(colorHex),
-    ));
-    if (walletId != null) {
-      await adjustWalletBalance(
-          walletId, direction == 'receivable' ? -amount : amount);
-    }
-    return id;
+    return transaction(() async {
+      final id = await into(debts).insert(DebtsCompanion.insert(
+        person: person,
+        note: Value(note),
+        amount: amount,
+        direction: direction,
+        dueDate: Value(dueDate),
+        walletId: Value(walletId),
+        colorHex: Value(colorHex),
+      ));
+      if (walletId != null) {
+        await adjustWalletBalance(
+            walletId, direction == 'receivable' ? -amount : amount);
+      }
+      return id;
+    });
   }
 
   Future<Debt?> getDebtById(int id) =>
@@ -553,46 +693,51 @@ class AppDatabase extends _$AppDatabase {
     required int amount,
     DateTime? dueDate,
     int? walletId,
-  }) async {
-    final old = await getDebtById(id);
-    await (update(debts)..where((d) => d.id.equals(id))).write(
-      DebtsCompanion(
-        person: Value(person),
-        note: Value(note),
-        amount: Value(amount),
-        dueDate: Value(dueDate),
-        walletId: Value(walletId),
-      ),
-    );
-    if (old != null && old.walletId != null && old.amount != amount) {
-      final diff = amount - old.amount;
-      await adjustWalletBalance(
-          old.walletId!, old.direction == 'receivable' ? -diff : diff);
-    }
-    final paidTotal = await debtPaidTotal(id);
-    await setDebtPaid(id, paidTotal >= amount);
+  }) {
+    return transaction(() async {
+      final old = await getDebtById(id);
+      await (update(debts)..where((d) => d.id.equals(id))).write(
+        DebtsCompanion(
+          person: Value(person),
+          note: Value(note),
+          amount: Value(amount),
+          dueDate: Value(dueDate),
+          walletId: Value(walletId),
+        ),
+      );
+      if (old != null && old.walletId != null && old.amount != amount) {
+        final diff = amount - old.amount;
+        await adjustWalletBalance(
+            old.walletId!, old.direction == 'receivable' ? -diff : diff);
+      }
+      final paidTotal = await debtPaidTotal(id);
+      await setDebtPaid(id, paidTotal >= amount);
+    });
   }
 
   /// Deletes a debt, reversing the initial wallet movement and every
   /// recorded payment so balances stay consistent.
-  Future<void> deleteDebt(int id) async {
-    final debt = await getDebtById(id);
-    if (debt != null) {
-      if (debt.walletId != null) {
-        await adjustWalletBalance(debt.walletId!,
-            debt.direction == 'receivable' ? debt.amount : -debt.amount);
-      }
-      final payments =
-          await (select(debtPayments)..where((p) => p.debtId.equals(id))).get();
-      for (final p in payments) {
-        if (p.walletId != null) {
-          await adjustWalletBalance(p.walletId!,
-              debt.direction == 'receivable' ? -p.amount : p.amount);
+  Future<void> deleteDebt(int id) {
+    return transaction(() async {
+      final debt = await getDebtById(id);
+      if (debt != null) {
+        if (debt.walletId != null) {
+          await adjustWalletBalance(debt.walletId!,
+              debt.direction == 'receivable' ? debt.amount : -debt.amount);
         }
+        final payments =
+            await (select(debtPayments)..where((p) => p.debtId.equals(id)))
+                .get();
+        for (final p in payments) {
+          if (p.walletId != null) {
+            await adjustWalletBalance(p.walletId!,
+                debt.direction == 'receivable' ? -p.amount : p.amount);
+          }
+        }
+        await (delete(debtPayments)..where((p) => p.debtId.equals(id))).go();
       }
-      await (delete(debtPayments)..where((p) => p.debtId.equals(id))).go();
-    }
-    await (delete(debts)..where((d) => d.id.equals(id))).go();
+      await (delete(debts)..where((d) => d.id.equals(id))).go();
+    });
   }
 
   Stream<List<DebtPayment>> watchDebtPayments(int debtId) =>
@@ -602,10 +747,11 @@ class AppDatabase extends _$AppDatabase {
           .watch();
 
   Future<int> debtPaidTotal(int debtId) async {
-    final rows =
-        await (select(debtPayments)..where((p) => p.debtId.equals(debtId)))
-            .get();
-    return rows.fold<int>(0, (s, p) => s + p.amount);
+    final q = selectOnly(debtPayments)
+      ..addColumns([debtPayments.amount.sum()])
+      ..where(debtPayments.debtId.equals(debtId));
+    final row = await q.getSingleOrNull();
+    return row?.read(debtPayments.amount.sum()) ?? 0;
   }
 
   /// Records a partial repayment: moves the payment wallet balance
@@ -617,35 +763,39 @@ class AppDatabase extends _$AppDatabase {
     required DateTime date,
     String note = '',
     int? walletId,
-  }) async {
-    await into(debtPayments).insert(DebtPaymentsCompanion.insert(
-      debtId: debt.id,
-      amount: amount,
-      date: date,
-      note: Value(note),
-      walletId: Value(walletId),
-    ));
-    if (walletId != null) {
-      await adjustWalletBalance(
-          walletId, debt.direction == 'receivable' ? amount : -amount);
-    }
-    final paidTotal = await debtPaidTotal(debt.id);
-    if (paidTotal >= debt.amount && !debt.isPaid) {
-      await setDebtPaid(debt.id, true);
-    }
+  }) {
+    return transaction(() async {
+      await into(debtPayments).insert(DebtPaymentsCompanion.insert(
+        debtId: debt.id,
+        amount: amount,
+        date: date,
+        note: Value(note),
+        walletId: Value(walletId),
+      ));
+      if (walletId != null) {
+        await adjustWalletBalance(
+            walletId, debt.direction == 'receivable' ? amount : -amount);
+      }
+      final paidTotal = await debtPaidTotal(debt.id);
+      if (paidTotal >= debt.amount && !debt.isPaid) {
+        await setDebtPaid(debt.id, true);
+      }
+    });
   }
 
   /// Deletes one repayment, reversing its wallet movement.
-  Future<void> deleteDebtPayment(DebtPayment payment, Debt debt) async {
-    await (delete(debtPayments)..where((p) => p.id.equals(payment.id))).go();
-    if (payment.walletId != null) {
-      await adjustWalletBalance(payment.walletId!,
-          debt.direction == 'receivable' ? -payment.amount : payment.amount);
-    }
-    final paidTotal = await debtPaidTotal(debt.id);
-    if (paidTotal < debt.amount && debt.isPaid) {
-      await setDebtPaid(debt.id, false);
-    }
+  Future<void> deleteDebtPayment(DebtPayment payment, Debt debt) {
+    return transaction(() async {
+      await (delete(debtPayments)..where((p) => p.id.equals(payment.id))).go();
+      if (payment.walletId != null) {
+        await adjustWalletBalance(payment.walletId!,
+            debt.direction == 'receivable' ? -payment.amount : payment.amount);
+      }
+      final paidTotal = await debtPaidTotal(debt.id);
+      if (paidTotal < debt.amount && debt.isPaid) {
+        await setDebtPaid(debt.id, false);
+      }
+    });
   }
 
   Future<void> setDebtPaid(int id, bool paid) =>

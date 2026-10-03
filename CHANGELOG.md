@@ -5,11 +5,33 @@ All notable changes to Dmoney Manager will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-10-03
+
+### Added
 - Release signing: `android/app/build.gradle.kts` now signs release
   builds with the release keystore when the `ANDROID_KEYSTORE_PATH`,
   `ANDROID_KEYSTORE_PASSWORD`, and `ANDROID_KEY_ALIAS` env vars are set
   (GitHub Actions), falling back to debug keys otherwise. The keystore
   itself lives outside the repo (`your_files/keystore/dmoney-manager/`).
+
+### Fixed
+- Database hardening (DB v5): all multi-step debt and goal writes
+  (`createDebt`, `updateDebt`, `deleteDebt`, `recordDebtPayment`,
+  `deleteDebtPayment`, `recordGoalDeposit`, `deleteGoalDeposit`,
+  `deleteGoal`) are now wrapped in transactions so wallet balances and
+  saved totals can never drift on a mid-write crash.
+
+### Changed
+- Database performance: SQL-side aggregation replaces full-table scans
+  (`watchCategoryExpenseTotals`, `watchMonthlyKindTotals`,
+  `watchKindTotals`, `watchDailyKindTotals`) and filtered streams
+  (`watchTransactionsForWallet`, `watchTransactionsForCategory`) power
+  the stats, home, balance card, budgets, wallet detail, and budget
+  detail screens; `debtPaidTotal` now uses `SUM()` instead of a Dart
+  fold; indexes added on hot filter columns
+  (transactions date/wallet/category, budgets month, debts direction,
+  debt/goal/photo FKs, wallets account).
 
 ## [1.0.1] - 2026-10-03
 
