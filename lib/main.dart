@@ -17,6 +17,13 @@ Future<void> main() async {
     // Leave notifications disabled; the app runs fine without them.
   }
   final db = AppDatabase();
+  // Materialize due recurring transactions. Must never prevent startup.
+  try {
+    final generated = await db.processDueRecurringTransactions();
+    if (generated > 0) {
+      await NotificationService.showRecurringGenerated(count: generated);
+    }
+  } catch (_) {}
   runApp(
     ProviderScope(
       overrides: [databaseProvider.overrideWithValue(db)],

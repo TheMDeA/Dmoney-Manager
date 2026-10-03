@@ -55,6 +55,19 @@ class NotificationService {
     );
   }
 
+  /// Fired when boot-time processing materializes recurring transactions.
+  static Future<void> showRecurringGenerated({required int count}) async {
+    if (!_ready || count <= 0) return;
+    await _plugin.show(
+      id: 2000000,
+      title: 'Recurring transactions added',
+      body: count == 1
+          ? '1 recurring transaction was recorded'
+          : '$count recurring transactions were recorded',
+      notificationDetails: _details,
+    );
+  }
+
   /// Reminder at 9:00 AM the day before the due date (inexact — no exact-alarm
   /// permission needed). Skipped when the due date is already past.
   static Future<void> scheduleDebtReminder({

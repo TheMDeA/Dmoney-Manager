@@ -11,6 +11,7 @@ import '../categories/categories_screen.dart';
 import '../backup/backup_screen.dart';
 import '../export/export_screen.dart';
 import '../lock/pin_setup_screen.dart';
+import '../recurring/recurring_screen.dart';
 import 'currency_screen.dart';
 import 'notifications_screen.dart';
 
@@ -75,6 +76,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: 'Full backup to a file',
               onTap: () => Navigator.of(context).push(
                   AppPageRoute(builder: (_) => BackupScreen()))),
+          _tile(context,
+              icon: Icons.repeat_outlined,
+              title: 'Recurring transactions',
+              subtitle: 'Subscriptions, salary, rent',
+              onTap: () => Navigator.of(context).push(
+                  AppPageRoute(builder: (_) => const RecurringScreen()))),
           SwitchListTile(
             secondary: const Icon(Icons.lock_outline),
             title: const Text('Password protection'),
@@ -158,11 +165,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _tile(context,
               icon: Icons.info_outline,
               title: 'About',
-              subtitle: 'Dmoney Manager 1.1.3',
+              subtitle: 'Dmoney Manager 1.1.4',
               onTap: () => showAboutDialog(
                     context: context,
                     applicationName: 'Dmoney Manager',
-                    applicationVersion: '1.1.3',
+                    applicationVersion: '1.1.4',
                     applicationLegalese: 'A simple, modern money manager.',
                   )),
         ],

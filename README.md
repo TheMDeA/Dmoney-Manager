@@ -7,11 +7,13 @@ expressive tabular numerals, animated charts.
 - **Home** — total balance card, sparklines, data-driven AI insight, recent
   transactions, savings-goal spotlight
 - **Transactions** — add/edit/duplicate/delete, wallet-to-wallet transfers,
-  receipt photos (full-screen viewer with zoom + delete), search
+  receipt photos (full-screen viewer with zoom + delete), search,
+  one-tap templates (save the current form, tap a chip to refill it)
 - **Wallets** — Personal/Work/Family accounts, per-wallet detail (balance,
   adjust balance, income/expense/transfer stats, category-grouped history),
   initial amounts
-- **Stats** — interactive donut, 6-month bars, and net-savings trend
+- **Stats** — interactive donut, 6-month bars, net-savings trend, and
+  net-worth-over-time chart (3M/6M/12M ranges)
   (tap slices, bars, and points)
 - **Budgets** — monthly limits per category with a detail view (spent/left,
   daily burn chart vs. limit, pace stats), 80%/100% notifications
@@ -23,10 +25,11 @@ expressive tabular numerals, animated charts.
   form (I borrowed / I lent switcher, date + time, colors, due date,
   optional wallet)
 - **More** — category manager (INCOME/EXPENSE tabs, drag-to-reorder,
-  icon picker, subcategories), CSV/Excel export, backup & restore
-  (full backup zip: database snapshot + receipt photos + preferences),
-  settings (theme mode, 6 theme colors incl. Material You, currency),
-  4-digit PIN + biometric lock
+  icon picker, subcategories), recurring transactions (subscriptions,
+  salary, rent — auto-added on app start), CSV/Excel export, backup &
+  restore (full backup zip: database snapshot + receipt photos +
+  preferences), settings (theme mode, 6 theme colors incl. Material You,
+  currency), 4-digit PIN + biometric lock
 
 State is managed with **Riverpod** (`lib/state/providers.dart`), persistence
 with **drift (SQLite)** (`lib/data/database/app_database.dart`). Amounts
