@@ -81,8 +81,8 @@ class NotificationService {
       id: debtId,
       title: 'Debt reminder',
       body: payable
-          ? 'You owe ${formatIDR(amount)} to $person'
-          : '$person owes you ${formatIDR(amount)}',
+          ? 'You owe ${formatMoney(amount)} to $person'
+          : '$person owes you ${formatMoney(amount)}',
       scheduledDate: when,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

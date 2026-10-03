@@ -94,7 +94,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             children: [
               TextSpan(text: '$label  '),
               TextSpan(
-                text: formatIDR(total),
+                text: formatMoney(total),
                 style: const TextStyle(
                     color: AppColors.expense, fontWeight: FontWeight.w700),
               ),
@@ -168,7 +168,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           ],
         ),
         trailing: Text(
-          formatIDR(d.amount),
+          formatMoney(d.amount),
           style: AppTextStyles.amount(size: 15).copyWith(
             color: AppColors.expense,
             decoration: paid ? TextDecoration.lineThrough : null,

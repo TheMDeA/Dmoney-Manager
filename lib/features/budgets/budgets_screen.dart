@@ -173,7 +173,7 @@ class BudgetsScreen extends ConsumerWidget {
                   child: Text(c?.name ?? 'Budget',
                       style: const TextStyle(fontWeight: FontWeight.w600)),
                 ),
-                Text('${formatIDR(spent)} / ${formatIDR(b.limit)}',
+                Text('${formatMoney(spent)} / ${formatMoney(b.limit)}',
                     style: AppTextStyles.amount(size: 13)),
               ],
             ),
@@ -188,8 +188,8 @@ class BudgetsScreen extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               ratio >= 1
-                  ? 'Over budget by ${formatIDR(spent - b.limit)}'
-                  : '${formatIDR(b.limit - spent)} left',
+                  ? 'Over budget by ${formatMoney(spent - b.limit)}'
+                  : '${formatMoney(b.limit - spent)} left',
               style: TextStyle(
                   fontSize: 12,
                   color: ratio >= 1 ? AppColors.expense : AppColors.textMuted),
@@ -251,7 +251,7 @@ class BudgetsScreen extends ConsumerWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('${formatIDR(g.saved)} of ${formatIDR(g.target)}',
+                            Text('${formatMoney(g.saved)} of ${formatMoney(g.target)}',
                                 style: const TextStyle(
                                     color: AppColors.textMuted, fontSize: 12)),
                             const Row(
@@ -306,7 +306,7 @@ class BudgetsScreen extends ConsumerWidget {
                 ),
                 title: Text(d.person),
                 subtitle: Text(d.direction == 'payable' ? 'You owe' : 'Owed to you'),
-                trailing: Text(formatIDR(d.amount),
+                trailing: Text(formatMoney(d.amount),
                     style: AppTextStyles.amount(size: 15)
                         .copyWith(color: AppColors.expense)),
               ),
@@ -390,7 +390,7 @@ class BudgetsScreen extends ConsumerWidget {
           .updateGoalSaved(g.id, g.saved + amount);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${formatIDR(amount)} added to ${g.name}')),
+          SnackBar(content: Text('${formatMoney(amount)} added to ${g.name}')),
         );
       }
     }

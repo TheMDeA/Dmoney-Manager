@@ -25,8 +25,8 @@ class AmountText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = showSign
-        ? formatSignedIDR(amount, isIncome: isIncome)
-        : formatIDR(amount);
+        ? formatSignedMoney(amount, isIncome: isIncome)
+        : formatMoney(amount);
     return Text(
       text,
       style: AppTextStyles.amount(size: size, weight: weight).copyWith(

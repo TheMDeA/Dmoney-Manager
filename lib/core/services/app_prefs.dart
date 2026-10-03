@@ -38,6 +38,11 @@ class AppPrefs {
   static Future<void> setDisplayName(String v) =>
       _p.setString('displayName', v);
 
+  // -------------------------------- currency -------------------------------
+  static String get currencyCode => _p.getString('currencyCode') ?? 'IDR';
+  static Future<void> setCurrencyCode(String v) =>
+      _p.setString('currencyCode', v);
+
   // ----------------------------- notifications ----------------------------
   static bool get budgetAlerts => _p.getBool('notifBudgetAlerts') ?? true;
   static Future<void> setBudgetAlerts(bool v) =>

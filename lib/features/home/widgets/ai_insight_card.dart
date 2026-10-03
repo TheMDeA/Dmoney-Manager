@@ -119,11 +119,11 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       if (total == 0) return null;
       return (
         'Spending is steady this week.',
-        'You spent ${formatIDR(total)} in the last 7 days — nicely under control.'
+        'You spent ${formatMoney(total)} in the last 7 days — nicely under control.'
       );
     }
     final pct = (topRise * 100).toStringAsFixed(0);
-    final spent = formatIDR(thisWeek.entries
+    final spent = formatMoney(thisWeek.entries
         .firstWhere((e) => names[e.key] == topCat)
         .value);
     return (

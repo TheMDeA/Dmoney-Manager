@@ -1,15 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-final NumberFormat _idrFormat =
-    NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+import '../services/app_prefs.dart';
 
-/// Formats whole rupiah, e.g. 12450000 -> "Rp 12.450.000".
-String formatIDR(int amount) => _idrFormat.format(amount);
+/// A currency the user can pick during onboarding (and later in settings).
+class AppCurrency {
+  const AppCurrency(this.code, this.name, this.symbol, this.locale, this.decimals);
+  final String code; // ISO code, e.g. IDR
+  final String name; // English display name
+  final String symbol; // prefix symbol, e.g. "Rp "
+  final String locale; // for grouping separators
+  final int decimals; // digits after the decimal point
+
+  String get label => '$code - $name ($symbol.trim())';
+}
+
+const List<AppCurrency> supportedCurrencies = [
+  AppCurrency('IDR', 'Indonesian Rupiah', 'Rp ', 'id_ID', 0),
+  AppCurrency('USD', 'US Dollar', '\$', 'en_US', 2),
+  AppCurrency('EUR', 'Euro', '€', 'de_DE', 2),
+  AppCurrency('SGD', 'Singapore Dollar', 'S\$', 'en_SG', 2),
+  AppCurrency('MYR', 'Malaysian Ringgit', 'RM', 'ms_MY', 2),
+  AppCurrency('THB', 'Thai Baht', '฿', 'th_TH', 2),
+  AppCurrency('PHP', 'Philippine Peso', '₱', 'fil_PH', 2),
+  AppCurrency('JPY', 'Japanese Yen', '¥', 'ja_JP', 0),
+  AppCurrency('GBP', 'British Pound', '£', 'en_GB', 2),
+  AppCurrency('AUD', 'Australian Dollar', 'A\$', 'en_AU', 2),
+  AppCurrency('INR', 'Indian Rupee', '₹', 'en_IN', 2),
+  AppCurrency('CNY', 'Chinese Yuan', '¥', 'zh_CN', 2),
+  AppCurrency('KRW', 'South Korean Won', '₩', 'ko_KR', 0),
+  AppCurrency('VND', 'Vietnamese Dong', '₫', 'vi_VN', 0),
+];
+
+AppCurrency currencyByCode(String code) => supportedCurrencies.firstWhere(
+      (c) => c.code == code,
+      orElse: () => supportedCurrencies.first,
+    );
+
+/// Formats a whole-unit amount in the user's currency, e.g. 12450000 ->
+/// "Rp 12.450.000" for IDR or "$12,450,000.00" for USD.
+String formatMoney(int amount) =>
+    formatMoneyWith(AppPrefs.currencyCode, amount);
+
+/// Same as [formatMoney] but with an explicit currency code (used during
+/// onboarding, before the choice is saved).
+String formatMoneyWith(String code, int amount) {
+  final c = currencyByCode(code);
+  return NumberFormat.currency(
+    locale: c.locale,
+    symbol: c.symbol,
+    decimalDigits: c.decimals,
+  ).format(amount);
+}
 
 /// Signed amount with explicit +/- so meaning never relies on color alone.
-String formatSignedIDR(int amount, {required bool isIncome}) =>
-    '${isIncome ? '+' : '-'}${formatIDR(amount)}';
+String formatSignedMoney(int amount, {required bool isIncome}) =>
+    '${isIncome ? '+' : '-'}${formatMoney(amount)}';
 
 /// "yyyy-MM" key used by the budgets table.
 String monthKey(DateTime d) =>
