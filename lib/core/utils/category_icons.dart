@@ -16,6 +16,10 @@ const Map<String, IconData> categoryIconMap = {
   'education': Icons.school,
   'swap_horiz': Icons.swap_horiz,
   'other': Icons.category,
+  'wallet': Icons.wallet,
+  'account_balance': Icons.account_balance,
+  'smartphone': Icons.smartphone,
+  'credit_card': Icons.credit_card,
 };
 
 IconData iconForKey(String key) => categoryIconMap[key] ?? Icons.category;

@@ -34,6 +34,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   spending chart against the dashed budget limit, Recommended/Average
   daily pace stats, and its transaction list (tappable to the record).
   Edit icon changes the monthly limit; trash icon deletes the budget.
+- Debt detail screen: tap any debt to open Received/Paid vs Left with a
+  percentage progress bar, amount/date/wallet info, and a payment history.
+  The + button records partial repayments (amount, date, wallet, note);
+  wallet balances move with each payment and the debt auto-marks paid
+  when fully covered. Edit changes the debt details; trash deletes it
+  and reverses all wallet movements. New debts can link a wallet —
+  lending takes money out, borrowing brings it in. Payments are stored
+  in a new `debt_payments` table (DB v3).
+- Wallet detail screen (DB v4): tap any wallet card to open its balance,
+  an ADJUST BALANCE action, Initial Amount, Income/Expense/Transfer
+  transaction counts (tappable to a filtered list), and its transactions
+  grouped by category with a "View all" screen. The wallet name switches
+  between wallets; edit renames/retypes; delete is blocked while the
+  wallet still has transactions. New wallets can set an initial amount.
+- Goal detail screen (DB v4): tap any savings goal to open Saved/Remain
+  with a percentage bar, target amount, goal date with days left,
+  DEPOSIT/WITHDRAW actions, and a full deposit/withdrawal history
+  grouped by day (swipe to delete an entry). Edit changes name/target/
+  date; trash deletes the goal and its history. History is stored in a
+  new `goal_deposits` table.
 
 ### Changed
 - App icon currently falls back to the system default (custom launcher icons

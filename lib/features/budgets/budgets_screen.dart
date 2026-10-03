@@ -12,6 +12,7 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../debts/debts_screen.dart';
 import 'budget_detail_screen.dart';
+import 'goal_detail_screen.dart';
 
 /// Budgets with threshold alerts, savings goals, and a debt preview.
 class BudgetsScreen extends ConsumerWidget {
@@ -230,7 +231,11 @@ class BudgetsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(20),
-                  onTap: () => _addSavingsDialog(context, ref, g),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => GoalDetailScreen(goalId: g.id),
+                    ),
+                  ),
                   child: GlassCard(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -370,43 +375,6 @@ class BudgetsScreen extends ConsumerWidget {
       await ref.read(databaseProvider).addBudget(
             BudgetsCompanion.insert(categoryId: catId!, month: mk, limit: limit),
           );
-    }
-  }
-
-  Future<void> _addSavingsDialog(
-      BuildContext context, WidgetRef ref, Goal g) async {
-    final amountCtrl = TextEditingController();
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Add savings to "${g.name}"'),
-        content: TextField(
-          controller: amountCtrl,
-          keyboardType: TextInputType.number,
-          inputFormatters: [ThousandsSeparatorInputFormatter()],
-          decoration:
-              InputDecoration(labelText: 'Amount (${currentCurrency.code})'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Add')),
-        ],
-      ),
-    );
-    final amount = parseAmountInput(amountCtrl.text);
-    if (saved == true && amount > 0) {
-      await ref
-          .read(databaseProvider)
-          .updateGoalSaved(g.id, g.saved + amount);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${formatMoney(amount)} added to ${g.name}')),
-        );
-      }
     }
   }
 

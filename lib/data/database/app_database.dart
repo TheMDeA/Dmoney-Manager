@@ -21,6 +21,7 @@ class Wallets extends Table {
   TextColumn get name => text()();
   TextColumn get kind => text()(); // cash | bank | ewallet | credit
   IntColumn get balance => integer().withDefault(const Constant(0))(); // whole IDR
+  IntColumn get initialAmount => integer().withDefault(const Constant(0))();
   TextColumn get colorHex => text().withDefault(const Constant('#C6FF4A'))();
 }
 
@@ -81,6 +82,28 @@ class Debts extends Table {
   BoolColumn get isPaid => boolean().withDefault(const Constant(false))();
   DateTimeColumn get dueDate => dateTime().nullable()();
   TextColumn get colorHex => text().withDefault(const Constant('#A78BFA'))();
+  IntColumn get walletId => integer().nullable().references(Wallets, #id)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Partial repayments recorded against a debt.
+class DebtPayments extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get debtId => integer().references(Debts, #id)();
+  IntColumn get amount => integer()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get note => text().withDefault(const Constant(''))();
+  IntColumn get walletId => integer().nullable().references(Wallets, #id)();
+}
+
+/// Deposit / withdrawal history for a savings goal.
+/// Positive amount = deposit, negative = withdrawal.
+class GoalDeposits extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get goalId => integer().references(Goals, #id)();
+  IntColumn get amount => integer()();
+  DateTimeColumn get date => dateTime()();
+  TextColumn get note => text().withDefault(const Constant(''))();
 }
 
 // ---------------------------------------------------------------------------
@@ -111,12 +134,14 @@ class TransactionWithDetails {
   Budgets,
   Goals,
   Debts,
+  DebtPayments,
+  GoalDeposits,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -128,6 +153,21 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             await m.addColumn(transactions, transactions.toWalletId);
             await _ensureTransferCategory();
+          }
+          if (from < 3) {
+            await m.createTable(debtPayments);
+            await m.addColumn(debts, debts.walletId);
+            await m.addColumn(debts, debts.createdAt);
+          }
+          if (from < 4) {
+            await m.addColumn(wallets, wallets.initialAmount);
+            // Best-effort backfill: current balance is the closest known
+            // starting point for pre-v4 wallets.
+            await customUpdate(
+              'UPDATE wallets SET initial_amount = balance',
+              updates: {wallets},
+            );
+            await m.createTable(goalDeposits);
           }
         },
       );
@@ -338,6 +378,56 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> addWallet(WalletsCompanion entry) => into(wallets).insert(entry);
 
+  /// Creates a wallet with its opening balance recorded as the initial amount.
+  Future<int> createWallet({
+    required int accountId,
+    required String name,
+    required String kind,
+    int initialAmount = 0,
+    String colorHex = '#C6FF4A',
+  }) =>
+      into(wallets).insert(WalletsCompanion.insert(
+        accountId: accountId,
+        name: name,
+        kind: kind,
+        balance: Value(initialAmount),
+        initialAmount: Value(initialAmount),
+        colorHex: Value(colorHex),
+      ));
+
+  Future<void> updateWallet({
+    required int id,
+    required String name,
+    required String kind,
+    String? colorHex,
+  }) =>
+      (update(wallets)..where((w) => w.id.equals(id))).write(
+        WalletsCompanion(
+          name: Value(name),
+          kind: Value(kind),
+          colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
+        ),
+      );
+
+  /// Sets a wallet's balance directly (Adjust Balance). The difference is
+  /// absorbed as a correction — no transaction is created.
+  Future<void> setWalletBalance(int id, int newBalance) =>
+      (update(wallets)..where((w) => w.id.equals(id)))
+          .write(WalletsCompanion(balance: Value(newBalance)));
+
+  /// Deletes a wallet. Returns false when it still has transactions —
+  /// those must be moved or deleted first.
+  Future<bool> deleteWallet(int id) async {
+    final txCount = await (select(transactions)
+          ..where((t) =>
+              t.walletId.equals(id) |
+              t.toWalletId.equalsNullable(id)))
+        .get();
+    if (txCount.isNotEmpty) return false;
+    await (delete(wallets)..where((w) => w.id.equals(id))).go();
+    return true;
+  }
+
   Future<int> addAccount(AccountsCompanion entry) =>
       into(accounts).insert(entry);
 
@@ -360,11 +450,203 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> addGoal(GoalsCompanion entry) => into(goals).insert(entry);
 
+  Future<Goal?> getGoalById(int id) =>
+      (select(goals)..where((g) => g.id.equals(id))).getSingleOrNull();
+
+  Future<void> updateGoal({
+    required int id,
+    required String name,
+    required int target,
+    DateTime? deadline,
+    String? colorHex,
+  }) =>
+      (update(goals)..where((g) => g.id.equals(id))).write(
+        GoalsCompanion(
+          name: Value(name),
+          target: Value(target),
+          deadline: Value(deadline),
+          colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
+        ),
+      );
+
+  Future<void> deleteGoal(int id) async {
+    await (delete(goalDeposits)..where((d) => d.goalId.equals(id))).go();
+    await (delete(goals)..where((g) => g.id.equals(id))).go();
+  }
+
+  Stream<List<GoalDeposit>> watchGoalDeposits(int goalId) =>
+      (select(goalDeposits)
+            ..where((d) => d.goalId.equals(goalId))
+            ..orderBy([(d) => OrderingTerm.desc(d.date)]))
+          .watch();
+
+  /// Records a deposit (positive) or withdrawal (negative) against a goal,
+  /// keeping the goal's saved total in sync.
+  Future<void> recordGoalDeposit({
+    required int goalId,
+    required int amount,
+    required DateTime date,
+    String note = '',
+  }) async {
+    final goal = await getGoalById(goalId);
+    if (goal == null) return;
+    await into(goalDeposits).insert(GoalDepositsCompanion.insert(
+      goalId: goalId,
+      amount: amount,
+      date: date,
+      note: Value(note),
+    ));
+    await updateGoalSaved(goalId, goal.saved + amount);
+  }
+
+  /// Deletes one deposit/withdrawal entry, reversing the saved total.
+  Future<void> deleteGoalDeposit(GoalDeposit deposit) async {
+    final goal = await getGoalById(deposit.goalId);
+    await (delete(goalDeposits)..where((d) => d.id.equals(deposit.id))).go();
+    if (goal != null) {
+      await updateGoalSaved(deposit.goalId, goal.saved - deposit.amount);
+    }
+  }
+
   Future<void> updateGoalSaved(int id, int saved) =>
       (update(goals)..where((g) => g.id.equals(id)))
           .write(GoalsCompanion(saved: Value(saved)));
 
   Future<int> addDebt(DebtsCompanion entry) => into(debts).insert(entry);
+
+  /// Creates a debt and moves the linked wallet balance:
+  /// lending takes money out, borrowing brings money in.
+  Future<int> createDebt({
+    required String person,
+    required String note,
+    required int amount,
+    required String direction,
+    DateTime? dueDate,
+    int? walletId,
+    String colorHex = '#A78BFA',
+  }) async {
+    final id = await into(debts).insert(DebtsCompanion.insert(
+      person: person,
+      note: Value(note),
+      amount: amount,
+      direction: direction,
+      dueDate: Value(dueDate),
+      walletId: Value(walletId),
+      colorHex: Value(colorHex),
+    ));
+    if (walletId != null) {
+      await adjustWalletBalance(
+          walletId, direction == 'receivable' ? -amount : amount);
+    }
+    return id;
+  }
+
+  Future<Debt?> getDebtById(int id) =>
+      (select(debts)..where((d) => d.id.equals(id))).getSingleOrNull();
+
+  /// Updates a debt's fields, keeping the wallet movement in sync when the
+  /// amount changes, and re-evaluating the paid state.
+  Future<void> updateDebt({
+    required int id,
+    required String person,
+    required String note,
+    required int amount,
+    DateTime? dueDate,
+    int? walletId,
+  }) async {
+    final old = await getDebtById(id);
+    await (update(debts)..where((d) => d.id.equals(id))).write(
+      DebtsCompanion(
+        person: Value(person),
+        note: Value(note),
+        amount: Value(amount),
+        dueDate: Value(dueDate),
+        walletId: Value(walletId),
+      ),
+    );
+    if (old != null && old.walletId != null && old.amount != amount) {
+      final diff = amount - old.amount;
+      await adjustWalletBalance(
+          old.walletId!, old.direction == 'receivable' ? -diff : diff);
+    }
+    final paidTotal = await debtPaidTotal(id);
+    await setDebtPaid(id, paidTotal >= amount);
+  }
+
+  /// Deletes a debt, reversing the initial wallet movement and every
+  /// recorded payment so balances stay consistent.
+  Future<void> deleteDebt(int id) async {
+    final debt = await getDebtById(id);
+    if (debt != null) {
+      if (debt.walletId != null) {
+        await adjustWalletBalance(debt.walletId!,
+            debt.direction == 'receivable' ? debt.amount : -debt.amount);
+      }
+      final payments =
+          await (select(debtPayments)..where((p) => p.debtId.equals(id))).get();
+      for (final p in payments) {
+        if (p.walletId != null) {
+          await adjustWalletBalance(p.walletId!,
+              debt.direction == 'receivable' ? -p.amount : p.amount);
+        }
+      }
+      await (delete(debtPayments)..where((p) => p.debtId.equals(id))).go();
+    }
+    await (delete(debts)..where((d) => d.id.equals(id))).go();
+  }
+
+  Stream<List<DebtPayment>> watchDebtPayments(int debtId) =>
+      (select(debtPayments)
+            ..where((p) => p.debtId.equals(debtId))
+            ..orderBy([(p) => OrderingTerm.desc(p.date)]))
+          .watch();
+
+  Future<int> debtPaidTotal(int debtId) async {
+    final rows =
+        await (select(debtPayments)..where((p) => p.debtId.equals(debtId)))
+            .get();
+    return rows.fold<int>(0, (s, p) => s + p.amount);
+  }
+
+  /// Records a partial repayment: moves the payment wallet balance
+  /// (money back in for receivables, money out for payables) and marks
+  /// the debt paid once fully covered.
+  Future<void> recordDebtPayment({
+    required Debt debt,
+    required int amount,
+    required DateTime date,
+    String note = '',
+    int? walletId,
+  }) async {
+    await into(debtPayments).insert(DebtPaymentsCompanion.insert(
+      debtId: debt.id,
+      amount: amount,
+      date: date,
+      note: Value(note),
+      walletId: Value(walletId),
+    ));
+    if (walletId != null) {
+      await adjustWalletBalance(
+          walletId, debt.direction == 'receivable' ? amount : -amount);
+    }
+    final paidTotal = await debtPaidTotal(debt.id);
+    if (paidTotal >= debt.amount && !debt.isPaid) {
+      await setDebtPaid(debt.id, true);
+    }
+  }
+
+  /// Deletes one repayment, reversing its wallet movement.
+  Future<void> deleteDebtPayment(DebtPayment payment, Debt debt) async {
+    await (delete(debtPayments)..where((p) => p.id.equals(payment.id))).go();
+    if (payment.walletId != null) {
+      await adjustWalletBalance(payment.walletId!,
+          debt.direction == 'receivable' ? -payment.amount : payment.amount);
+    }
+    final paidTotal = await debtPaidTotal(debt.id);
+    if (paidTotal < debt.amount && debt.isPaid) {
+      await setDebtPaid(debt.id, false);
+    }
+  }
 
   Future<void> setDebtPaid(int id, bool paid) =>
       (update(debts)..where((d) => d.id.equals(id)))
