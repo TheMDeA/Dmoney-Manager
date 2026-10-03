@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -307,7 +308,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       {int? categoryId, int? walletId}) {
     Navigator.push(
       context,
-      MaterialPageRoute(
+      AppPageRoute(
         builder: (_) => WalletTransactionsScreen(
           walletId: walletId ?? wallet?.id ?? _walletId,
           walletName: wallet?.name ?? '',
@@ -624,7 +625,7 @@ class _WalletTransactionsScreenState
                             ),
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(
+                              AppPageRoute(
                                 builder: (_) => TransactionDetailScreen(
                                     transactionId: t.id),
                               ),

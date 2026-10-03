@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/entrance.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -115,16 +117,25 @@ class BudgetsScreen extends ConsumerWidget {
                               icon: Icons.savings_outlined,
                               message: 'No budgets yet. Add one to control spending.')
                         else
-                          for (final b in budgets)
-                            _budgetRow(context, b, cats[b.categoryId],
-                                spentByCat[b.categoryId] ?? 0, mk),
+                          for (var i = 0; i < budgets.length; i++)
+                            Entrance(
+                              key: ValueKey(budgets[i].id),
+                              delay: Duration(
+                                  milliseconds: (i * 60).clamp(0, 300)),
+                              child: _budgetRow(
+                                  context,
+                                  budgets[i],
+                                  cats[budgets[i].categoryId],
+                                  spentByCat[budgets[i].categoryId] ?? 0,
+                                  mk),
+                            ),
                         const SectionHeader(title: 'Savings goals'),
                         _goalsSection(context, ref),
                         SectionHeader(
                           title: 'Debts',
                           action: TextButton(
                             onPressed: () => Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const DebtsScreen()),
+                              AppPageRoute(builder: (_) => const DebtsScreen()),
                             ),
                             child: const Text('View all'),
                           ),
@@ -156,7 +167,7 @@ class BudgetsScreen extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
+          AppPageRoute(
             builder: (_) => BudgetDetailScreen(budgetId: b.id, month: mk),
           ),
         ),
@@ -225,14 +236,17 @@ class BudgetsScreen extends ConsumerWidget {
         }
         return Column(
           children: [
-            for (final g in goals)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: InkWell(
+            for (var i = 0; i < goals.length; i++)
+              Entrance(
+                key: ValueKey(goals[i].id),
+                delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: InkWell(
                   borderRadius: BorderRadius.circular(20),
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => GoalDetailScreen(goalId: g.id),
+                    AppPageRoute(
+                      builder: (_) => GoalDetailScreen(goalId: goals[i].id),
                     ),
                   ),
                   child: GlassCard(
@@ -243,21 +257,21 @@ class BudgetsScreen extends ConsumerWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(g.name,
+                            Text(goals[i].name,
                                 style:
                                     const TextStyle(fontWeight: FontWeight.w600)),
                             Text(
-                                '${(g.target == 0 ? 0 : g.saved / g.target * 100).toStringAsFixed(0)}%',
+                                '${(goals[i].target == 0 ? 0 : goals[i].saved / goals[i].target * 100).toStringAsFixed(0)}%',
                                 style: AppTextStyles.amount(size: 14)),
                           ],
                         ),
                         const SizedBox(height: 10),
                         LinearProgressIndicator(
-                          value: g.target == 0
+                          value: goals[i].target == 0
                               ? 0.0
-                              : (g.saved / g.target).clamp(0.0, 1.0),
+                              : (goals[i].saved / goals[i].target).clamp(0.0, 1.0),
                           backgroundColor: context.hairline,
-                          color: colorFromHex(g.colorHex),
+                          color: colorFromHex(goals[i].colorHex),
                           borderRadius: BorderRadius.circular(4),
                           minHeight: 8,
                         ),
@@ -265,7 +279,7 @@ class BudgetsScreen extends ConsumerWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('${formatMoney(g.saved)} of ${formatMoney(g.target)}',
+                            Text('${formatMoney(goals[i].saved)} of ${formatMoney(goals[i].target)}',
                                 style: TextStyle(
                                     color: context.textMuted, fontSize: 12)),
                             Row(
@@ -283,6 +297,7 @@ class BudgetsScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),

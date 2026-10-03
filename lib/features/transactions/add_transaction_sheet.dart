@@ -41,10 +41,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   int? _categoryId;
   int? _walletId;
   DateTime _date = DateTime.now();
+  TimeOfDay _time = TimeOfDay.now();
   bool _saving = false;
   bool _success = false;
 
   bool get _editing => widget.existing != null;
+
+  DateTime get _dateTime =>
+      DateTime(_date.year, _date.month, _date.day, _time.hour, _time.minute);
 
   @override
   void initState() {
@@ -57,6 +61,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _categoryId = e.transaction.categoryId;
       _walletId = e.transaction.walletId;
       _date = e.transaction.date;
+      _time = TimeOfDay.fromDateTime(e.transaction.date);
     } else {
       _kind = widget.initialKind;
       _walletId = widget.initialWalletId;
@@ -194,14 +199,31 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        controller: _noteCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Note (optional)',
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: _time,
+                          );
+                          if (picked != null) setState(() => _time = picked);
+                        },
+                        icon: const Icon(
+                          Icons.schedule_outlined,
+                          size: 18,
+                        ),
+                        label: Text(
+                          '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
                         ),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _noteCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Note (optional)',
+                  ),
                 ),
                 const SizedBox(height: 20),
                 FilledButton(
@@ -273,7 +295,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           kind: _kind,
           amount: amount,
           note: _noteCtrl.text.trim(),
-          date: _date,
+          date: _dateTime,
         );
       } else {
         final id = await db.addTransaction(
@@ -283,7 +305,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             kind: _kind,
             amount: amount,
             note: Value(_noteCtrl.text.trim()),
-            date: _date,
+            date: _dateTime,
           ),
         );
         if (widget.attachedPhotoPath != null) {

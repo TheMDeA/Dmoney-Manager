@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Animations across the app: swipe left/right between the 5 main tabs
+  (`PageView` with eased transitions; tapping a nav item or jumping
+  from a quick action animates the same way), active nav icons pop
+  with a spring scale, every pushed screen now uses a shared
+  fade+slide route (`AppPageRoute`, with a subtle parallax on the
+  outgoing page), and list items stagger in (Home transactions,
+  wallets, budgets, goals, debts) — new items animate on insert,
+  existing ones stay put on rebuilds.
+- Time picker in the add-transaction sheet: date and time sit
+  side-by-side (like the add-debt form, `HH.mm` format) and the note
+  field moves to its own full-width row. Editing a transaction now
+  also loads its saved time.
+
+### Fixed
+- Picking a date in the add-transaction sheet silently reset the time
+  to midnight; the chosen time is now preserved.
+
 ## [1.1.3] - 2026-10-04
 
 ### Fixed

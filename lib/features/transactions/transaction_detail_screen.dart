@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -255,7 +256,7 @@ class _TransactionDetailScreenState
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(
+                      AppPageRoute(
                         builder: (_) => PhotoViewerScreen(
                           transactionId: widget.transactionId,
                           initialIndex: i,
