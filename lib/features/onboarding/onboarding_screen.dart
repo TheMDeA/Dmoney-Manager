@@ -1,9 +1,13 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/services/app_prefs.dart';
+import '../../core/services/backup_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
@@ -159,42 +163,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.hairline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Icon(Icons.cloud_upload_outlined,
-                color: AppColors.violet, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              'Restore data',
-              style: GoogleFonts.spaceGrotesk(
-                color: AppColors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Backup & restore from a file is coming in a future update. '
-              'Your data is stored safely on this device.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textMuted, height: 1.5),
-            ),
-            const SizedBox(height: 20),
-            _primaryButton('GOT IT', () => Navigator.pop(context)),
-          ],
-        ),
+      builder: (context) => _RestoreSheet(
+        onRestored: () {
+          // The accounts stream flips non-empty -> app.dart shows the shell.
+          Navigator.pop(context);
+        },
       ),
     );
   }
@@ -498,5 +471,112 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         child: Text(label),
       ),
     );
+  }
+}
+
+/// Bottom sheet: pick a backup zip and restore it.
+class _RestoreSheet extends ConsumerStatefulWidget {
+  const _RestoreSheet({required this.onRestored});
+  final VoidCallback onRestored;
+
+  @override
+  ConsumerState<_RestoreSheet> createState() => _RestoreSheetState();
+}
+
+class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
+  bool _busy = false;
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.hairline,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Icon(Icons.cloud_upload_outlined,
+              color: AppColors.violet, size: 40),
+          const SizedBox(height: 12),
+          Text(
+            'Restore data',
+            style: GoogleFonts.spaceGrotesk(
+              color: AppColors.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Pick a backup file created by Dmoney Manager. '
+            'It replaces everything on this device.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textMuted, height: 1.5),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.expense, height: 1.4),
+            ),
+          ],
+          const SizedBox(height: 20),
+          if (_busy)
+            const CircularProgressIndicator()
+          else
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _pickAndRestore,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.lime,
+                  foregroundColor: AppColors.bgBase,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                child: const Text('CHOOSE BACKUP FILE'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickAndRestore() async {
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+    if (picked == null || picked.path == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final db = ref.read(databaseProvider);
+      await BackupService.restoreBackup(db, File(picked.path!));
+      widget.onRestored();
+    } on BackupException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Restore failed: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 }

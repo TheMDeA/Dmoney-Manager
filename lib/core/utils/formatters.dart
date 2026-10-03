@@ -12,7 +12,7 @@ class AppCurrency {
   final String locale; // for grouping separators
   final int decimals; // digits after the decimal point
 
-  String get label => '$code - $name ($symbol.trim())';
+  String get label => '$code - $name (${symbol.trim()})';
 }
 
 const List<AppCurrency> supportedCurrencies = [
