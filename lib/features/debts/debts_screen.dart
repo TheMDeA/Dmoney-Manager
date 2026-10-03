@@ -10,6 +10,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'debt_detail_screen.dart';
+import 'add_debt_screen.dart';
 
 /// Debt tracking: Payable / Receivable tabs, outstanding vs paid sections.
 class DebtsScreen extends ConsumerStatefulWidget {
@@ -31,7 +32,12 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         actions: [
           IconButton(
             tooltip: 'Add debt',
-            onPressed: () => _addDebtDialog(context, ref),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    AddDebtScreen(initialDirection: _direction),
+              ),
+            ),
             icon: const Icon(Icons.add),
           ),
         ],
@@ -183,103 +189,4 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     );
   }
 
-  Future<void> _addDebtDialog(BuildContext context, WidgetRef ref) async {
-    final personCtrl = TextEditingController();
-    final noteCtrl = TextEditingController();
-    final amountCtrl = TextEditingController();
-    String direction = _direction;
-    DateTime? dueDate;
-    final db = ref.read(databaseProvider);
-    final wallets = await db.watchWallets().first;
-    if (!context.mounted) return;
-    int? walletId = wallets.isNotEmpty ? wallets.first.id : null;
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Add debt'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(controller: personCtrl, decoration: const InputDecoration(labelText: 'Person')),
-                const SizedBox(height: 12),
-                TextField(controller: noteCtrl, decoration: const InputDecoration(labelText: 'Note (optional)')),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amountCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [ThousandsSeparatorInputFormatter()],
-                  decoration: InputDecoration(
-                      labelText: 'Amount (${currentCurrency.code})'),
-                ),
-                const SizedBox(height: 12),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'payable', label: Text('I owe')),
-                    ButtonSegment(value: 'receivable', label: Text('Owes me')),
-                  ],
-                  selected: {direction},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => setState(() => direction = s.first),
-                ),
-                const SizedBox(height: 12),
-                if (wallets.isNotEmpty)
-                  DropdownButtonFormField<int?>(
-                    initialValue: walletId,
-                    decoration: const InputDecoration(labelText: 'Wallet'),
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('No wallet')),
-                      for (final w in wallets)
-                        DropdownMenuItem<int?>(value: w.id, child: Text(w.name)),
-                    ],
-                    onChanged: (v) => setState(() => walletId = v),
-                  ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now().add(const Duration(days: 7)),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                    );
-                    if (picked != null) setState(() => dueDate = picked);
-                  },
-                  icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                  label: Text(dueDate == null ? 'Due date (optional)' : formatDate(dueDate!)),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add')),
-          ],
-        ),
-      ),
-    );
-    final amount = parseAmountInput(amountCtrl.text);
-    if (saved == true && personCtrl.text.trim().isNotEmpty && amount > 0) {
-      final id = await db.createDebt(
-        person: personCtrl.text.trim(),
-        note: noteCtrl.text.trim(),
-        amount: amount,
-        direction: direction,
-        dueDate: dueDate,
-        walletId: walletId,
-      );
-      if (dueDate != null && AppPrefs.debtReminders) {
-        final dd = dueDate!;
-        await NotificationService.scheduleDebtReminder(
-          debtId: id,
-          person: personCtrl.text.trim(),
-          amount: amount,
-          payable: direction == 'payable',
-          dueDate: dd,
-        );
-      }
-    }
-  }
 }

@@ -1,4 +1,3 @@
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,8 +6,10 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'category_form_screen.dart';
 
-/// Flexible categories: create, edit, delete, with subcategories.
+/// Manage Category: INCOME / EXPENSE tabs, drag-to-reorder rows with
+/// subcategory counts, edit + delete actions, add via the + button.
 class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
 
@@ -17,249 +18,184 @@ class CategoriesScreen extends ConsumerStatefulWidget {
 }
 
 class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
-  bool _editing = false;
-
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Categories'),
-        actions: [
-          TextButton(
-            onPressed: () => setState(() => _editing = !_editing),
-            child: Text(_editing ? 'Done' : 'Edit'),
-          ),
-        ],
-      ),
-      body: StreamBuilder<List<Category>>(
-        stream: db.watchCategories(topLevelOnly: true),
-        builder: (context, snap) {
-          final cats = snap.data ?? const <Category>[];
-          final expense = cats.where((c) => c.kind == 'expense').toList();
-          final income = cats.where((c) => c.kind == 'income').toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-            children: [
-              _sectionLabel(context, 'Expense'),
-              for (final c in expense) _categoryTile(context, ref, c),
-              _addButton(context, ref, 'expense'),
-              const SizedBox(height: 16),
-              _sectionLabel(context, 'Income'),
-              for (final c in income) _categoryTile(context, ref, c),
-              _addButton(context, ref, 'income'),
-            ],
+    return DefaultTabController(
+      length: 2,
+      child: Builder(
+        builder: (context) {
+          final tab = DefaultTabController.of(context);
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Manage Category'),
+              actions: [
+                IconButton(
+                  tooltip: 'Add category',
+                  icon: const Icon(Icons.add),
+                  onPressed: () {
+                    final kind = tab.index == 0 ? 'income' : 'expense';
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            CategoryFormScreen(kind: kind),
+                      ),
+                    );
+                  },
+                ),
+              ],
+              bottom: const TabBar(
+                tabs: [
+                  Tab(text: 'INCOME'),
+                  Tab(text: 'EXPENSE'),
+                ],
+              ),
+            ),
+            body: StreamBuilder<List<Category>>(
+              stream: db.watchCategories(),
+              builder: (context, snap) {
+                final all = snap.data ?? const <Category>[];
+                final subCounts = <int, int>{};
+                for (final c in all) {
+                  if (c.parentId != null) {
+                    subCounts[c.parentId!] =
+                        (subCounts[c.parentId!] ?? 0) + 1;
+                  }
+                }
+                return TabBarView(
+                  children: [
+                    _categoryList(
+                      context,
+                      db,
+                      all
+                          .where((c) =>
+                              c.kind == 'income' && c.parentId == null)
+                          .toList(),
+                      subCounts,
+                    ),
+                    _categoryList(
+                      context,
+                      db,
+                      all
+                          .where((c) =>
+                              c.kind == 'expense' && c.parentId == null)
+                          .toList(),
+                      subCounts,
+                    ),
+                  ],
+                );
+              },
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _sectionLabel(BuildContext context, String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Text(label,
-          style: Theme.of(context)
-              .textTheme
-              .labelLarge
-              ?.copyWith(color: AppColors.textMuted)),
-    );
-  }
-
-  Widget _categoryTile(BuildContext context, WidgetRef ref, Category c) {
-    final color = colorFromHex(c.colorHex);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ExpansionTile(
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(iconForKey(c.iconKey), color: color, size: 20),
-        ),
-        title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-        trailing: _editing
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit_outlined, size: 20),
-                    onPressed: () =>
-                        _categoryDialog(context, ref, c.kind, existing: c),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        color: AppColors.expense),
-                    onPressed: () => _confirmDelete(context, ref, c),
-                  ),
-                ],
-              )
-            : const Icon(Icons.expand_more),
-        children: [
-          _subcategoryList(context, ref, c),
-        ],
-      ),
-    );
-  }
-
-  Widget _subcategoryList(BuildContext context, WidgetRef ref, Category parent) {
-    final db = ref.watch(databaseProvider);
-    return StreamBuilder<List<Category>>(
-      stream: db.watchSubcategories(parent.id),
-      builder: (context, snap) {
-        final subs = snap.data ?? const <Category>[];
-        return Column(
-          children: [
-            for (final s in subs)
-              ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.only(left: 72, right: 8),
-                title: Text(s.name),
-                trailing: _editing
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            onPressed: () => _categoryDialog(context, ref,
-                                s.kind, existing: s, parentId: parent.id),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline,
-                                color: AppColors.expense, size: 20),
-                            onPressed: () => _confirmDelete(context, ref, s),
-                          ),
-                        ],
-                      )
-                    : null,
+  Widget _categoryList(
+    BuildContext context,
+    AppDatabase db,
+    List<Category> cats,
+    Map<int, int> subCounts,
+  ) {
+    if (cats.isEmpty) {
+      return const Center(
+        child: Text('No categories yet — tap + to add one',
+            style: TextStyle(color: AppColors.textMuted)),
+      );
+    }
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
+      itemCount: cats.length,
+      onReorderItem: (oldIndex, newIndex) async {
+        final reordered = cats.toList();
+        final moved = reordered.removeAt(oldIndex);
+        reordered.insert(newIndex, moved);
+        await db.reorderCategories(
+            [for (final c in reordered) c.id]);
+      },
+      itemBuilder: (context, i) {
+        final c = cats[i];
+        final color = colorFromHex(c.colorHex);
+        final n = subCounts[c.id] ?? 0;
+        return ListTile(
+          key: ValueKey(c.id),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ReorderableDragStartListener(
+                index: i,
+                child: const Icon(Icons.drag_indicator,
+                    color: AppColors.textMuted),
               ),
-            ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.only(left: 72),
-              leading: const Icon(Icons.add, size: 18),
-              title: const Text('Add subcategory'),
-              onTap: () => _categoryDialog(context, ref, parent.kind, parentId: parent.id),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(iconForKey(c.iconKey),
+                    color: Colors.white, size: 22),
+              ),
+            ],
+          ),
+          title: Text(c.name,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(
+            '$n subcategory',
+            style: const TextStyle(
+                fontSize: 12, color: AppColors.textMuted),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Edit',
+                icon: const Icon(Icons.edit_outlined, size: 22),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CategoryFormScreen(
+                      kind: c.kind,
+                      existing: c,
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline,
+                    size: 22, color: AppColors.textMuted),
+                onPressed: () => _confirmDelete(context, db, c),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _addButton(BuildContext context, WidgetRef ref, String kind) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: OutlinedButton.icon(
-        onPressed: () => _categoryDialog(context, ref, kind),
-        icon: const Icon(Icons.add),
-        label: const Text('Add category'),
-      ),
-    );
-  }
-
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Category c) async {
+  Future<void> _confirmDelete(
+      BuildContext context, AppDatabase db, Category c) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Delete "${c.name}"?'),
-        content: const Text('Transactions using it keep their history.'),
+        content: const Text(
+            'Its subcategories are removed too. Transactions using it keep their history.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete')),
         ],
       ),
     );
-    if (ok == true) {
-      await ref.read(databaseProvider).deleteCategory(c.id);
-    }
-  }
-
-  Future<void> _categoryDialog(BuildContext context, WidgetRef ref, String kind,
-      {int? parentId, Category? existing}) async {
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    String iconKey = existing?.iconKey ?? 'other';
-    String colorHex = existing?.colorHex ?? availableColors.first;
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text(existing != null
-              ? 'Edit category'
-              : (parentId == null ? 'New category' : 'New subcategory')),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-                const SizedBox(height: 16),
-                const Text('Icon'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 4,
-                  children: [
-                    for (final k in availableIconKeys)
-                      IconButton(
-                        onPressed: () => setState(() => iconKey = k),
-                        icon: Icon(iconForKey(k),
-                            color: iconKey == k ? AppColors.lime : null),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text('Color'),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final hex in availableColors)
-                      InkWell(
-                        onTap: () => setState(() => colorHex = hex),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: colorFromHex(hex),
-                            shape: BoxShape.circle,
-                            border: colorHex == hex
-                                ? Border.all(color: Colors.white, width: 2)
-                                : null,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
-          ],
-        ),
-      ),
-    );
-    if (saved == true && nameCtrl.text.trim().isNotEmpty) {
-      if (existing != null) {
-        await ref.read(databaseProvider).updateCategory(
-              id: existing.id,
-              name: nameCtrl.text.trim(),
-              iconKey: iconKey,
-              colorHex: colorHex,
-            );
-      } else {
-        await ref.read(databaseProvider).addCategory(CategoriesCompanion.insert(
-              name: nameCtrl.text.trim(),
-              iconKey: Value(iconKey),
-              colorHex: Value(colorHex),
-              kind: kind,
-              parentId: Value(parentId),
-            ));
-      }
-    }
+    if (ok == true) await db.deleteCategory(c.id);
   }
 }

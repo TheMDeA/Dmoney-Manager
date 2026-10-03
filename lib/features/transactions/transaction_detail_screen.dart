@@ -64,6 +64,14 @@ class _TransactionDetailScreenState
                 );
                 return;
               }
+              if (d.transaction.debtId != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text(
+                          'Debt entries are managed from the debt itself')),
+                );
+                return;
+              }
               await showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
@@ -117,6 +125,28 @@ class _TransactionDetailScreenState
                     ),
                   ],
                 ),
+                if (t.debtId != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgRaised,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.handshake_outlined, size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Linked to a debt — view or manage it from the debt detail.',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 _row(context, 'Category', c.name),
                 _row(
@@ -298,6 +328,16 @@ class _TransactionDetailScreenState
     final all = await db.getTransactionsInRange(DateTime(2000), DateTime(2100));
     final d = all.firstWhere((e) => e.transaction.id == widget.transactionId);
     final t = d.transaction;
+    if (t.debtId != null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text('Debt entries can\'t be duplicated — add a new debt')),
+        );
+      }
+      return;
+    }
     if (t.kind == 'transfer' && t.toWalletId != null) {
       await db.addTransfer(
         fromWalletId: t.walletId,
@@ -323,6 +363,23 @@ class _TransactionDetailScreenState
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final db = ref.read(databaseProvider);
+    final existing = await db.getTransactionsInRange(
+        DateTime(2000), DateTime(2100));
+    final current = existing
+        .where((e) => e.transaction.id == widget.transactionId)
+        .firstOrNull;
+    if (current != null && current.transaction.debtId != null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Debt entries can\'t be deleted here — delete the debt itself')),
+        );
+      }
+      return;
+    }
+    if (!context.mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(

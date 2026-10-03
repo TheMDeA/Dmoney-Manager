@@ -368,6 +368,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       amount: result.amount,
       dueDate: result.dueDate,
       walletId: result.walletId,
+      recordAsTransaction: result.recordAsTransaction,
     );
     // Keep the reminder in sync with edits.
     if (result.dueDate != null && AppPrefs.debtReminders) {
@@ -540,12 +541,14 @@ class _DebtEditInput {
     required this.amount,
     required this.dueDate,
     required this.walletId,
+    required this.recordAsTransaction,
   });
   final String person;
   final String note;
   final int amount;
   final DateTime? dueDate;
   final int? walletId;
+  final bool recordAsTransaction;
 }
 
 /// Dialog for editing a debt's details.
@@ -565,6 +568,7 @@ class _EditDebtDialogState extends State<_EditDebtDialog> {
   late final TextEditingController _amountCtrl;
   DateTime? _dueDate;
   int? _walletId;
+  late bool _recordTx;
 
   @override
   void initState() {
@@ -575,6 +579,7 @@ class _EditDebtDialogState extends State<_EditDebtDialog> {
         TextEditingController(text: formatAmountInput(widget.debt.amount));
     _dueDate = widget.debt.dueDate;
     _walletId = widget.debt.walletId;
+    _recordTx = widget.debt.recordAsTransaction;
   }
 
   @override
@@ -640,6 +645,13 @@ class _EditDebtDialogState extends State<_EditDebtDialog> {
                   ? 'Due date (optional)'
                   : formatDate(_dueDate!)),
             ),
+            SwitchListTile(
+              title: const Text('Show in transaction history'),
+              subtitle:
+                  const Text('Record this debt as a transaction'),
+              value: _recordTx,
+              onChanged: (v) => setState(() => _recordTx = v),
+            ),
           ],
         ),
       ),
@@ -656,6 +668,7 @@ class _EditDebtDialogState extends State<_EditDebtDialog> {
               amount: parseAmountInput(_amountCtrl.text),
               dueDate: _dueDate,
               walletId: _walletId,
+              recordAsTransaction: _recordTx,
             ),
           ),
           child: const Text('Save'),
