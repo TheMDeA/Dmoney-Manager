@@ -68,7 +68,7 @@ class GoalSpotlightCard extends ConsumerWidget {
                                 fontWeight: FontWeight.w700, fontSize: 16)),
                         const SizedBox(height: 2),
                         Text(
-                          '${formatIDR(g.saved)} of ${formatIDR(g.target)}',
+                          '${formatMoney(g.saved)} of ${formatMoney(g.target)}',
                           style: const TextStyle(
                               color: AppColors.textMuted, fontSize: 12),
                         ),

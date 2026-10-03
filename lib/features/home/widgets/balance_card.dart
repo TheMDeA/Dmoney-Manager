@@ -59,7 +59,7 @@ class BalanceCard extends ConsumerWidget {
                     ],
                   ),
                   Text(
-                    balanceHidden ? 'Rp ••••••••' : formatIDR(total),
+                    balanceHidden ? 'Rp ••••••••' : formatMoney(total),
                     style: AppTextStyles.displayBalance.copyWith(color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 16),
@@ -102,7 +102,7 @@ class BalanceCard extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            formatSignedIDR(amount, isIncome: isIncome),
+            formatSignedMoney(amount, isIncome: isIncome),
             style: AppTextStyles.amount(size: 16).copyWith(
               color: isIncome ? AppColors.income : AppColors.expense,
             ),

@@ -164,7 +164,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                       ),
                     ),
                     Text(
-                      formatIDR(total),
+                      formatMoney(total),
                       style: AppTextStyles.amount(size: 18),
                     ),
                   ],
@@ -189,7 +189,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   const SizedBox(width: 10),
                   Expanded(child: Text(cats[e.key]?.name ?? 'Other')),
                   Text(
-                    '${(e.value / total * 100).toStringAsFixed(0)}%  ${formatIDR(e.value)}',
+                    '${(e.value / total * 100).toStringAsFixed(0)}%  ${formatMoney(e.value)}',
                     style: AppTextStyles.amount(size: 13),
                   ),
                 ],

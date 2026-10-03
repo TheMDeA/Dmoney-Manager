@@ -40,7 +40,7 @@ class StatSparklineCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              formatSignedIDR(amount, isIncome: isIncome),
+              formatSignedMoney(amount, isIncome: isIncome),
               style: AppTextStyles.amount(size: 17).copyWith(color: color),
             ),
             const SizedBox(height: 8),
