@@ -10,7 +10,12 @@ import 'state/providers.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppPrefs.init();
-  await NotificationService.init();
+  // Notifications must never prevent the app from starting.
+  try {
+    await NotificationService.init();
+  } catch (_) {
+    // Leave notifications disabled; the app runs fine without them.
+  }
   final db = AppDatabase();
   runApp(
     ProviderScope(
