@@ -1,7 +1,11 @@
 name: Build APK
 
-# Manual only — no push/PR triggers (avoids workflow spam).
 on:
+  push:
+    tags: ['v*']
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   workflow_dispatch:
     inputs:
       build_mode:
@@ -16,8 +20,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -39,11 +46,98 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build APK
-        run: flutter build apk --${{ inputs.build_mode }}
+        run: |
+          MODE="${{ github.event.inputs.build_mode || 'release' }}"
+          flutter build apk --$MODE > "$RUNNER_TEMP/flutter-build.log" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/flutter-build.log"
+          exit $code
 
-      - name: Upload APK
+      - name: Show build errors
+        if: failure()
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/flutter-build.log"
+          if [ -f "$log" ]; then
+            errors=$(grep -E "error:|Error|FAILED|Exception|FAILURE|What went wrong" "$log" | head -60)
+            echo "=== ERRORS ==="
+            echo "$errors" | while IFS= read -r line; do echo "##[error]$line"; done
+            {
+              echo "### Flutter Build Errors"
+              echo '```'
+              echo "$errors"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "##[error]Build log not found at $log"
+          fi
+
+      - name: Upload build log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dmoney-manager-${{ inputs.build_mode }}-apk
-          path: build/app/outputs/flutter-apk/app-${{ inputs.build_mode }}.apk
+          name: flutter-build-log
+          path: ${{ runner.temp }}/flutter-build.log
+          if-no-files-found: ignore
+
+      - name: Locate APK
+        id: apk
+        if: success()
+        shell: bash
+        run: |
+          MODE="${{ github.event.inputs.build_mode || 'release' }}"
+          apk="build/app/outputs/flutter-apk/app-$MODE.apk"
+          if [ ! -f "$apk" ]; then
+            echo "##[error]No APK at $apk"
+            exit 1
+          fi
+          echo "Found APK: $apk ($(( $(stat -c%s "$apk") / 1024 / 1024 )) MB)"
+          echo "apk_path=$apk" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmoney-manager-apk
+          path: ${{ steps.apk.outputs.apk_path }}
           if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify pubspec version matches tag
+        shell: bash
+        run: |
+          version=$(grep -oP '^version:\s*\K[0-9]+\.[0-9]+\.[0-9]+' pubspec.yaml)
+          tag="${GITHUB_REF_NAME#v}"
+          echo "pubspec version=$version tag=$tag"
+          if [ -z "$version" ]; then
+            echo "::error::Could not read version from pubspec.yaml"
+            exit 1
+          fi
+          if [ "$version" != "$tag" ]; then
+            echo "::error::pubspec version ($version) does not match release tag ($tag). Bump the version and commit before tagging."
+            exit 1
+          fi
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dmoney-manager-apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Dmoney Manager ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          files: |
+            **/*.apk
