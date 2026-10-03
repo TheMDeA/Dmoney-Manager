@@ -74,7 +74,7 @@ class TransactionTile extends ConsumerWidget {
               ),
             ),
             if (isTransfer)
-              Text(formatIDR(t.amount), style: AppTextStyles.amount(size: 15))
+              Text(formatMoney(t.amount), style: AppTextStyles.amount(size: 15))
             else
               AmountText(t.amount, isIncome: isIncome, size: 15),
           ],

@@ -100,7 +100,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                               DropdownMenuItem(
                                 value: w.id,
                                 child: Text(
-                                  '${w.name} (${formatIDR(w.balance)})',
+                                  '${w.name} (${formatMoney(w.balance)})',
                                 ),
                               ),
                           ],
@@ -124,7 +124,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                               DropdownMenuItem(
                                 value: w.id,
                                 child: Text(
-                                  '${w.name} (${formatIDR(w.balance)})',
+                                  '${w.name} (${formatMoney(w.balance)})',
                                 ),
                               ),
                           ],
@@ -200,7 +200,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
     Navigator.of(context).pop();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text('Transferred ${formatIDR(amount)}')));
+    ).showSnackBar(SnackBar(content: Text('Transferred ${formatMoney(amount)}')));
   }
 }
 

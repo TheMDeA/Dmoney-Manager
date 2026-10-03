@@ -68,7 +68,7 @@ class WalletsScreen extends ConsumerWidget {
                             const Text('Combined balance',
                                 style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
                             const SizedBox(height: 4),
-                            Text(formatIDR(total),
+                            Text(formatMoney(total),
                                 style: AppTextStyles.displayBalance
                                     .copyWith(fontSize: 32, color: AppColors.textPrimary)),
                             const SizedBox(height: 4),
@@ -156,7 +156,7 @@ class WalletsScreen extends ConsumerWidget {
               ),
             ),
             Text(
-              formatIDR(w.balance),
+              formatMoney(w.balance),
               style: AppTextStyles.amount(size: 17).copyWith(
                 color: negative ? AppColors.expense : AppColors.textPrimary,
               ),

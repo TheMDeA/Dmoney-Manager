@@ -83,3 +83,8 @@ class DisplayNameNotifier extends Notifier<String> {
 
 final displayNameProvider =
     NotifierProvider<DisplayNameNotifier, String>(DisplayNameNotifier.new);
+
+/// Stream of all accounts; empty means the user hasn't onboarded yet.
+final accountsStreamProvider = StreamProvider<List<Account>>((ref) {
+  return ref.watch(databaseProvider).watchAccounts();
+});

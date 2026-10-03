@@ -309,7 +309,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         content: Text(
           _editing
               ? 'Record updated'
-              : '${_kind == 'income' ? 'Income' : 'Expense'} of ${formatIDR(amount)} saved',
+              : '${_kind == 'income' ? 'Income' : 'Expense'} of ${formatMoney(amount)} saved',
         ),
       ),
     );

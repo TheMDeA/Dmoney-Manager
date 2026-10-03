@@ -122,8 +122,8 @@ class _TransactionDetailScreenState
                   context,
                   'Amount',
                   isTransfer
-                      ? formatIDR(t.amount)
-                      : formatSignedIDR(t.amount, isIncome: isIncome),
+                      ? formatMoney(t.amount)
+                      : formatSignedMoney(t.amount, isIncome: isIncome),
                   valueColor: isTransfer
                       ? null
                       : (isIncome ? AppColors.income : AppColors.expense),
