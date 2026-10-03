@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   category (legend rows are tappable too), tap bars and trend points for
   value tooltips. Transfers no longer drag the net-savings trend down,
   and spending beyond the top 5 categories is aggregated into "Other".
+- Receipt photos: tap a thumbnail to open a full-screen viewer (swipe
+  between photos, pinch to zoom) with a delete action and confirmation.
 
 ### Changed
 - App icon currently falls back to the system default (custom launcher icons
