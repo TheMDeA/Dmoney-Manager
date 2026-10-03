@@ -50,3 +50,11 @@ First release — Flutter app with the full feature set from the app mockup.
 ### Fixed
 - Recording income/expense now updates wallet balances (and reverses correctly
   on edit/delete) — balances previously never changed after seeding.
+- Black screen on launch: the notification plugin referenced a launcher icon
+  that isn't in the repo, crashing the app before the first frame. The app now
+  ships a bundled notification icon, and a notification failure can no longer
+  prevent startup.
+
+### Changed
+- App icon currently falls back to the system default (custom launcher icons
+  not yet generated — planned via flutter_launcher_icons).
