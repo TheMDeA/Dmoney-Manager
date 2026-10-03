@@ -29,6 +29,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   and spending beyond the top 5 categories is aggregated into "Other".
 - Receipt photos: tap a thumbnail to open a full-screen viewer (swipe
   between photos, pinch to zoom) with a delete action and confirmation.
+- Budget detail screen: tap any budget row to open Spent/Left with a
+  percentage progress bar, period info with days left, a daily cumulative
+  spending chart against the dashed budget limit, Recommended/Average
+  daily pace stats, and its transaction list (tappable to the record).
+  Edit icon changes the monthly limit; trash icon deletes the budget.
 
 ### Changed
 - App icon currently falls back to the system default (custom launcher icons
