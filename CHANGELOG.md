@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-03
+
 ### Added
 - Currency can now be changed after the initial setup: the Settings
   "Currency" tile opens a picker with all 14 currencies instead of an

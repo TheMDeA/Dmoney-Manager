@@ -85,10 +85,10 @@ no future update can share the same signature.
 
 Release checklist:
 
-1. Bump `version` in `pubspec.yaml` (e.g. `1.1.1+4`).
+1. Bump `version` in `pubspec.yaml` (e.g. `1.1.2+5`).
 2. Move the `[Unreleased]` changelog entries into a dated version section
    in `CHANGELOG.md`.
-3. Commit, then `git tag v1.1.1 && git push origin v1.1.1`.
+3. Commit, then `git tag v1.1.2 && git push origin v1.1.2`.
 
 ## App identity
 
