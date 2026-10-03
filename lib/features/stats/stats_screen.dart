@@ -11,6 +11,8 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
 /// Reports: expense donut, 6-month income/expense bars, net-savings trend.
+/// All charts are live (driven by the transaction stream), tappable, and
+/// animate on every data change.
 class StatsScreen extends ConsumerStatefulWidget {
   const StatsScreen({super.key});
 
@@ -19,7 +21,11 @@ class StatsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
+  static const _animDuration = Duration(milliseconds: 800);
+  static const _animCurve = Curves.easeOutCubic;
+
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  int _touchedDonutIndex = -1;
 
   @override
   Widget build(BuildContext context) {
@@ -67,25 +73,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   Widget _monthSelector(BuildContext context) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
+    void shift(int delta) => setState(() {
+          _month = DateTime(_month.year, _month.month + delta);
+          _touchedDonutIndex = -1;
+        });
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          onPressed: () =>
-              setState(() => _month = DateTime(_month.year, _month.month - 1)),
+          onPressed: () => shift(-1),
           icon: const Icon(Icons.chevron_left),
         ),
         Text(
@@ -93,13 +92,25 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         IconButton(
-          onPressed: () =>
-              setState(() => _month = DateTime(_month.year, _month.month + 1)),
+          onPressed: () => shift(1),
           icon: const Icon(Icons.chevron_right),
         ),
       ],
     );
   }
+
+  // -------------------------------- donut --------------------------------
+
+  /// A donut slice: either a real category or the aggregated "Other".
+  ({String name, String colorHex, int amount}) _sliceOf(
+    MapEntry<int, int> e,
+    Map<int, Category> cats,
+  ) =>
+      (
+        name: cats[e.key]?.name ?? 'Other',
+        colorHex: cats[e.key]?.colorHex ?? '#9CA3AF',
+        amount: e.value,
+      );
 
   Widget _donut(
     BuildContext context,
@@ -119,18 +130,39 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final total = byCat.values.fold<int>(0, (s, v) => s + v);
     if (total == 0) {
       return const GlassCard(
-        child: Center(child: Text('No expenses this month')),
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Text(
+              'No expenses this month',
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ),
+        ),
       );
     }
+
     final sorted = byCat.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final top = sorted.take(5).toList();
+    // Top 5 slices + an aggregated "Other" so no spending goes missing.
+    final slices = <({String name, String colorHex, int amount})>[
+      for (final e in sorted.take(5)) _sliceOf(e, cats),
+      if (sorted.length > 5)
+        (
+          name: 'Other',
+          colorHex: '#9CA3AF',
+          amount: sorted.skip(5).fold<int>(0, (s, e) => s + e.value),
+        ),
+    ];
+    if (_touchedDonutIndex >= slices.length) _touchedDonutIndex = -1;
+    final touched =
+        _touchedDonutIndex >= 0 ? slices[_touchedDonutIndex] : null;
 
     return GlassCard(
       child: Column(
         children: [
           SizedBox(
-            height: 190,
+            height: 200,
             child: Stack(
               alignment: Alignment.center,
               children: [
@@ -138,67 +170,123 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   PieChartData(
                     centerSpaceRadius: 58,
                     sectionsSpace: 3,
+                    pieTouchData: PieTouchData(
+                      touchCallback: (event, response) {
+                        setState(() {
+                          if (event is FlTapUpEvent &&
+                              response?.touchedSection != null) {
+                            final i = response!
+                                .touchedSection!.touchedSectionIndex;
+                            _touchedDonutIndex =
+                                _touchedDonutIndex == i ? -1 : i;
+                          } else if (event is FlTapUpEvent) {
+                            _touchedDonutIndex = -1;
+                          }
+                        });
+                      },
+                    ),
                     sections: [
-                      for (final e in top)
+                      for (var i = 0; i < slices.length; i++)
                         PieChartSectionData(
-                          value: e.value.toDouble(),
-                          color: colorFromHex(
-                            cats[e.key]?.colorHex ?? '#9CA3AF',
-                          ),
-                          radius: 34,
+                          value: slices[i].amount.toDouble(),
+                          color: colorFromHex(slices[i].colorHex),
+                          radius: _touchedDonutIndex == i ? 44 : 34,
                           title: '',
                         ),
                     ],
                   ),
-                  duration: const Duration(milliseconds: 800),
-                  curve: Curves.easeOutCubic,
+                  duration: _animDuration,
+                  curve: _animCurve,
                 ),
+                // Center readout: total, or the tapped slice.
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Total',
-                      style: TextStyle(
+                    Text(
+                      touched?.name ?? 'Total',
+                      style: const TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 12,
                       ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      formatMoney(total),
+                      formatMoney(touched?.amount ?? total),
                       style: AppTextStyles.amount(size: 18),
                     ),
+                    if (touched != null)
+                      Text(
+                        '${(touched.amount / total * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(
+                          color: AppColors.lime,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                   ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 8),
-          for (final e in top)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: colorFromHex(cats[e.key]?.colorHex ?? '#9CA3AF'),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(cats[e.key]?.name ?? 'Other')),
-                  Text(
-                    '${(e.value / total * 100).toStringAsFixed(0)}%  ${formatMoney(e.value)}',
-                    style: AppTextStyles.amount(size: 13),
-                  ),
-                ],
-              ),
+          for (var i = 0; i < slices.length; i++)
+            _legendRow(
+              colorHex: slices[i].colorHex,
+              name: slices[i].name,
+              amount: slices[i].amount,
+              total: total,
+              selected: _touchedDonutIndex == i,
+              onTap: () => setState(() {
+                _touchedDonutIndex = _touchedDonutIndex == i ? -1 : i;
+              }),
             ),
         ],
       ),
     );
   }
+
+  Widget _legendRow({
+    required String colorHex,
+    required String name,
+    required int amount,
+    required int total,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.lime.withValues(alpha: 0.08)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: colorFromHex(colorHex),
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(name)),
+            Text(
+              '${(amount / total * 100).toStringAsFixed(0)}%  ${formatMoney(amount)}',
+              style: AppTextStyles.amount(size: 13),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // -------------------------------- bars ---------------------------------
 
   Widget _bars(BuildContext context, List<Transaction> txs) {
     final now = DateTime.now();
@@ -207,18 +295,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       (i) => DateTime(now.year, now.month - 5 + i),
     );
     const monthNames = [
-      'J',
-      'F',
-      'M',
-      'A',
-      'M',
-      'J',
-      'J',
-      'A',
-      'S',
-      'O',
-      'N',
-      'D',
+      'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D',
     ];
 
     double maxY = 1;
@@ -266,13 +343,46 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
     return GlassCard(
       child: SizedBox(
-        height: 200,
+        height: 210,
         child: BarChart(
           BarChartData(
             maxY: maxY * 1.15,
             gridData: const FlGridData(show: false),
             borderData: FlBorderData(show: false),
-            barTouchData: BarTouchData(enabled: false),
+            barTouchData: BarTouchData(
+              enabled: true,
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (_) => AppColors.bgRaised,
+                tooltipPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  final m = months[group.x.toInt()];
+                  final isIncome = rodIndex == 0;
+                  return BarTooltipItem(
+                    '${_monthLabel(m)}\n',
+                    const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 11,
+                    ),
+                    children: [
+                      TextSpan(
+                        text:
+                            '${isIncome ? 'Income' : 'Expense'}: ${formatMoney(rod.toY.toInt())}',
+                        style: TextStyle(
+                          color: isIncome
+                              ? AppColors.income
+                              : AppColors.expense,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
             titlesData: FlTitlesData(
               leftTitles: const AxisTitles(
                 sideTitles: SideTitles(showTitles: false),
@@ -301,12 +411,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ),
             barGroups: groups,
           ),
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.easeOutCubic,
+          duration: _animDuration,
+          curve: _animCurve,
         ),
       ),
     );
   }
+
+  // -------------------------------- trend --------------------------------
 
   Widget _trendLine(BuildContext context, List<Transaction> txs) {
     final now = DateTime.now();
@@ -325,18 +437,44 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       final inMonth = txs.where(
         (t) => !t.date.isBefore(from) && !t.date.isAfter(to),
       );
+      // Transfers move money between wallets — neutral for net savings.
       final net = inMonth.fold<int>(
         0,
-        (s, t) => s + (t.kind == 'income' ? t.amount : -t.amount),
+        (s, t) => switch (t.kind) {
+          'income' => s + t.amount,
+          'expense' => s - t.amount,
+          _ => s,
+        },
       );
       spots.add(FlSpot(i.toDouble(), net.toDouble()));
     }
     return GlassCard(
       child: SizedBox(
-        height: 170,
+        height: 180,
         child: LineChart(
           LineChartData(
-            lineTouchData: const LineTouchData(enabled: false),
+            lineTouchData: LineTouchData(
+              enabled: true,
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipColor: (_) => AppColors.bgRaised,
+                tooltipPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                getTooltipItems: (touchedSpots) => touchedSpots
+                    .map(
+                      (s) => LineTooltipItem(
+                        '${_monthLabel(months[s.x.toInt()])}\n${formatMoney(s.y.toInt())}',
+                        const TextStyle(
+                          color: AppColors.lime,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
             gridData: const FlGridData(show: false),
             titlesData: const FlTitlesData(show: false),
             borderData: FlBorderData(show: false),
@@ -354,10 +492,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ),
             ],
           ),
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.easeOutCubic,
+          duration: _animDuration,
+          curve: _animCurve,
         ),
       ),
     );
+  }
+
+  String _monthLabel(DateTime m) {
+    const names = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${names[m.month - 1]} ${m.year}';
   }
 }

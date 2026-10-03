@@ -23,6 +23,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   prevent startup.
 - Amount fields now format thousand separators live while typing, following
   the selected currency (e.g. `18.088.808` for IDR, `18,088,808` for USD).
+- Stats charts are now interactive: tap a donut slice to spotlight its
+  category (legend rows are tappable too), tap bars and trend points for
+  value tooltips. Transfers no longer drag the net-savings trend down,
+  and spending beyond the top 5 categories is aggregated into "Other".
 
 ### Changed
 - App icon currently falls back to the system default (custom launcher icons
