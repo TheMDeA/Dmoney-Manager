@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/budget_alerts.dart';
 import '../../core/theme/app_accents.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
@@ -127,7 +128,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     _categoryId = null;
                   }),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                _templateRow(context, db),
+                const SizedBox(height: 12),
                 AmountField(
                   controller: _amountCtrl,
                   style:
@@ -251,6 +254,154 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         if (_success) const _SuccessOverlay(),
       ],
     );
+  }
+
+  /// One-tap templates: tap fills the form, long-press deletes,
+  /// trailing chip saves the current form as a template.
+  Widget _templateRow(BuildContext context, AppDatabase db) {
+    return StreamBuilder<List<TransactionTemplate>>(
+      stream: db.watchTransactionTemplates(),
+      builder: (context, snap) {
+        final templates = snap.data ?? const <TransactionTemplate>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.bolt_outlined,
+                    size: 15, color: context.textMuted),
+                const SizedBox(width: 4),
+                Text('Templates',
+                    style: Theme.of(context).textTheme.labelLarge),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final t in templates)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onLongPress: () =>
+                            _confirmDeleteTemplate(db, t),
+                        child: ChoiceChip(
+                          label: Text(t.name),
+                          selected: false,
+                          onSelected: (_) => _applyTemplate(db, t),
+                        ),
+                      ),
+                    ),
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 18),
+                    label: const Text('Save current'),
+                    onPressed: () => _saveTemplate(db),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _applyTemplate(AppDatabase db, TransactionTemplate t) {
+    setState(() {
+      _kind = t.kind;
+      _categoryId = t.categoryId;
+      _walletId = t.walletId;
+      _amountCtrl.text = formatAmountInput(t.amount);
+      _noteCtrl.text = t.note;
+    });
+    db.bumpTemplateUse(t.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Filled from "${t.name}"')),
+    );
+  }
+
+  Future<void> _saveTemplate(AppDatabase db) async {
+    final amount = parseAmountInput(_amountCtrl.text);
+    if (amount <= 0 || _categoryId == null || _walletId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'Fill in amount, category and wallet first')),
+      );
+      return;
+    }
+    final nameCtrl = TextEditingController(
+        text: _noteCtrl.text.trim().isEmpty
+            ? formatMoney(amount)
+            : _noteCtrl.text.trim());
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Save as template'),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration:
+              const InputDecoration(labelText: 'Template name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, nameCtrl.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    await db.addTransactionTemplate(
+      TransactionTemplatesCompanion.insert(
+        name: name,
+        walletId: _walletId!,
+        categoryId: _categoryId!,
+        kind: _kind,
+        amount: amount,
+        note: Value(_noteCtrl.text.trim()),
+      ),
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Template "$name" saved')),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteTemplate(
+      AppDatabase db, TransactionTemplate t) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete template?'),
+        content: Text('"${t.name}" will be removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.expense,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await db.deleteTransactionTemplate(t.id);
+    }
   }
 
   Widget _categoryChip(Category c) {

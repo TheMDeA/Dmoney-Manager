@@ -6,15 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-10-04
+
 ### Added
+- Recurring transactions (DB v8): subscriptions, salary, rent —
+  daily/weekly/monthly/yearly rules with optional end date, managed
+  in Settings → Recurring transactions. Due occurrences are recorded
+  automatically when you open the app (with a notification), linked
+  to their rule, and pauseable via toggle or long-press delete.
+- One-tap templates: a template row in the add-transaction sheet —
+  tap to fill the whole form, "Save current" to capture it (with a
+  name), long-press to delete. Most-used templates sort first.
+- Net worth chart in Stats: total balance over time with 3M/6M/12M
+  ranges, headline total, and period gain/loss pill.
 - Animations across the app: swipe left/right between the 5 main tabs
   (`PageView` with eased transitions; tapping a nav item or jumping
   from a quick action animates the same way), active nav icons pop
   with a spring scale, every pushed screen now uses a shared
   fade+slide route (`AppPageRoute`, with a subtle parallax on the
   outgoing page), and list items stagger in (Home transactions,
-  wallets, budgets, goals, debts) — new items animate on insert,
-  existing ones stay put on rebuilds.
+  wallets, budgets, goals, debts, recurring rules) — new items animate
+  on insert, existing ones stay put on rebuilds.
 - Time picker in the add-transaction sheet: date and time sit
   side-by-side (like the add-debt form, `HH.mm` format) and the note
   field moves to its own full-width row. Editing a transaction now

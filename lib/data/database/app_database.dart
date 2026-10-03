@@ -62,6 +62,9 @@ class Transactions extends Table {
   /// Set when this row records a specific debt repayment.
   IntColumn get debtPaymentId =>
       integer().nullable().references(DebtPayments, #id)();
+  /// Set when this row was generated from a recurring rule.
+  IntColumn get recurringId =>
+      integer().nullable().references(RecurringTransactions, #id)();
 }
 
 /// Receipt / record photos attached to a transaction ("Save Photos").
@@ -132,6 +135,34 @@ class GoalDeposits extends Table {
   TextColumn get note => text().withDefault(const Constant(''))();
 }
 
+/// Recurring income/expense rules (subscriptions, salary, rent).
+/// Due occurrences are materialized as real transactions on app start.
+@TableIndex(name: 'idx_recurring_next_due', columns: {#nextDue})
+class RecurringTransactions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get walletId => integer().references(Wallets, #id)();
+  IntColumn get categoryId => integer().references(Categories, #id)();
+  TextColumn get kind => text()(); // income | expense
+  IntColumn get amount => integer()();
+  TextColumn get note => text().withDefault(const Constant(''))();
+  TextColumn get frequency => text()(); // daily | weekly | monthly | yearly
+  DateTimeColumn get nextDue => dateTime()();
+  DateTimeColumn get endDate => dateTime().nullable()();
+  BoolColumn get active => boolean().withDefault(const Constant(true))();
+}
+
+/// One-tap transaction templates for the add-transaction sheet.
+class TransactionTemplates extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  IntColumn get walletId => integer().references(Wallets, #id)();
+  IntColumn get categoryId => integer().references(Categories, #id)();
+  TextColumn get kind => text()(); // income | expense
+  IntColumn get amount => integer()();
+  TextColumn get note => text().withDefault(const Constant(''))();
+  IntColumn get useCount => integer().withDefault(const Constant(0))();
+}
+
 // ---------------------------------------------------------------------------
 // Joined view model
 // ---------------------------------------------------------------------------
@@ -175,12 +206,14 @@ typedef DailyTotal = ({String day, String kind, int total});
   Debts,
   DebtPayments,
   GoalDeposits,
+  RecurringTransactions,
+  TransactionTemplates,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -248,6 +281,12 @@ class AppDatabase extends _$AppDatabase {
                     .write(CategoriesCompanion(sortOrder: Value(i)));
               }
             }
+          }
+          if (from < 8) {
+            await m.createTable(recurringTransactions);
+            await m.createTable(transactionTemplates);
+            await m.addColumn(transactions, transactions.recurringId);
+            await m.createIndex(idxRecurringNextDue);
           }
         },
       );
@@ -1056,6 +1095,110 @@ class AppDatabase extends _$AppDatabase {
     final q = _joinedTransactions()
       ..where(transactions.date.isBetweenValues(from, to));
     return _toDetails(await q.get());
+  }
+
+  // ------------------------- recurring transactions ----------------------
+
+  Stream<List<RecurringTransaction>> watchRecurringTransactions() =>
+      (select(recurringTransactions)
+            ..orderBy([(r) => OrderingTerm.asc(r.nextDue)]))
+          .watch();
+
+  Future<int> addRecurringTransaction(RecurringTransactionsCompanion entry) =>
+      into(recurringTransactions).insert(entry);
+
+  Future<void> updateRecurringTransaction(
+          int id, RecurringTransactionsCompanion entry) =>
+      (update(recurringTransactions)..where((r) => r.id.equals(id)))
+          .write(entry);
+
+  Future<void> deleteRecurringTransaction(int id) =>
+      (delete(recurringTransactions)..where((r) => r.id.equals(id))).go();
+
+  Future<void> setRecurringActive(int id, bool active) =>
+      (update(recurringTransactions)..where((r) => r.id.equals(id)))
+          .write(RecurringTransactionsCompanion(active: Value(active)));
+
+  /// Materializes every due occurrence of active recurring rules as real
+  /// transactions (linked via transactions.recurringId) and advances each
+  /// rule's nextDue. Returns the number of generated transactions.
+  /// Called on app start; safe to call repeatedly.
+  Future<int> processDueRecurringTransactions() {
+    return transaction(() async {
+      final now = DateTime.now();
+      final rules = await (select(recurringTransactions)
+            ..where((r) => r.active.equals(true))
+            ..where((r) => r.nextDue.isSmallerOrEqualValue(now)))
+          .get();
+      var generated = 0;
+      for (final rule in rules) {
+        var due = rule.nextDue;
+        var guard = 0;
+        // Catch up on missed occurrences (guarded against runaway rules).
+        while (!due.isAfter(now) &&
+            (rule.endDate == null || !due.isAfter(rule.endDate!)) &&
+            guard < 36) {
+          await into(transactions).insert(TransactionsCompanion.insert(
+            walletId: rule.walletId,
+            categoryId: rule.categoryId,
+            kind: rule.kind,
+            amount: rule.amount,
+            note: Value(rule.note),
+            date: due,
+            recurringId: Value(rule.id),
+          ));
+          await adjustWalletBalance(
+              rule.walletId, rule.kind == 'income' ? rule.amount : -rule.amount);
+          generated++;
+          due = _advanceRecurring(due, rule.frequency);
+          guard++;
+        }
+        await (update(recurringTransactions)
+              ..where((r) => r.id.equals(rule.id)))
+            .write(RecurringTransactionsCompanion(nextDue: Value(due)));
+      }
+      return generated;
+    });
+  }
+
+  DateTime _advanceRecurring(DateTime d, String frequency) {
+    switch (frequency) {
+      case 'daily':
+        return d.add(const Duration(days: 1));
+      case 'weekly':
+        return d.add(const Duration(days: 7));
+      case 'monthly':
+        // DateTime normalizes month overflow (Dec -> Jan next year).
+        return DateTime(d.year, d.month + 1, d.day, d.hour, d.minute);
+      case 'yearly':
+        return DateTime(d.year + 1, d.month, d.day, d.hour, d.minute);
+      default:
+        return d.add(const Duration(days: 30));
+    }
+  }
+
+  // ------------------------- transaction templates -----------------------
+
+  Stream<List<TransactionTemplate>> watchTransactionTemplates() =>
+      (select(transactionTemplates)
+            ..orderBy([
+              (t) => OrderingTerm.desc(t.useCount),
+              (t) => OrderingTerm.asc(t.name),
+            ]))
+          .watch();
+
+  Future<int> addTransactionTemplate(TransactionTemplatesCompanion entry) =>
+      into(transactionTemplates).insert(entry);
+
+  Future<void> deleteTransactionTemplate(int id) =>
+      (delete(transactionTemplates)..where((t) => t.id.equals(id))).go();
+
+  Future<void> bumpTemplateUse(int id) async {
+    final row =
+        await (select(transactionTemplates)..where((t) => t.id.equals(id)))
+            .getSingle();
+    await (update(transactionTemplates)..where((t) => t.id.equals(id))).write(
+        TransactionTemplatesCompanion(useCount: Value(row.useCount + 1)));
   }
 
   // -------------------------------- internals ----------------------------
