@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
@@ -54,9 +55,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             if (d.id == widget.debtId) debt = d;
           }
           if (debt == null) {
-            return const Center(
+            return Center(
               child: Text('Debt not found',
-                  style: TextStyle(color: AppColors.textMuted)),
+                  style: TextStyle(color: context.textMuted)),
             );
           }
           final d = debt;
@@ -109,8 +110,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                 backgroundColor: color,
                 child: Text(
                   debt.person.characters.first.toUpperCase(),
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: onAccent(color),
                       fontWeight: FontWeight.w700,
                       fontSize: 20),
                 ),
@@ -125,13 +126,13 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                       style: GoogleFonts.spaceGrotesk(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                     Text(
                       receivable ? 'I lent' : 'I owe',
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 14),
+                      style: TextStyle(
+                          color: context.textMuted, fontSize: 14),
                     ),
                   ],
                 ),
@@ -143,9 +144,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _amountColumn(receivable ? 'Received' : 'Paid',
-                  formatMoney(received), AppColors.textMuted),
+                  formatMoney(received), context.textMuted),
               _amountColumn('Left', formatMoney(left),
-                  left < 0 ? AppColors.expense : AppColors.textMuted),
+                  left < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
           const SizedBox(height: 8),
@@ -155,7 +156,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
               borderRadius: BorderRadius.circular(13),
               child: Stack(
                 children: [
-                  Container(color: AppColors.bgRaised),
+                  Container(color: context.raised),
                   FractionallySizedBox(
                     widthFactor: ratio.clamp(0.0, 1.0),
                     child: Container(
@@ -167,10 +168,10 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   Center(
                     child: Text(
                       '${(ratio * 100).toStringAsFixed(2).replaceAll('.', ',')}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                   ),
@@ -189,16 +190,16 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             style: GoogleFonts.spaceGrotesk(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: context.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
           if (payments.isEmpty)
-            const Center(
+            Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Text('No transaction yet',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                    style: TextStyle(color: context.textMuted, fontSize: 15)),
               ),
             )
           else
@@ -229,12 +230,12 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             width: 110,
             child: Text(label,
                 style:
-                    const TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                    TextStyle(color: context.textMuted, fontSize: 15)),
           ),
           Expanded(
             child: Text(value,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
+                style: TextStyle(
+                    color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600)),
           ),
@@ -310,8 +311,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   Text(p.note.isNotEmpty ? p.note : 'Payment'),
                   Text(
                     '${formatDate(p.date)}${w != null ? ' · ${w.name}' : ''}',
-                    style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 12),
+                    style: TextStyle(
+                        color: context.textMuted, fontSize: 12),
                   ),
                 ],
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
@@ -67,9 +68,9 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             if (w.id == _walletId) wallet = w;
           }
           if (wallet == null) {
-            return const Center(
+            return Center(
               child: Text('Wallet not found',
-                  style: TextStyle(color: AppColors.textMuted)),
+                  style: TextStyle(color: context.textMuted)),
             );
           }
           final w = wallet;
@@ -120,7 +121,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(iconForKey(_walletIconKey(wallet.kind)),
-                color: Colors.white, size: 36),
+                color: onAccent(color), size: 36),
           ),
           const SizedBox(height: 12),
           InkWell(
@@ -137,12 +138,12 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
+                      color: context.textPrimary,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.keyboard_arrow_down,
-                      color: AppColors.textMuted),
+                  Icon(Icons.keyboard_arrow_down,
+                      color: context.textMuted),
                 ],
               ),
             ),
@@ -152,7 +153,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             formatMoney(wallet.balance),
             style: AppTextStyles.displayBalance.copyWith(
               fontSize: 28,
-              color: negative ? AppColors.expense : AppColors.textPrimary,
+              color: negative ? AppColors.expense : context.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
@@ -199,22 +200,22 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.textPrimary,
                 ),
               ),
               TextButton(
                 onPressed: () => _openTransactions(context, wallet, null),
-                child: const Text('View all'),
+                child: Text('View all'),
               ),
             ],
           ),
           const SizedBox(height: 4),
           if (grouped.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Text('No transactions yet',
                   style:
-                      TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                      TextStyle(color: context.textMuted, fontSize: 15)),
             )
           else
             for (final e in grouped.take(8)) _groupRow(context, e.value),
@@ -235,10 +236,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         children: [
           Text(label,
               style:
-                  const TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                  TextStyle(color: context.textMuted, fontSize: 15)),
           Text(value,
               style: TextStyle(
-                  color: valueColor ?? AppColors.textPrimary,
+                  color: valueColor ?? context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600)),
         ],
@@ -281,11 +282,11 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(d.category.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                   Text(
                     '${ds.length} transaction${ds.length == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 12),
+                    style: TextStyle(
+                        color: context.textMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -377,7 +378,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             Text(
               'Current: ${formatMoney(wallet.balance)}',
               style:
-                  const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  TextStyle(color: context.textMuted, fontSize: 13),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -390,10 +391,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                   prefixText: negative ? '- ' : ''),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Sets the balance directly. No transaction is created.',
               style:
-                  TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  TextStyle(color: context.textMuted, fontSize: 12),
             ),
           ],
         ),
@@ -576,10 +577,10 @@ class _WalletTransactionsScreenState
               ),
               Expanded(
                 child: list.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text('No transactions',
                             style: TextStyle(
-                                color: AppColors.textMuted)),
+                                color: context.textMuted)),
                       )
                     : ListView.builder(
                         padding:
@@ -608,8 +609,8 @@ class _WalletTransactionsScreenState
                                 t.note.isEmpty ? d.category.name : t.note),
                             subtitle: Text(
                               '${formatDate(t.date)}${t.toWalletId != null ? ' · transfer' : ''}',
-                              style: const TextStyle(
-                                  color: AppColors.textMuted,
+                              style: TextStyle(
+                                  color: context.textMuted,
                                   fontSize: 12),
                             ),
                             trailing: Text(

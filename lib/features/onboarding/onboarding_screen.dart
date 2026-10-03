@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/services/app_prefs.dart';
 import '../../core/services/backup_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -131,7 +132,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: i == _welcomePage
-                      ? AppColors.lime
+                      ? context.accent
                       : AppColors.textMuted.withValues(alpha: 0.25),
                 ),
               ),
@@ -294,14 +295,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 c.label,
                 style: TextStyle(
                   color: isSelected
-                      ? AppColors.lime
+                      ? context.accent
                       : AppColors.textPrimary,
                   fontWeight:
                       isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
               trailing: isSelected
-                  ? const Icon(Icons.check, color: AppColors.lime)
+                  ? Icon(Icons.check, color: context.accent)
                   : null,
               onTap: () {
                 setState(() => _currency = c.code);
@@ -382,7 +383,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             alignment: Alignment.centerRight,
             child: FloatingActionButton(
               onPressed: _finishing ? null : () => _finish(skip: false),
-              backgroundColor: AppColors.lime,
+              backgroundColor: context.accent,
               child: _finishing
                   ? const SizedBox(
                       width: 24,
@@ -455,8 +456,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.lime,
-          disabledBackgroundColor: AppColors.lime.withValues(alpha: 0.35),
+          backgroundColor: context.accent,
+          disabledBackgroundColor: context.accent.withValues(alpha: 0.35),
           foregroundColor: AppColors.bgBase,
           disabledForegroundColor: AppColors.bgBase.withValues(alpha: 0.5),
           shape: RoundedRectangleBorder(
@@ -538,7 +539,7 @@ class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
               child: FilledButton(
                 onPressed: _pickAndRestore,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.lime,
+                  backgroundColor: context.accent,
                   foregroundColor: AppColors.bgBase,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(28),
