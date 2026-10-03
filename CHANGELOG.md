@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-03
+
+### Added
+- First-launch onboarding: welcome carousel (financial monitoring, smart
+  budgets, saving goals), account naming, currency selection (14 currencies,
+  IDR default), and initial cash balance entry with a numeric keypad.
+  Fresh installs now start with a clean database — sample accounts and
+  transactions are no longer seeded; the setup creates your first account
+  and cash wallet.
+
+### Fixed
+- Black screen on launch: the notification plugin referenced a launcher icon
+  that isn't in the repo, crashing the app before the first frame. The app now
+  ships a bundled notification icon, and a notification failure can no longer
+  prevent startup.
+
+### Changed
+- App icon currently falls back to the system default (custom launcher icons
+  not yet generated — planned via flutter_launcher_icons).
+
 ## [1.0.0] - 2026-10-03
 
 First release — Flutter app with the full feature set from the app mockup.
@@ -50,11 +70,3 @@ First release — Flutter app with the full feature set from the app mockup.
 ### Fixed
 - Recording income/expense now updates wallet balances (and reverses correctly
   on edit/delete) — balances previously never changed after seeding.
-- Black screen on launch: the notification plugin referenced a launcher icon
-  that isn't in the repo, crashing the app before the first frame. The app now
-  ships a bundled notification icon, and a notification failure can no longer
-  prevent startup.
-
-### Changed
-- App icon currently falls back to the system default (custom launcher icons
-  not yet generated — planned via flutter_launcher_icons).
