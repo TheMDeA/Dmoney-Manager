@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../state/providers.dart';
 import '../categories/categories_screen.dart';
@@ -37,8 +38,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.lime, AppColors.violet],
+                  gradient: LinearGradient(
+                    colors: [context.accent, AppColors.violet],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -47,9 +48,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: const Icon(Icons.person, color: Colors.black),
               ),
               title: Text(ref.watch(displayNameProvider),
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text('Personal finances',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text('Personal finances',
+                  style: TextStyle(color: context.textMuted, fontSize: 12)),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _editProfile(context, ref),
             ),
@@ -72,12 +73,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'Backup & restore',
               subtitle: 'Full backup to a file',
               onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const BackupScreen()))),
+                  MaterialPageRoute(builder: (_) => BackupScreen()))),
           SwitchListTile(
             secondary: const Icon(Icons.lock_outline),
             title: const Text('Password protection'),
-            subtitle: const Text('Passcode + biometric lock',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            subtitle: Text('Passcode + biometric lock',
+                style: TextStyle(color: context.textMuted, fontSize: 12)),
             value: lockEnabled,
             onChanged: (v) => _toggleLock(context, ref, v),
           ),
@@ -94,6 +95,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Text('Appearance',
                 style: Theme.of(context).textTheme.labelLarge),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text('Theme color',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: context.textMuted)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (final a in appAccents) _accentSwatch(ref, a),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: SegmentedButton<ThemeMode>(
@@ -197,6 +216,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Widget _accentSwatch(WidgetRef ref, AppAccent a) {
+    final selected = ref.watch(accentProvider) == a.id;
+    final checkColor =
+        a.color == null ? Colors.white : onAccent(a.color!);
+    return InkWell(
+      onTap: () => ref.read(accentProvider.notifier).set(a.id),
+      borderRadius: BorderRadius.circular(28),
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: a.color,
+          gradient: a.color == null
+              ? const SweepGradient(colors: [
+                  Color(0xFFC6FF4A),
+                  Color(0xFF38BDF8),
+                  Color(0xFFA78BFA),
+                  Color(0xFFFB923C),
+                  Color(0xFFF472B6),
+                  Color(0xFFC6FF4A),
+                ])
+              : null,
+          border: selected
+              ? Border.all(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  width: 2.5,
+                )
+              : Border.all(
+                  color: context.hairline,
+                  width: 1,
+                ),
+        ),
+        child: selected
+            ? Icon(Icons.check, color: checkColor, size: 22)
+            : (a.color == null
+                ? const Icon(Icons.palette_outlined,
+                    color: Colors.white, size: 22)
+                : null),
+      ),
+    );
+  }
+
   Widget _tile(BuildContext context,
       {required IconData icon,
       required String title,
@@ -206,7 +268,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       leading: Icon(icon),
       title: Text(title),
       subtitle: Text(subtitle,
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          style: TextStyle(color: context.textMuted, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
@@ -184,8 +185,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.lime, AppColors.violet],
+            gradient: LinearGradient(
+              colors: [context.accent, AppColors.violet],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -202,7 +203,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
-                      ?.copyWith(color: AppColors.textMuted)),
+                      ?.copyWith(color: context.textMuted)),
               Text(ref.watch(displayNameProvider),
                   style: AppTextStyles.displaySection.copyWith(fontSize: 18)),
             ],

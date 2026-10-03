@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
@@ -99,7 +100,7 @@ class _CategoryFormScreenState
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: 16),
                 Expanded(
                   flex: 1,
                   child: Column(
@@ -113,10 +114,10 @@ class _CategoryFormScreenState
               ],
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Tips: Pick different colour for each category to easily identify the category by the colour.',
               style:
-                  TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  TextStyle(fontSize: 12, color: context.textMuted),
             ),
             if (_isEdit && !_isSub) ...[
               const SizedBox(height: 28),
@@ -147,7 +148,7 @@ class _CategoryFormScreenState
         padding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.bgRaised,
+          color: context.raised,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -183,7 +184,7 @@ class _CategoryFormScreenState
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.bgRaised,
+          color: context.raised,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(iconForKey(_iconKey), size: 32),
@@ -219,14 +220,14 @@ class _CategoryFormScreenState
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: _colorHex == hex
-                              ? Colors.white
+                              ? context.textPrimary
                               : Colors.transparent,
                           width: 2,
                         ),
                       ),
                       child: _colorHex == hex
-                          ? const Icon(Icons.check,
-                              size: 22, color: Colors.black)
+                          ? Icon(Icons.check,
+                              size: 22, color: onAccent(colorFromHex(hex)))
                           : null,
                     ),
                   ),

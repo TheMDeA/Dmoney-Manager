@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
@@ -66,16 +67,16 @@ class WalletsScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Combined balance',
-                                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                            Text('Combined balance',
+                                style: TextStyle(color: context.textMuted, fontSize: 13)),
                             const SizedBox(height: 4),
                             Text(formatMoney(total),
                                 style: AppTextStyles.displayBalance
-                                    .copyWith(fontSize: 32, color: AppColors.textPrimary)),
-                            const SizedBox(height: 4),
+                                    .copyWith(fontSize: 32, color: context.textPrimary)),
+                            SizedBox(height: 4),
                             Text('${wallets.length} wallets',
-                                style: const TextStyle(
-                                    color: AppColors.textMuted, fontSize: 12)),
+                                style: TextStyle(
+                                    color: context.textMuted, fontSize: 12)),
                           ],
                         ),
                       ),
@@ -105,7 +106,7 @@ class WalletsScreen extends ConsumerWidget {
       child: ChoiceChip(
         label: Text(label),
         selected: selected,
-        selectedColor: AppColors.lime,
+        selectedColor: context.accent,
         labelStyle: TextStyle(
           color: selected ? Colors.black : Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.w600,
@@ -149,13 +150,13 @@ class WalletsScreen extends ConsumerWidget {
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                   const SizedBox(height: 2),
                   Text(_kindLabel(w.kind),
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                      style: TextStyle(color: context.textMuted, fontSize: 12)),
                   if (last != null) ...[
                     const SizedBox(height: 4),
                     Text(
                       '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 11),
+                      style: TextStyle(
+                          color: context.textMuted, fontSize: 11),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -166,7 +167,7 @@ class WalletsScreen extends ConsumerWidget {
             Text(
               formatMoney(w.balance),
               style: AppTextStyles.amount(size: 17).copyWith(
-                color: negative ? AppColors.expense : AppColors.textPrimary,
+                color: negative ? AppColors.expense : context.textPrimary,
               ),
             ),
           ],

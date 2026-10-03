@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Theme colors: Settings → Appearance now has 6 accents — Lime
+  (default), Sky, Violet, Tangerine, Rose, and Material You (follows
+  the phone's wallpaper colors on Android 12+). The accent flows
+  through `colorScheme.primary`, so every button, FAB, checkmark, and
+  highlight updates instantly and persists across restarts.
+
+### Fixed
+- Light-mode visibility pass: hardcoded dark colors are gone from
+  widget code. New `AdaptiveColors` extension on `BuildContext`
+  (`context.textPrimary`, `textMuted`, `surface`, `raised`, `hairline`,
+  `base`) resolves through the theme, so text, icon tiles, chart
+  tooltips, dropdowns, and dividers stay readable in both themes.
+  Also fixed: invisible icon-picker circles, invisible total balance,
+  white fingerprint icon on bright accents, color-picker selection
+  rings/checkmarks, and white icons/text on bright wallet, category,
+  and debt colors (now use luminance-aware `onAccent`).
+
 ## [1.1.1] - 2026-10-03
 
 ### Added

@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -86,14 +87,14 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             label: Text(_exporting ? 'Exporting…' : 'Export'),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppColors.lime,
+              backgroundColor: context.accent,
               foregroundColor: Colors.black,
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'The file is saved to a temporary location and opened in the share sheet so you can save, print, or send it anywhere.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+            style: TextStyle(color: context.textMuted, fontSize: 12),
           ),
         ],
       ),

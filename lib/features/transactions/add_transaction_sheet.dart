@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/budget_alerts.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
@@ -158,7 +158,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           ChoiceChip(
                             label: Text(w.name),
                             selected: _walletId == w.id,
-                            selectedColor: AppColors.lime,
+                            selectedColor: context.accent,
                             labelStyle: TextStyle(
                               color: _walletId == w.id
                                   ? Colors.black
@@ -208,7 +208,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   onPressed: _saving ? null : _save,
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: AppColors.lime,
+                    backgroundColor: context.accent,
                     foregroundColor: Colors.black,
                   ),
                   child: _saving
@@ -248,7 +248,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         ],
       ),
       selected: selected,
-      selectedColor: AppColors.lime,
+      selectedColor: context.accent,
       onSelected: (_) => setState(() => _categoryId = c.id),
     );
   }
@@ -335,11 +335,11 @@ class _SuccessOverlay extends StatelessWidget {
           child: Container(
             width: 88,
             height: 88,
-            decoration: const BoxDecoration(
-              color: AppColors.lime,
+            decoration: BoxDecoration(
+              color: context.accent,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check, color: Colors.black, size: 44),
+            child: Icon(Icons.check, color: onAccent(context.accent), size: 44),
           ),
         ),
       ),
