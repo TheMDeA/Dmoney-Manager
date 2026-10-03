@@ -8,9 +8,11 @@ import '../../../core/widgets/amount_text.dart';
 import '../../../data/database/app_database.dart';
 import '../../../state/providers.dart';
 import '../transaction_detail_screen.dart';
+import '../../debts/debt_detail_screen.dart';
 
 /// Single transaction row: category icon tile, note, wallet + date, amount.
 /// Transfers render with a swap icon and "From → To" subtitle.
+/// Debt-linked entries show a debt badge and open the debt detail instead.
 class TransactionTile extends ConsumerWidget {
   const TransactionTile({super.key, required this.details});
 
@@ -22,13 +24,16 @@ class TransactionTile extends ConsumerWidget {
     final c = details.category;
     final isTransfer = t.kind == 'transfer';
     final isIncome = t.kind == 'income';
+    final isDebtLinked = t.debtId != null;
     final color = colorFromHex(c.colorHex);
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => TransactionDetailScreen(transactionId: t.id),
+          builder: (_) => isDebtLinked
+              ? DebtDetailScreen(debtId: t.debtId!)
+              : TransactionDetailScreen(transactionId: t.id),
         ),
       ),
       child: Padding(
@@ -68,6 +73,34 @@ class TransactionTile extends ConsumerWidget {
                             .colorScheme
                             .onSurface
                             .withValues(alpha: 0.55),
+                      ),
+                    ),
+                  if (isDebtLinked)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.handshake_outlined,
+                            size: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withValues(alpha: 0.55),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Debt',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.55),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],

@@ -37,11 +37,15 @@ class Categories extends Table {
   TextColumn get colorHex => text().withDefault(const Constant('#A78BFA'))();
   TextColumn get kind => text()(); // income | expense
   IntColumn get parentId => integer().nullable().references(Categories, #id)();
+  /// Manual ordering for the Manage Categories screen (per kind group).
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }
 
 @TableIndex(name: 'idx_transactions_date', columns: {#date})
 @TableIndex(name: 'idx_transactions_wallet', columns: {#walletId})
 @TableIndex(name: 'idx_transactions_category', columns: {#categoryId})
+@TableIndex(name: 'idx_transactions_debt', columns: {#debtId})
+@TableIndex(name: 'idx_transactions_debt_payment', columns: {#debtPaymentId})
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get walletId => integer().references(Wallets, #id)();
@@ -53,6 +57,11 @@ class Transactions extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   /// For transfers: the destination wallet. Null for income/expense.
   IntColumn get toWalletId => integer().nullable().references(Wallets, #id)();
+  /// Set when this row records a debt's creation movement.
+  IntColumn get debtId => integer().nullable().references(Debts, #id)();
+  /// Set when this row records a specific debt repayment.
+  IntColumn get debtPaymentId =>
+      integer().nullable().references(DebtPayments, #id)();
 }
 
 /// Receipt / record photos attached to a transaction ("Save Photos").
@@ -94,6 +103,11 @@ class Debts extends Table {
   TextColumn get colorHex => text().withDefault(const Constant('#A78BFA'))();
   IntColumn get walletId => integer().nullable().references(Wallets, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  /// When true, the debt's creation and repayments are recorded as
+  /// transactions (linked via transactions.debtId / debtPaymentId) so
+  /// they show up in the transaction history.
+  BoolColumn get recordAsTransaction =>
+      boolean().withDefault(const Constant(true))();
 }
 
 /// Partial repayments recorded against a debt.
@@ -166,7 +180,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -207,6 +221,34 @@ class AppDatabase extends _$AppDatabase {
             await m.createIndex(idxDebtPaymentsDebt);
             await m.createIndex(idxGoalDepositsGoal);
           }
+          if (from < 6) {
+            await m.addColumn(transactions, transactions.debtId);
+            await m.addColumn(transactions, transactions.debtPaymentId);
+            await m.addColumn(debts, debts.recordAsTransaction);
+            await m.createIndex(idxTransactionsDebt);
+            await m.createIndex(idxTransactionsDebtPayment);
+            await _ensureDebtCategory();
+          }
+          if (from < 7) {
+            await m.addColumn(categories, categories.sortOrder);
+            // Preserve the previous alphabetical order as the initial
+            // manual order, per (kind, parent) group.
+            final all = await select(categories).get();
+            final groups = <String, List<Category>>{};
+            for (final c in all) {
+              groups
+                  .putIfAbsent('${c.kind}|${c.parentId}', () => [])
+                  .add(c);
+            }
+            for (final group in groups.values) {
+              group.sort((a, b) => a.name.compareTo(b.name));
+              for (var i = 0; i < group.length; i++) {
+                await (update(categories)
+                      ..where((c) => c.id.equals(group[i].id)))
+                    .write(CategoriesCompanion(sortOrder: Value(i)));
+              }
+            }
+          }
         },
       );
 
@@ -232,6 +274,47 @@ class AppDatabase extends _$AppDatabase {
           .first
           .id;
 
+  /// Signed wallet delta for a debt's creation movement:
+  /// lending (receivable) takes money out, borrowing (payable) brings it in.
+  int _debtWalletEffect(String direction, int amount) =>
+      direction == 'receivable' ? -amount : amount;
+
+  /// Signed wallet delta for a repayment:
+  /// being repaid (receivable) brings money in, repaying (payable) takes it out.
+  int _debtPaymentEffect(String direction, int amount) =>
+      direction == 'receivable' ? amount : -amount;
+
+  /// Note text for a debt-linked transaction.
+  String _debtTxNote(String direction, String person, String note,
+      {required bool payment}) {
+    final base = payment
+        ? (direction == 'receivable'
+            ? 'Repayment from $person'
+            : 'Repayment to $person')
+        : (direction == 'receivable'
+            ? 'Loan to $person'
+            : 'Borrowed from $person');
+    return note.isEmpty ? base : '$base · $note';
+  }
+
+  /// Hidden "Debt" category used by debt-linked transactions.
+  /// Created on demand so it exists on fresh installs and upgrades alike.
+  Future<int> get debtCategoryId async {
+    final existing =
+        await (select(categories)..where((c) => c.kind.equals('debt'))).get();
+    if (existing.isNotEmpty) return existing.first.id;
+    return into(categories).insert(CategoriesCompanion.insert(
+      name: 'Debt',
+      iconKey: const Value('handshake'),
+      colorHex: const Value('#F472B6'),
+      kind: 'debt',
+    ));
+  }
+
+  Future<void> _ensureDebtCategory() async {
+    await debtCategoryId;
+  }
+
   // ------------------------------- watches -------------------------------
 
   Stream<List<Account>> watchAccounts() => select(accounts).watch();
@@ -246,7 +329,10 @@ class AppDatabase extends _$AppDatabase {
     final q = select(categories);
     if (kind != null) q.where((c) => c.kind.equals(kind));
     if (topLevelOnly) q.where((c) => c.parentId.isNull());
-    q.orderBy([(c) => OrderingTerm.asc(c.name)]);
+    q.orderBy([
+      (c) => OrderingTerm.asc(c.sortOrder),
+      (c) => OrderingTerm.asc(c.name),
+    ]);
     return q.watch();
   }
 
@@ -501,6 +587,17 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
+  /// Persists a manual drag-reorder: [orderedIds] is the new top-to-bottom
+  /// order of one (kind, top-level) group.
+  Future<void> reorderCategories(List<int> orderedIds) {
+    return transaction(() async {
+      for (var i = 0; i < orderedIds.length; i++) {
+        await (update(categories)..where((c) => c.id.equals(orderedIds[i])))
+            .write(CategoriesCompanion(sortOrder: Value(i)));
+      }
+    });
+  }
+
   /// Attaches a photo to a transaction.
   ///
   /// The source file (e.g. the image_picker cache copy) is copied into the
@@ -604,8 +701,12 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> addCategory(CategoriesCompanion entry) => into(categories).insert(entry);
 
-  Future<void> deleteCategory(int id) =>
-      (delete(categories)..where((c) => c.id.equals(id))).go();
+  Future<void> deleteCategory(int id) {
+    return transaction(() async {
+      await (delete(categories)..where((c) => c.parentId.equals(id))).go();
+      await (delete(categories)..where((c) => c.id.equals(id))).go();
+    });
+  }
 
   Future<int> addBudget(BudgetsCompanion entry) => into(budgets).insert(entry);
 
@@ -701,8 +802,11 @@ class AppDatabase extends _$AppDatabase {
     DateTime? dueDate,
     int? walletId,
     String colorHex = '#A78BFA',
-  }) async {
+    bool recordAsTransaction = true,
+    DateTime? createdAt,
+  }) {
     return transaction(() async {
+      final now = createdAt ?? DateTime.now();
       final id = await into(debts).insert(DebtsCompanion.insert(
         person: person,
         note: Value(note),
@@ -711,10 +815,25 @@ class AppDatabase extends _$AppDatabase {
         dueDate: Value(dueDate),
         walletId: Value(walletId),
         colorHex: Value(colorHex),
+        recordAsTransaction: Value(recordAsTransaction),
+        createdAt: Value(now),
       ));
       if (walletId != null) {
+        if (recordAsTransaction) {
+          final catId = await debtCategoryId;
+          await into(transactions).insert(TransactionsCompanion.insert(
+            walletId: walletId,
+            categoryId: catId,
+            kind: direction == 'receivable' ? 'expense' : 'income',
+            amount: amount,
+            note:
+                Value(_debtTxNote(direction, person, note, payment: false)),
+            date: now,
+            debtId: Value(id),
+          ));
+        }
         await adjustWalletBalance(
-            walletId, direction == 'receivable' ? -amount : amount);
+            walletId, _debtWalletEffect(direction, amount));
       }
       return id;
     });
@@ -732,9 +851,11 @@ class AppDatabase extends _$AppDatabase {
     required int amount,
     DateTime? dueDate,
     int? walletId,
+    required bool recordAsTransaction,
   }) {
     return transaction(() async {
       final old = await getDebtById(id);
+      if (old == null) return;
       await (update(debts)..where((d) => d.id.equals(id))).write(
         DebtsCompanion(
           person: Value(person),
@@ -742,13 +863,68 @@ class AppDatabase extends _$AppDatabase {
           amount: Value(amount),
           dueDate: Value(dueDate),
           walletId: Value(walletId),
+          recordAsTransaction: Value(recordAsTransaction),
         ),
       );
-      if (old != null && old.walletId != null && old.amount != amount) {
-        final diff = amount - old.amount;
+
+      // The creation entry is the debt-linked transaction without a
+      // payment link; payment entries carry debtPaymentId.
+      final linkedTx = await (select(transactions)
+            ..where((t) =>
+                t.debtId.equals(id) & t.debtPaymentId.isNull()))
+          .getSingleOrNull();
+
+      // Undo the old wallet effect, however it was applied.
+      if (linkedTx != null) {
+        await _reverseBalanceEffect(linkedTx);
+      } else if (old.walletId != null) {
         await adjustWalletBalance(
-            old.walletId!, old.direction == 'receivable' ? -diff : diff);
+            old.walletId!, -_debtWalletEffect(old.direction, old.amount));
       }
+
+      // Apply the new wallet effect, with or without a history entry.
+      if (recordAsTransaction && walletId != null) {
+        final catId = await debtCategoryId;
+        final kind = old.direction == 'receivable' ? 'expense' : 'income';
+        final txNote =
+            _debtTxNote(old.direction, person, note, payment: false);
+        if (linkedTx != null) {
+          await (update(transactions)..where((t) => t.id.equals(linkedTx.id)))
+              .write(
+            TransactionsCompanion(
+              walletId: Value(walletId),
+              categoryId: Value(catId),
+              kind: Value(kind),
+              amount: Value(amount),
+              note: Value(txNote),
+              date: Value(linkedTx.date),
+            ),
+          );
+        } else {
+          await into(transactions).insert(TransactionsCompanion.insert(
+            walletId: walletId,
+            categoryId: catId,
+            kind: kind,
+            amount: amount,
+            note: Value(txNote),
+            date: old.createdAt,
+            debtId: Value(id),
+          ));
+        }
+        await adjustWalletBalance(
+            walletId, _debtWalletEffect(old.direction, amount));
+      } else {
+        if (linkedTx != null) {
+          // The entry is no longer wanted — drop the orphaned row.
+          await (delete(transactions)..where((t) => t.id.equals(linkedTx.id)))
+              .go();
+        }
+        if (walletId != null) {
+          await adjustWalletBalance(
+              walletId, _debtWalletEffect(old.direction, amount));
+        }
+      }
+
       final paidTotal = await debtPaidTotal(id);
       await setDebtPaid(id, paidTotal >= amount);
     });
@@ -759,22 +935,33 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteDebt(int id) {
     return transaction(() async {
       final debt = await getDebtById(id);
-      if (debt != null) {
-        if (debt.walletId != null) {
-          await adjustWalletBalance(debt.walletId!,
-              debt.direction == 'receivable' ? debt.amount : -debt.amount);
-        }
-        final payments =
-            await (select(debtPayments)..where((p) => p.debtId.equals(id)))
-                .get();
-        for (final p in payments) {
-          if (p.walletId != null) {
-            await adjustWalletBalance(p.walletId!,
-                debt.direction == 'receivable' ? -p.amount : p.amount);
-          }
-        }
-        await (delete(debtPayments)..where((p) => p.debtId.equals(id))).go();
+      if (debt == null) return;
+      // Reverse every debt-linked history entry via its own effect.
+      final linked =
+          await (select(transactions)..where((t) => t.debtId.equals(id)))
+              .get();
+      for (final t in linked) {
+        await _reverseBalanceEffect(t);
       }
+      if (linked.isNotEmpty) {
+        await (delete(transactions)..where((t) => t.debtId.equals(id))).go();
+      }
+      // Legacy/manual path: reverse effects that have no history entry.
+      final hasCreationTx = linked.any((t) => t.debtPaymentId == null);
+      if (!hasCreationTx && debt.walletId != null) {
+        await adjustWalletBalance(debt.walletId!,
+            -_debtWalletEffect(debt.direction, debt.amount));
+      }
+      final payments =
+          await (select(debtPayments)..where((p) => p.debtId.equals(id))).get();
+      for (final p in payments) {
+        final hasTx = linked.any((t) => t.debtPaymentId == p.id);
+        if (!hasTx && p.walletId != null) {
+          await adjustWalletBalance(
+              p.walletId!, -_debtPaymentEffect(debt.direction, p.amount));
+        }
+      }
+      await (delete(debtPayments)..where((p) => p.debtId.equals(id))).go();
       await (delete(debts)..where((d) => d.id.equals(id))).go();
     });
   }
@@ -804,16 +991,32 @@ class AppDatabase extends _$AppDatabase {
     int? walletId,
   }) {
     return transaction(() async {
-      await into(debtPayments).insert(DebtPaymentsCompanion.insert(
-        debtId: debt.id,
-        amount: amount,
-        date: date,
-        note: Value(note),
-        walletId: Value(walletId),
-      ));
+      final paymentId = await into(debtPayments).insert(
+        DebtPaymentsCompanion.insert(
+          debtId: debt.id,
+          amount: amount,
+          date: date,
+          note: Value(note),
+          walletId: Value(walletId),
+        ),
+      );
       if (walletId != null) {
+        if (debt.recordAsTransaction) {
+          final catId = await debtCategoryId;
+          await into(transactions).insert(TransactionsCompanion.insert(
+            walletId: walletId,
+            categoryId: catId,
+            kind: debt.direction == 'receivable' ? 'income' : 'expense',
+            amount: amount,
+            note: Value(_debtTxNote(debt.direction, debt.person, note,
+                payment: true)),
+            date: date,
+            debtId: Value(debt.id),
+            debtPaymentId: Value(paymentId),
+          ));
+        }
         await adjustWalletBalance(
-            walletId, debt.direction == 'receivable' ? amount : -amount);
+            walletId, _debtPaymentEffect(debt.direction, amount));
       }
       final paidTotal = await debtPaidTotal(debt.id);
       if (paidTotal >= debt.amount && !debt.isPaid) {
@@ -825,11 +1028,18 @@ class AppDatabase extends _$AppDatabase {
   /// Deletes one repayment, reversing its wallet movement.
   Future<void> deleteDebtPayment(DebtPayment payment, Debt debt) {
     return transaction(() async {
-      await (delete(debtPayments)..where((p) => p.id.equals(payment.id))).go();
-      if (payment.walletId != null) {
+      final linkedTx = await (select(transactions)
+            ..where((t) => t.debtPaymentId.equals(payment.id)))
+          .getSingleOrNull();
+      if (linkedTx != null) {
+        await _reverseBalanceEffect(linkedTx);
+        await (delete(transactions)..where((t) => t.id.equals(linkedTx.id)))
+            .go();
+      } else if (payment.walletId != null) {
         await adjustWalletBalance(payment.walletId!,
-            debt.direction == 'receivable' ? -payment.amount : payment.amount);
+            -_debtPaymentEffect(debt.direction, payment.amount));
       }
+      await (delete(debtPayments)..where((p) => p.id.equals(payment.id))).go();
       final paidTotal = await debtPaidTotal(debt.id);
       if (paidTotal < debt.amount && debt.isPaid) {
         await setDebtPaid(debt.id, false);

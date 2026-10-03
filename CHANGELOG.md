@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Debts can now appear in the transaction history: the add/edit debt
+  forms have a "Show in transaction history" toggle (on by default).
+  When enabled, the debt's creation and each repayment are recorded as
+  linked transactions (DB v6: `transactions.debtId`/`debtPaymentId`,
+  `debts.recordAsTransaction`, hidden "Debt" category), so they show up
+  in history, stats, and wallet views. Debt entries carry a debt badge;
+  tapping one opens the debt detail, and they can't be edited, duplicated,
+  or deleted from the transaction side — the debt stays the source of
+  truth and wallet balances stay in sync on every edit/delete.
+- New full-screen "add debt" form (replacing the dialog): "I borrowed" /
+  "I lent" switcher in the app bar, name/organization, amount, date +
+  time pickers, color choices, description, optional due date, wallet
+  picker with a "Don't use wallet" toggle, transaction-history toggle,
+  and inline validation. The chosen date/time is stored as the debt's
+  creation date and used for the linked history entry.
+- Redesigned category management (Settings → Categories) matching the
+  classic tracker UX: "Manage Category" screen with INCOME / EXPENSE
+  tabs, drag-to-reorder rows (persisted via DB v7 `categories.sortOrder`),
+  subcategory counts, and edit/delete actions. New full-screen category
+  form (name, color picker, icon picker, subcategories section) and a
+  "Pick Icon" screen with icons grouped by theme (General, Food & Drinks,
+  Home & Living, Transport, Shopping, Money & Work, Health & Fitness,
+  Fun & Hobbies).
+
 ### Fixed
 - Receipt photos are now reliable: picked images are copied into the
   app's documents folder (`receipts/`) instead of referencing the
