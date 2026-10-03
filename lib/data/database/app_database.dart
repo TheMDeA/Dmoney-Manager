@@ -348,6 +348,16 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> addBudget(BudgetsCompanion entry) => into(budgets).insert(entry);
 
+  Future<void> updateBudgetLimit(int budgetId, int limit) =>
+      (update(budgets)..where((b) => b.id.equals(budgetId)))
+          .write(BudgetsCompanion(limit: Value(limit)));
+
+  Future<void> deleteBudget(int budgetId) =>
+      (delete(budgets)..where((b) => b.id.equals(budgetId))).go();
+
+  Future<Budget?> getBudgetById(int id) =>
+      (select(budgets)..where((b) => b.id.equals(id))).getSingleOrNull();
+
   Future<int> addGoal(GoalsCompanion entry) => into(goals).insert(entry);
 
   Future<void> updateGoalSaved(int id, int saved) =>

@@ -11,6 +11,7 @@ import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../debts/debts_screen.dart';
+import 'budget_detail_screen.dart';
 
 /// Budgets with threshold alerts, savings goals, and a debt preview.
 class BudgetsScreen extends ConsumerWidget {
@@ -116,7 +117,7 @@ class BudgetsScreen extends ConsumerWidget {
                         else
                           for (final b in budgets)
                             _budgetRow(context, b, cats[b.categoryId],
-                                spentByCat[b.categoryId] ?? 0),
+                                spentByCat[b.categoryId] ?? 0, mk),
                         const SectionHeader(title: 'Savings goals'),
                         _goalsSection(context, ref),
                         SectionHeader(
@@ -141,7 +142,8 @@ class BudgetsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _budgetRow(BuildContext context, Budget b, Category? c, int spent) {
+  Widget _budgetRow(
+      BuildContext context, Budget b, Category? c, int spent, String mk) {
     final ratio = b.limit == 0 ? 0.0 : spent / b.limit;
     final color = ratio >= 1
         ? AppColors.expense
@@ -151,8 +153,15 @@ class BudgetsScreen extends ConsumerWidget {
     final catColor = colorFromHex(c?.colorHex ?? '#9CA3AF');
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        padding: const EdgeInsets.all(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BudgetDetailScreen(budgetId: b.id, month: mk),
+          ),
+        ),
+        child: GlassCard(
+          padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -195,6 +204,7 @@ class BudgetsScreen extends ConsumerWidget {
                   color: ratio >= 1 ? AppColors.expense : AppColors.textMuted),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -433,5 +443,65 @@ class BudgetsScreen extends ConsumerWidget {
             GoalsCompanion.insert(name: nameCtrl.text.trim(), target: target),
           );
     }
+  }
+}
+
+/// Dialog to change a budget's monthly limit. Returns the new limit, or null
+/// when cancelled.
+class EditBudgetLimitDialog extends ConsumerStatefulWidget {
+  const EditBudgetLimitDialog({super.key, required this.budgetId});
+
+  final int budgetId;
+
+  @override
+  ConsumerState<EditBudgetLimitDialog> createState() =>
+      _EditBudgetLimitDialogState();
+}
+
+class _EditBudgetLimitDialogState
+    extends ConsumerState<EditBudgetLimitDialog> {
+  final _ctrl = TextEditingController();
+  bool _loaded = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final db = ref.watch(databaseProvider);
+    return FutureBuilder<Budget?>(
+      future: db.getBudgetById(widget.budgetId),
+      builder: (context, bSnap) {
+        final budget = bSnap.data;
+        if (budget != null && !_loaded) {
+          _ctrl.text = formatAmountInput(budget.limit);
+          _loaded = true;
+        }
+        return AlertDialog(
+          title: const Text('Edit budget limit'),
+          content: TextField(
+            controller: _ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            inputFormatters: [ThousandsSeparatorInputFormatter()],
+            decoration: InputDecoration(
+                labelText: 'Monthly limit (${currentCurrency.code})'),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(context, parseAmountInput(_ctrl.text)),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
