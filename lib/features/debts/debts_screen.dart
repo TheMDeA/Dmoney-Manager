@@ -1,4 +1,3 @@
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,6 +9,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'debt_detail_screen.dart';
 
 /// Debt tracking: Payable / Receivable tabs, outstanding vs paid sections.
 class DebtsScreen extends ConsumerStatefulWidget {
@@ -137,6 +137,11 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       },
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 4),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => DebtDetailScreen(debtId: d.id),
+          ),
+        ),
         leading: CircleAvatar(
           backgroundColor: color,
           child: Text(
@@ -184,6 +189,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final amountCtrl = TextEditingController();
     String direction = _direction;
     DateTime? dueDate;
+    final db = ref.read(databaseProvider);
+    final wallets = await db.watchWallets().first;
+    if (!context.mounted) return;
+    int? walletId = wallets.isNotEmpty ? wallets.first.id : null;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -216,6 +225,18 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                   onSelectionChanged: (s) => setState(() => direction = s.first),
                 ),
                 const SizedBox(height: 12),
+                if (wallets.isNotEmpty)
+                  DropdownButtonFormField<int?>(
+                    initialValue: walletId,
+                    decoration: const InputDecoration(labelText: 'Wallet'),
+                    items: [
+                      const DropdownMenuItem<int?>(value: null, child: Text('No wallet')),
+                      for (final w in wallets)
+                        DropdownMenuItem<int?>(value: w.id, child: Text(w.name)),
+                    ],
+                    onChanged: (v) => setState(() => walletId = v),
+                  ),
+                const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: () async {
                     final picked = await showDatePicker(
@@ -241,13 +262,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     );
     final amount = parseAmountInput(amountCtrl.text);
     if (saved == true && personCtrl.text.trim().isNotEmpty && amount > 0) {
-      final id = await ref.read(databaseProvider).addDebt(DebtsCompanion.insert(
-            person: personCtrl.text.trim(),
-            note: Value(noteCtrl.text.trim()),
-            amount: amount,
-            direction: direction,
-            dueDate: Value(dueDate),
-          ));
+      final id = await db.createDebt(
+        person: personCtrl.text.trim(),
+        note: noteCtrl.text.trim(),
+        amount: amount,
+        direction: direction,
+        dueDate: dueDate,
+        walletId: walletId,
+      );
       if (dueDate != null && AppPrefs.debtReminders) {
         final dd = dueDate!;
         await NotificationService.scheduleDebtReminder(

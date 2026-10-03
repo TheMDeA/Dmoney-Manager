@@ -8,6 +8,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'wallet_detail_screen.dart';
 
 /// Wallets grouped under a Personal / Work / Family account switcher.
 class WalletsScreen extends ConsumerWidget {
@@ -120,8 +121,15 @@ class WalletsScreen extends ConsumerWidget {
     final negative = w.balance < 0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        padding: const EdgeInsets.all(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => WalletDetailScreen(walletId: w.id),
+          ),
+        ),
+        child: GlassCard(
+          padding: const EdgeInsets.all(18),
         child: Row(
           children: [
             Container(
@@ -163,6 +171,7 @@ class WalletsScreen extends ConsumerWidget {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -177,6 +186,7 @@ class WalletsScreen extends ConsumerWidget {
 
   Future<void> _addWalletDialog(BuildContext context, WidgetRef ref) async {
     final nameCtrl = TextEditingController();
+    final initialCtrl = TextEditingController();
     String kind = 'cash';
     final accounts = await ref.read(databaseProvider).watchAccounts().first;
     int? accountId = accounts.isNotEmpty ? accounts.first.id : null;
@@ -213,6 +223,15 @@ class WalletsScreen extends ConsumerWidget {
                 ],
                 onChanged: (v) => setState(() => accountId = v),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: initialCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [ThousandsSeparatorInputFormatter()],
+                decoration: InputDecoration(
+                    labelText:
+                        'Initial amount (${currentCurrency.code}, optional)'),
+              ),
             ],
           ),
           actions: [
@@ -223,11 +242,12 @@ class WalletsScreen extends ConsumerWidget {
       ),
     );
     if (saved == true && nameCtrl.text.trim().isNotEmpty && accountId != null) {
-      await ref.read(databaseProvider).addWallet(WalletsCompanion.insert(
+      await ref.read(databaseProvider).createWallet(
             accountId: accountId!,
             name: nameCtrl.text.trim(),
             kind: kind,
-          ));
+            initialAmount: parseAmountInput(initialCtrl.text),
+          );
     }
   }
 }

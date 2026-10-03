@@ -440,6 +440,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         name: 'Cash',
         kind: 'cash',
         balance: Value(skip ? 0 : _amount),
+        initialAmount: Value(skip ? 0 : _amount),
         colorHex: const Value('#C6FF4A'),
       ));
       await AppPrefs.setCurrencyCode(_currency);

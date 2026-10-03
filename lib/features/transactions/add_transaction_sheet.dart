@@ -20,11 +20,13 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
     this.initialKind = 'expense',
     this.existing,
     this.attachedPhotoPath,
+    this.initialWalletId,
   });
 
   final String initialKind;
   final TransactionWithDetails? existing;
   final String? attachedPhotoPath;
+  final int? initialWalletId;
 
   @override
   ConsumerState<AddTransactionSheet> createState() =>
@@ -56,6 +58,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _date = e.transaction.date;
     } else {
       _kind = widget.initialKind;
+      _walletId = widget.initialWalletId;
     }
   }
 
