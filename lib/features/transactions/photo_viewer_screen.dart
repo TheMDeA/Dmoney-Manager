@@ -103,15 +103,15 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
                 child: Image.file(
                   File(photos[i].path),
                   fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => const Column(
+                  errorBuilder: (_, _, _) => Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.broken_image_outlined,
-                          color: AppColors.textMuted, size: 64),
+                          color: context.textMuted, size: 64),
                       SizedBox(height: 12),
                       Text(
                         'This photo is no longer available',
-                        style: TextStyle(color: AppColors.textMuted),
+                        style: TextStyle(color: context.textMuted),
                       ),
                     ],
                   ),

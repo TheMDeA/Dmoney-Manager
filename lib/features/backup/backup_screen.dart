@@ -34,7 +34,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const GlassCard(
+            GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -59,7 +59,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                     'your cloud drive or send it to another device, then '
                     'restore it here any time.',
                     style: TextStyle(
-                        color: AppColors.textMuted, height: 1.5),
+                        color: context.textMuted, height: 1.5),
                   ),
                 ],
               ),
@@ -87,7 +87,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               Text(
                 _status!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textMuted),
+                style: TextStyle(color: context.textMuted),
               ),
             ],
           ],

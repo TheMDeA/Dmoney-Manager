@@ -47,28 +47,28 @@ class BalanceCard extends ConsumerWidget {
                           style: Theme.of(context)
                               .textTheme
                               .bodyMedium
-                              ?.copyWith(color: AppColors.textMuted)),
+                              ?.copyWith(color: context.textMuted)),
                       IconButton(
                         onPressed: onToggleHidden,
                         icon: Icon(
                           balanceHidden ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                           size: 20,
-                          color: AppColors.textMuted,
+                          color: context.textMuted,
                         ),
                       ),
                     ],
                   ),
                   Text(
                     balanceHidden ? 'Rp ••••••••' : formatMoney(total),
-                    style: AppTextStyles.displayBalance.copyWith(color: AppColors.textPrimary),
+                    style: AppTextStyles.displayBalance.copyWith(color: context.textPrimary),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: _flow(context, 'Income', income, true),
                       ),
-                      Container(width: 1, height: 36, color: AppColors.hairline),
+                      Container(width: 1, height: 36, color: context.hairline),
                       Expanded(
                         child: _flow(context, 'Expenses', expense, false),
                       ),
@@ -97,7 +97,7 @@ class BalanceCard extends ConsumerWidget {
                 color: isIncome ? AppColors.income : AppColors.expense,
               ),
               const SizedBox(width: 4),
-              Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              Text(label, style: TextStyle(color: context.textMuted, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 4),

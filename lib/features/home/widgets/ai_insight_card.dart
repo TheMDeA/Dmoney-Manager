@@ -53,14 +53,14 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                         Expanded(
                           child: Text(
                             insight.$1,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 13, fontWeight: FontWeight.w500),
                           ),
                         ),
                         Icon(
                           _expanded ? Icons.expand_less : Icons.expand_more,
                           size: 20,
-                          color: AppColors.textMuted,
+                          color: context.textMuted,
                         ),
                       ],
                     ),
@@ -68,9 +68,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                       const SizedBox(height: 8),
                       Text(
                         insight.$2,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13,
-                            color: AppColors.textMuted,
+                            color: context.textMuted,
                             height: 1.5),
                       ),
                     ],

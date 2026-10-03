@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/amount_field.dart';
@@ -140,7 +140,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                   onPressed: _saving ? null : _save,
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: AppColors.lime,
+                    backgroundColor: context.accent,
                     foregroundColor: Colors.black,
                   ),
                   child: _saving
@@ -219,11 +219,11 @@ class _TransferSuccessOverlay extends StatelessWidget {
           child: Container(
             width: 88,
             height: 88,
-            decoration: const BoxDecoration(
-              color: AppColors.lime,
+            decoration: BoxDecoration(
+              color: context.accent,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check, color: Colors.black, size: 44),
+            child: Icon(Icons.check, color: onAccent(context.accent), size: 44),
           ),
         ),
       ),

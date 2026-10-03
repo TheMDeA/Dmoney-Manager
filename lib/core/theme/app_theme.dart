@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_accents.dart';
 import 'app_colors.dart';
 
 abstract final class AppTheme {
@@ -11,16 +12,17 @@ abstract final class AppTheme {
   // TextStyle class and is safe to use).
   static String get _interFamily => GoogleFonts.inter().fontFamily ?? 'Inter';
 
-  static ThemeData dark() {
+  static ThemeData dark(Color accent) {
     final base = ThemeData(brightness: Brightness.dark, useMaterial3: true);
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.bgBase,
-      colorScheme: const ColorScheme.dark(
-        primary: AppColors.lime,
-        onPrimary: Colors.black,
+      colorScheme: ColorScheme.dark(
+        primary: accent,
+        onPrimary: onAccent(accent),
         secondary: AppColors.violet,
         surface: AppColors.bgSurface,
         onSurface: AppColors.textPrimary,
+        onSurfaceVariant: AppColors.textMuted,
         surfaceContainerHighest: AppColors.bgRaised,
         outline: AppColors.hairline,
         error: AppColors.expense,
@@ -43,10 +45,10 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.lime,
-        foregroundColor: Colors.black,
-        shape: CircleBorder(),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: accent,
+        foregroundColor: onAccent(accent),
+        shape: const CircleBorder(),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -61,16 +63,17 @@ abstract final class AppTheme {
     );
   }
 
-  static ThemeData light() {
+  static ThemeData light(Color accent) {
     final base = ThemeData(brightness: Brightness.light, useMaterial3: true);
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.lightBg,
-      colorScheme: const ColorScheme.light(
-        primary: AppColors.brandBlue,
-        onPrimary: Colors.white,
+      colorScheme: ColorScheme.light(
+        primary: accent,
+        onPrimary: onAccent(accent),
         secondary: AppColors.violet,
         surface: AppColors.lightSurface,
         onSurface: AppColors.lightInk,
+        onSurfaceVariant: AppColors.lightMuted,
         surfaceContainerHighest: AppColors.lightRaised,
         outline: AppColors.lightHairline,
         error: AppColors.expense,
@@ -93,10 +96,10 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.brandBlue,
-        foregroundColor: Colors.white,
-        shape: CircleBorder(),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: accent,
+        foregroundColor: onAccent(accent),
+        shape: const CircleBorder(),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

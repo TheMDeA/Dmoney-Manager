@@ -25,7 +25,8 @@ expressive tabular numerals, animated charts.
 - **More** — category manager (INCOME/EXPENSE tabs, drag-to-reorder,
   icon picker, subcategories), CSV/Excel export, backup & restore
   (full backup zip: database snapshot + receipt photos + preferences),
-  settings, 4-digit PIN + biometric lock
+  settings (theme mode, 6 theme colors incl. Material You, currency),
+  4-digit PIN + biometric lock
 
 State is managed with **Riverpod** (`lib/state/providers.dart`), persistence
 with **drift (SQLite)** (`lib/data/database/app_database.dart`). Amounts

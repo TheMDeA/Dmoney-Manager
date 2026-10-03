@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
@@ -32,7 +33,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               actions: [
                 IconButton(
                   tooltip: 'Add category',
-                  icon: const Icon(Icons.add),
+                  icon: Icon(Icons.add),
                   onPressed: () {
                     final kind = tab.index == 0 ? 'income' : 'expense';
                     Navigator.of(context).push(
@@ -44,7 +45,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   },
                 ),
               ],
-              bottom: const TabBar(
+              bottom: TabBar(
                 tabs: [
                   Tab(text: 'INCOME'),
                   Tab(text: 'EXPENSE'),
@@ -99,9 +100,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
     Map<int, int> subCounts,
   ) {
     if (cats.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('No categories yet — tap + to add one',
-            style: TextStyle(color: AppColors.textMuted)),
+            style: TextStyle(color: context.textMuted)),
       );
     }
     return ReorderableListView.builder(
@@ -127,10 +128,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
             children: [
               ReorderableDragStartListener(
                 index: i,
-                child: const Icon(Icons.drag_indicator,
-                    color: AppColors.textMuted),
+                child: Icon(Icons.drag_indicator,
+                    color: context.textMuted),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Container(
                 width: 44,
                 height: 44,
@@ -139,7 +140,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(iconForKey(c.iconKey),
-                    color: Colors.white, size: 22),
+                    color: onAccent(color), size: 22),
               ),
             ],
           ),
@@ -147,8 +148,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
             '$n subcategory',
-            style: const TextStyle(
-                fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(
+                fontSize: 12, color: context.textMuted),
           ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -167,8 +168,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               ),
               IconButton(
                 tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline,
-                    size: 22, color: AppColors.textMuted),
+                icon: Icon(Icons.delete_outline,
+                    size: 22, color: context.textMuted),
                 onPressed: () => _confirmDelete(context, db, c),
               ),
             ],

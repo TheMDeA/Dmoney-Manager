@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../../core/services/app_prefs.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../state/providers.dart';
 
@@ -62,8 +62,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? AppColors.lime : AppColors.brandBlue;
+    final accent = context.accent;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -98,7 +97,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-                child: const Icon(Icons.fingerprint, color: Colors.white, size: 40),
+                child: Icon(Icons.fingerprint, color: onAccent(accent), size: 40),
               ),
             ),
             const Spacer(),
