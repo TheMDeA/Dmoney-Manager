@@ -1,8 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:label="Dmoney Manager"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:name="${applicationName}">
+        <!-- Launcher icon intentionally omitted: the mipmap/ic_launcher PNGs
+             are not in the repo (binary). Re-add android:icon when custom
+             icons are generated via flutter_launcher_icons. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
