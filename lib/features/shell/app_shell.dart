@@ -38,7 +38,22 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final index = ref.watch(tabIndexProvider);
     return Scaffold(
-      body: IndexedStack(index: index, children: _screens),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          final slide = Tween<Offset>(
+            begin: const Offset(0.04, 0),
+            end: Offset.zero,
+          ).animate(animation);
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
+        child: KeyedSubtree(key: ValueKey(index), child: _screens[index]),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAddSheet,
         child: const Icon(Icons.add, size: 28),

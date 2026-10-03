@@ -39,6 +39,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   int? _walletId;
   DateTime _date = DateTime.now();
   bool _saving = false;
+  bool _success = false;
 
   bool get _editing => widget.existing != null;
 
@@ -68,146 +69,168 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 12,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_editing)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text('Edit record',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        )),
-              ),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'expense', label: Text('Expense')),
-                ButtonSegment(value: 'income', label: Text('Income')),
-              ],
-              selected: {_kind},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) => setState(() {
-                _kind = s.first;
-                _categoryId = null;
-              }),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: AppTextStyles.displayBalance.copyWith(fontSize: 36),
-              decoration: const InputDecoration(
-                prefixText: 'Rp ',
-                hintText: '0',
-                border: InputBorder.none,
-                filled: false,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text('Category', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 8),
-            StreamBuilder<List<Category>>(
-              stream: db.watchCategories(kind: _kind, topLevelOnly: true),
-              builder: (context, snap) {
-                final cats = snap.data ?? const <Category>[];
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final c in cats) _categoryChip(c),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            StreamBuilder<List<Wallet>>(
-              stream: db.watchWallets(),
-              builder: (context, snap) {
-                final wallets = snap.data ?? const <Wallet>[];
-                _walletId ??= wallets.isNotEmpty ? wallets.first.id : null;
-                return DropdownButtonFormField<int>(
-                  initialValue: _walletId,
-                  decoration: const InputDecoration(labelText: 'Wallet'),
-                  items: [
-                    for (final w in wallets)
-                      DropdownMenuItem(value: w.id, child: Text(w.name)),
-                  ],
-                  onChanged: (v) => setState(() => _walletId = v),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            Row(
+    return Stack(
+      children: [
+        Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 12,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _date,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      if (picked != null) setState(() => _date = picked);
-                    },
-                    icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                    label: Text(formatDate(_date)),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _noteCtrl,
-                    decoration:
-                        const InputDecoration(labelText: 'Note (optional)'),
+                const SizedBox(height: 12),
+                if (_editing)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Edit record',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'expense', label: Text('Expense')),
+                    ButtonSegment(value: 'income', label: Text('Income')),
+                  ],
+                  selected: {_kind},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (s) => setState(() {
+                    _kind = s.first;
+                    _categoryId = null;
+                  }),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _amountCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: AppTextStyles.displayBalance.copyWith(fontSize: 36),
+                  decoration: const InputDecoration(
+                    prefixText: 'Rp ',
+                    hintText: '0',
+                    border: InputBorder.none,
+                    filled: false,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text('Category', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
+                StreamBuilder<List<Category>>(
+                  stream: db.watchCategories(kind: _kind, topLevelOnly: true),
+                  builder: (context, snap) {
+                    final cats = snap.data ?? const <Category>[];
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [for (final c in cats) _categoryChip(c)],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                Text('Wallet', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 8),
+                StreamBuilder<List<Wallet>>(
+                  stream: db.watchWallets(),
+                  builder: (context, snap) {
+                    final wallets = snap.data ?? const <Wallet>[];
+                    _walletId ??= wallets.isNotEmpty ? wallets.first.id : null;
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final w in wallets)
+                          ChoiceChip(
+                            label: Text(w.name),
+                            selected: _walletId == w.id,
+                            selectedColor: AppColors.lime,
+                            labelStyle: TextStyle(
+                              color: _walletId == w.id
+                                  ? Colors.black
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            onSelected: (_) => setState(() => _walletId = w.id),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _date,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (picked != null) setState(() => _date = picked);
+                        },
+                        icon: const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 18,
+                        ),
+                        label: Text(formatDate(_date)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _noteCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Note (optional)',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppColors.lime,
+                    foregroundColor: Colors.black,
+                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          _editing ? 'Save changes' : 'Save',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: AppColors.lime,
-                foregroundColor: Colors.black,
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_editing ? 'Save changes' : 'Save',
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ],
+          ),
         ),
-      ),
+        if (_success) const _SuccessOverlay(),
+      ],
     );
   }
 
@@ -218,8 +241,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(iconForKey(c.iconKey),
-              size: 16, color: selected ? Colors.black : color),
+          Icon(
+            iconForKey(c.iconKey),
+            size: 16,
+            color: selected ? Colors.black : color,
+          ),
           const SizedBox(width: 6),
           Text(c.name),
         ],
@@ -271,17 +297,55 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-    if (mounted) {
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _editing
-                ? 'Record updated'
-                : '${_kind == 'income' ? 'Income' : 'Expense'} of ${formatIDR(amount)} saved',
+    if (!mounted) return;
+    // Brief success state (checkmark + scale animation), then close.
+    HapticFeedback.mediumImpact();
+    setState(() => _success = true);
+    await Future.delayed(const Duration(milliseconds: 750));
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _editing
+              ? 'Record updated'
+              : '${_kind == 'income' ? 'Income' : 'Expense'} of ${formatIDR(amount)} saved',
+        ),
+      ),
+    );
+  }
+}
+
+/// Brief success state: lime checkmark with a springy scale-in,
+/// shown inside the sheet before it closes.
+class _SuccessOverlay extends StatelessWidget {
+  const _SuccessOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: Theme.of(
+          context,
+        ).scaffoldBackgroundColor.withValues(alpha: 0.85),
+        alignment: Alignment.center,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.4, end: 1.0),
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.elasticOut,
+          builder: (context, scale, child) =>
+              Transform.scale(scale: scale, child: child),
+          child: Container(
+            width: 88,
+            height: 88,
+            decoration: const BoxDecoration(
+              color: AppColors.lime,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check, color: Colors.black, size: 44),
           ),
         ),
-      );
-    }
+      ),
+    );
   }
 }

@@ -25,7 +25,8 @@ class StatSparklineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isIncome ? AppColors.income : AppColors.expense;
     final spots = [
-      for (var i = 0; i < dailyTotals.length; i++) FlSpot(i.toDouble(), dailyTotals[i]),
+      for (var i = 0; i < dailyTotals.length; i++)
+        FlSpot(i.toDouble(), dailyTotals[i]),
     ];
     return Expanded(
       child: GlassCard(
@@ -33,7 +34,10 @@ class StatSparklineCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Text(
+              label,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
             const SizedBox(height: 4),
             Text(
               formatSignedIDR(amount, isIncome: isIncome),
@@ -62,6 +66,8 @@ class StatSparklineCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                duration: const Duration(milliseconds: 700),
+                curve: Curves.easeOutCubic,
               ),
             ),
           ],

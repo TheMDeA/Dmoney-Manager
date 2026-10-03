@@ -14,6 +14,7 @@ const Map<String, IconData> categoryIconMap = {
   'gift': Icons.card_giftcard,
   'travel': Icons.flight,
   'education': Icons.school,
+  'swap_horiz': Icons.swap_horiz,
   'other': Icons.category,
 };
 
@@ -31,6 +32,7 @@ const List<String> availableIconKeys = [
   'gift',
   'travel',
   'education',
+  'swap_horiz',
   'other',
 ];
 
