@@ -59,9 +59,9 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           }
           final budget = found;
           if (budget == null) {
-            return const Center(
+            return Center(
               child: Text('Budget not found',
-                  style: TextStyle(color: AppColors.textMuted)),
+                  style: TextStyle(color: context.textMuted)),
             );
           }
           final categoryId = budget.categoryId;
@@ -136,16 +136,16 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             style: GoogleFonts.spaceGrotesk(
               fontSize: 30,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: context.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _amountColumn('Spent', formatMoney(spent), AppColors.textMuted),
+              _amountColumn('Spent', formatMoney(spent), context.textMuted),
               _amountColumn('Left', formatMoney(left),
-                  left < 0 ? AppColors.expense : AppColors.textMuted),
+                  left < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
           const SizedBox(height: 8),
@@ -156,7 +156,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
               borderRadius: BorderRadius.circular(13),
               child: Stack(
                 children: [
-                  Container(color: AppColors.bgRaised),
+                  Container(color: context.raised),
                   FractionallySizedBox(
                     widthFactor: ratio.clamp(0.0, 1.0),
                     child: Container(color: barColor),
@@ -164,10 +164,10 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                   Center(
                     child: Text(
                       '${(ratio * 100).toStringAsFixed(2).replaceAll('.', ',')}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                   ),
@@ -203,13 +203,13 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             style: GoogleFonts.spaceGrotesk(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: context.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
           if (txs.isEmpty)
-            const Text('No transactions in this budget yet.',
-                style: TextStyle(color: AppColors.textMuted))
+            Text('No transactions in this budget yet.',
+                style: TextStyle(color: context.textMuted))
           else
             for (final d in txs)
               _txRow(context, d, catColor),
@@ -239,21 +239,21 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             width: 110,
             child: Text(label,
                 style:
-                    const TextStyle(color: AppColors.textMuted, fontSize: 15)),
+                    TextStyle(color: context.textMuted, fontSize: 15)),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(value,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary,
+                    style: TextStyle(
+                        color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600)),
                 if (sub != null)
                   Text(sub,
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 13)),
+                      style: TextStyle(
+                          color: context.textMuted, fontSize: 13)),
               ],
             ),
           ),
@@ -300,12 +300,12 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           lineTouchData: LineTouchData(
             enabled: true,
             touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => AppColors.bgRaised,
+              getTooltipColor: (_) => context.raised,
               getTooltipItems: (items) => items
                   .map((s) => LineTooltipItem(
                         'Day ${s.x.toInt()}\n${formatMoney(s.y.toInt())}',
-                        const TextStyle(
-                            color: AppColors.textPrimary,
+                        TextStyle(
+                            color: context.textPrimary,
                             fontSize: 12,
                             fontWeight: FontWeight.w600),
                       ))
@@ -315,8 +315,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) => const FlLine(
-              color: AppColors.hairline,
+            getDrawingHorizontalLine: (_) => FlLine(
+              color: context.hairline,
               strokeWidth: 1,
               dashArray: [5, 5],
             ),
@@ -334,8 +334,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                 interval: maxY / 5,
                 getTitlesWidget: (v, _) => Text(
                   fmt.format(v.toInt()),
-                  style: const TextStyle(
-                      color: AppColors.textMuted, fontSize: 10),
+                  style: TextStyle(
+                      color: context.textMuted, fontSize: 10),
                 ),
               ),
             ),
@@ -350,8 +350,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                   }
                   return Text(
                     '${day.toString().padLeft(2, '0')}/$mm',
-                    style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 10),
+                    style: TextStyle(
+                        color: context.textMuted, fontSize: 10),
                   );
                 },
               ),
@@ -382,12 +382,12 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             LineChartBarData(
               spots: spots,
               isCurved: false,
-              color: AppColors.textMuted.withValues(alpha: 0.7),
+              color: context.textMuted.withValues(alpha: 0.7),
               barWidth: 2,
               dotData: const FlDotData(show: false),
               belowBarData: BarAreaData(
                 show: true,
-                color: AppColors.textMuted.withValues(alpha: 0.18),
+                color: context.textMuted.withValues(alpha: 0.18),
               ),
             ),
           ],
@@ -408,7 +408,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
       children: [
         Text(label,
             style:
-                const TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                TextStyle(color: context.textMuted, fontSize: 14)),
         const SizedBox(height: 4),
         Text(
           '${currencyFieldPrefix.trim()} $text',
@@ -452,8 +452,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                       : d.category.name),
                   Text(
                     formatDate(d.transaction.date),
-                    style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 12),
+                    style: TextStyle(
+                        color: context.textMuted, fontSize: 12),
                   ),
                 ],
               ),

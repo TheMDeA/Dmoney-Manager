@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
@@ -64,15 +65,15 @@ class BudgetsScreen extends ConsumerWidget {
                               const SizedBox(height: 8),
                               LinearProgressIndicator(
                                 value: now.day / daysInMonth,
-                                backgroundColor: AppColors.hairline,
-                                color: AppColors.lime,
+                                backgroundColor: context.hairline,
+                                color: context.accent,
                                 borderRadius: BorderRadius.circular(4),
                                 minHeight: 8,
                               ),
                               const SizedBox(height: 8),
                               Text('${now.day} of $daysInMonth days',
-                                  style: const TextStyle(
-                                      color: AppColors.textMuted, fontSize: 12)),
+                                  style: TextStyle(
+                                      color: context.textMuted, fontSize: 12)),
                             ],
                           ),
                         ),
@@ -188,7 +189,7 @@ class BudgetsScreen extends ConsumerWidget {
             const SizedBox(height: 10),
             LinearProgressIndicator(
               value: ratio.clamp(0.0, 1.0),
-              backgroundColor: AppColors.hairline,
+              backgroundColor: context.hairline,
               color: color,
               borderRadius: BorderRadius.circular(4),
               minHeight: 8,
@@ -200,7 +201,7 @@ class BudgetsScreen extends ConsumerWidget {
                   : '${formatMoney(b.limit - spent)} left',
               style: TextStyle(
                   fontSize: 12,
-                  color: ratio >= 1 ? AppColors.expense : AppColors.textMuted),
+                  color: ratio >= 1 ? AppColors.expense : context.textMuted),
             ),
           ],
         ),
@@ -255,7 +256,7 @@ class BudgetsScreen extends ConsumerWidget {
                           value: g.target == 0
                               ? 0.0
                               : (g.saved / g.target).clamp(0.0, 1.0),
-                          backgroundColor: AppColors.hairline,
+                          backgroundColor: context.hairline,
                           color: colorFromHex(g.colorHex),
                           borderRadius: BorderRadius.circular(4),
                           minHeight: 8,
@@ -265,17 +266,17 @@ class BudgetsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('${formatMoney(g.saved)} of ${formatMoney(g.target)}',
-                                style: const TextStyle(
-                                    color: AppColors.textMuted, fontSize: 12)),
-                            const Row(
+                                style: TextStyle(
+                                    color: context.textMuted, fontSize: 12)),
+                            Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.add_circle_outline,
-                                    size: 14, color: AppColors.lime),
+                                    size: 14, color: context.accent),
                                 SizedBox(width: 4),
                                 Text('Add savings',
                                     style: TextStyle(
-                                        color: AppColors.lime, fontSize: 12)),
+                                        color: context.accent, fontSize: 12)),
                               ],
                             ),
                           ],
@@ -288,7 +289,7 @@ class BudgetsScreen extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _addGoalDialog(context, ref),
               icon: const Icon(Icons.add),
-              label: const Text('Add savings goal'),
+              label: Text('Add savings goal'),
             ),
           ],
         );
@@ -303,8 +304,8 @@ class BudgetsScreen extends ConsumerWidget {
       builder: (context, snap) {
         final debts = (snap.data ?? const <Debt>[]).take(3).toList();
         if (debts.isEmpty) {
-          return const Text('No outstanding debts.',
-              style: TextStyle(color: AppColors.textMuted));
+          return Text('No outstanding debts.',
+              style: TextStyle(color: context.textMuted));
         }
         return Column(
           children: [

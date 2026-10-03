@@ -130,7 +130,7 @@ class _TransactionDetailScreenState
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.bgRaised,
+                      color: context.raised,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Row(
@@ -271,10 +271,10 @@ class _TransactionDetailScreenState
                           errorBuilder: (_, _, _) => Container(
                                 width: 120,
                                 height: 120,
-                                color: AppColors.bgRaised,
-                                child: const Icon(
+                                color: context.raised,
+                                child: Icon(
                                   Icons.broken_image_outlined,
-                                  color: AppColors.textMuted,
+                                  color: context.textMuted,
                                 ),
                               )),
                     ),

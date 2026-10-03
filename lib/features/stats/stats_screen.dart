@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/glass_card.dart';
@@ -70,9 +71,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                         _donut(context, donutTotals, cats),
                         const SectionHeader(title: 'Last 6 months'),
                         _bars(context, monthlyTotals),
-                        const SectionHeader(title: 'Net savings trend'),
+                        SectionHeader(title: 'Net savings trend'),
                         _trendLine(context, monthlyTotals),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                       ],
                     ),
                   );
@@ -135,13 +136,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final sorted = totals;
     final total = sorted.fold<int>(0, (s, e) => s + e.total);
     if (total == 0) {
-      return const GlassCard(
+      return GlassCard(
         child: Center(
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: 32),
             child: Text(
               'No expenses this month',
-              style: TextStyle(color: AppColors.textMuted),
+              style: TextStyle(color: context.textMuted),
             ),
           ),
         ),
@@ -208,8 +209,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   children: [
                     Text(
                       touched?.name ?? 'Total',
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
+                      style: TextStyle(
+                        color: context.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -221,8 +222,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     if (touched != null)
                       Text(
                         '${(touched.amount / total * 100).toStringAsFixed(0)}%',
-                        style: const TextStyle(
-                          color: AppColors.lime,
+                        style: TextStyle(
+                          color: context.accent,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -264,7 +265,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.lime.withValues(alpha: 0.08)
+              ? context.accent.withValues(alpha: 0.08)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
@@ -355,7 +356,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             barTouchData: BarTouchData(
               enabled: true,
               touchTooltipData: BarTouchTooltipData(
-                getTooltipColor: (_) => AppColors.bgRaised,
+                getTooltipColor: (_) => context.raised,
                 tooltipPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
@@ -365,8 +366,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   final isIncome = rodIndex == 0;
                   return BarTooltipItem(
                     '${_monthLabel(m)}\n',
-                    const TextStyle(
-                      color: AppColors.textMuted,
+                    TextStyle(
+                      color: context.textMuted,
                       fontSize: 11,
                     ),
                     children: [
@@ -403,9 +404,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       monthNames[months[v.toInt()].month - 1],
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textMuted,
+                        color: context.textMuted,
                       ),
                     ),
                   ),
@@ -445,7 +446,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             lineTouchData: LineTouchData(
               enabled: true,
               touchTooltipData: LineTouchTooltipData(
-                getTooltipColor: (_) => AppColors.bgRaised,
+                getTooltipColor: (_) => context.raised,
                 tooltipPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
@@ -454,8 +455,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     .map(
                       (s) => LineTooltipItem(
                         '${_monthLabel(months[s.x.toInt()])}\n${formatMoney(s.y.toInt())}',
-                        const TextStyle(
-                          color: AppColors.lime,
+                        TextStyle(
+                          color: context.accent,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                         ),
@@ -471,12 +472,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               LineChartBarData(
                 spots: spots,
                 isCurved: true,
-                color: AppColors.lime,
+                color: context.accent,
                 barWidth: 3,
                 dotData: const FlDotData(show: true),
                 belowBarData: BarAreaData(
                   show: true,
-                  color: AppColors.lime.withValues(alpha: 0.12),
+                  color: context.accent.withValues(alpha: 0.12),
                 ),
               ),
             ],

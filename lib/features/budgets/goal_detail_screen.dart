@@ -48,9 +48,9 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             if (g.id == widget.goalId) goal = g;
           }
           if (goal == null) {
-            return const Center(
+            return Center(
               child: Text('Goal not found',
-                  style: TextStyle(color: AppColors.textMuted)),
+                  style: TextStyle(color: context.textMuted)),
             );
           }
           final g = goal;
@@ -99,7 +99,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             style: GoogleFonts.spaceGrotesk(
               fontSize: 30,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: context.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
@@ -107,9 +107,9 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _amountColumn(
-                  'Saved', formatMoney(goal.saved), AppColors.textMuted),
+                  'Saved', formatMoney(goal.saved), context.textMuted),
               _amountColumn('Remain', formatMoney(remain),
-                  remain < 0 ? AppColors.expense : AppColors.textMuted),
+                  remain < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
           const SizedBox(height: 8),
@@ -119,7 +119,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
               borderRadius: BorderRadius.circular(13),
               child: Stack(
                 children: [
-                  Container(color: AppColors.bgRaised),
+                  Container(color: context.raised),
                   FractionallySizedBox(
                     widthFactor: ratio.clamp(0.0, 1.0),
                     child: Container(color: AppColors.brandBlue),
@@ -127,10 +127,10 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                   Center(
                     child: Text(
                       '${(ratio * 100).toStringAsFixed(2).replaceAll('.', ',')}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                   ),
@@ -173,12 +173,12 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
           ),
           const SizedBox(height: 28),
           if (deposits.isEmpty)
-            const Center(
+            Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Text('No deposits yet',
                     style: TextStyle(
-                        color: AppColors.textMuted, fontSize: 15)),
+                        color: context.textMuted, fontSize: 15)),
               ),
             )
           else
@@ -208,22 +208,22 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
           SizedBox(
             width: 110,
             child: Text(label,
-                style: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 15)),
+                style: TextStyle(
+                    color: context.textMuted, fontSize: 15)),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(value,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary,
+                    style: TextStyle(
+                        color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600)),
                 if (sub != null)
                   Text(sub,
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 13)),
+                      style: TextStyle(
+                          color: context.textMuted, fontSize: 13)),
               ],
             ),
           ),
@@ -243,7 +243,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Column(
           children: [
-            Icon(icon, color: AppColors.textPrimary, size: 34),
+            Icon(icon, color: context.textPrimary, size: 34),
             const SizedBox(height: 6),
             Text(
               label,
@@ -274,7 +274,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 34,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
+                  color: context.textPrimary,
                 ),
               ),
               const SizedBox(width: 10),
@@ -285,14 +285,14 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                     Text(
                       DateFormat('EEEE', currentCurrency.locale)
                           .format(day),
-                      style: const TextStyle(
-                          color: AppColors.textPrimary, fontSize: 14),
+                      style: TextStyle(
+                          color: context.textPrimary, fontSize: 14),
                     ),
                     Text(
                       DateFormat('MMM yyyy', currentCurrency.locale)
                           .format(day),
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 13),
+                      style: TextStyle(
+                          color: context.textMuted, fontSize: 13),
                     ),
                   ],
                 ),
@@ -388,8 +388,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 ),
                 Text(
                   timeFmt.format(d.date),
-                  style: const TextStyle(
-                      color: AppColors.textMuted, fontSize: 12),
+                  style: TextStyle(
+                      color: context.textMuted, fontSize: 12),
                 ),
               ],
             ),

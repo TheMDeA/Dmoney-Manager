@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/amount_field.dart';
@@ -84,7 +85,7 @@ class _AddDebtScreenState extends ConsumerState<AddDebtScreen> {
                 .textTheme
                 .titleLarge
                 ?.copyWith(fontWeight: FontWeight.w700),
-            dropdownColor: AppColors.bgRaised,
+            dropdownColor: context.raised,
             items: const [
               DropdownMenuItem(
                   value: 'payable', child: Text('I borrowed')),
@@ -196,14 +197,14 @@ class _AddDebtScreenState extends ConsumerState<AddDebtScreen> {
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: _colorHex == hex
-                                  ? Colors.white
+                                  ? context.textPrimary
                                   : Colors.transparent,
                               width: 2,
                             ),
                           ),
                           child: _colorHex == hex
-                              ? const Icon(Icons.check,
-                                  size: 20, color: Colors.black)
+                              ? Icon(Icons.check,
+                                  size: 20, color: onAccent(colorFromHex(hex)))
                               : null,
                         ),
                       ),
@@ -294,7 +295,7 @@ class _AddDebtScreenState extends ConsumerState<AddDebtScreen> {
         padding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.bgRaised,
+          color: context.raised,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
