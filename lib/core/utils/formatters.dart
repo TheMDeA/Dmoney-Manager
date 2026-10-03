@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../services/app_prefs.dart';
@@ -56,6 +56,44 @@ String formatMoneyWith(String code, int amount) {
 /// Signed amount with explicit +/- so meaning never relies on color alone.
 String formatSignedMoney(int amount, {required bool isIncome}) =>
     '${isIncome ? '+' : '-'}${formatMoney(amount)}';
+
+/// The user's currency, as a convenience.
+AppCurrency get currentCurrency => currencyByCode(AppPrefs.currencyCode);
+
+/// Symbol prefix for amount TextFields, e.g. "Rp " or "$ ".
+String get currencyFieldPrefix => '${currentCurrency.symbol.trim()} ';
+
+/// Live thousand-separator formatting for amount TextFields, following the
+/// user's currency locale: typing 18088808 with IDR shows "18.088.808",
+/// with USD it shows "18,088,808". Replaces digitsOnly formatters.
+class ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  ThousandsSeparatorInputFormatter({String? locale})
+      : _fmt = NumberFormat('#,##0', locale ?? currentCurrency.locale);
+
+  final NumberFormat _fmt;
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    var digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return const TextEditingValue();
+    if (digits.length > 15) digits = digits.substring(0, 15);
+    final formatted = _fmt.format(int.parse(digits));
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+/// Parses an amount TextField value that may contain group separators
+/// (and a symbol prefix); returns 0 when unparseable.
+int parseAmountInput(String text) =>
+    int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+/// Formats a raw integer for display inside an amount TextField.
+String formatAmountInput(int amount) =>
+    NumberFormat('#,##0', currentCurrency.locale).format(amount);
 
 /// "yyyy-MM" key used by the budgets table.
 String monthKey(DateTime d) =>

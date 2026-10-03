@@ -201,7 +201,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Amount (Rp)'),
+                  inputFormatters: [ThousandsSeparatorInputFormatter()],
+                  decoration: InputDecoration(
+                      labelText: 'Amount (${currentCurrency.code})'),
                 ),
                 const SizedBox(height: 12),
                 SegmentedButton<String>(
@@ -237,7 +239,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         ),
       ),
     );
-    final amount = int.tryParse(amountCtrl.text) ?? 0;
+    final amount = parseAmountInput(amountCtrl.text);
     if (saved == true && personCtrl.text.trim().isNotEmpty && amount > 0) {
       final id = await ref.read(databaseProvider).addDebt(DebtsCompanion.insert(
             person: personCtrl.text.trim(),

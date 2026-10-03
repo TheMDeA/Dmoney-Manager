@@ -49,7 +49,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final e = widget.existing;
     if (e != null) {
       _kind = e.transaction.kind;
-      _amountCtrl.text = e.transaction.amount.toString();
+      _amountCtrl.text = formatAmountInput(e.transaction.amount);
       _noteCtrl.text = e.transaction.note;
       _categoryId = e.transaction.categoryId;
       _walletId = e.transaction.walletId;
@@ -122,10 +122,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 TextField(
                   controller: _amountCtrl,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  inputFormatters: [ThousandsSeparatorInputFormatter()],
                   style: AppTextStyles.displayBalance.copyWith(fontSize: 36),
-                  decoration: const InputDecoration(
-                    prefixText: 'Rp ',
+                  decoration: InputDecoration(
+                    prefixText: currencyFieldPrefix,
                     hintText: '0',
                     border: InputBorder.none,
                     filled: false,
@@ -257,7 +257,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _save() async {
-    final amount = int.tryParse(_amountCtrl.text) ?? 0;
+    final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _categoryId == null || _walletId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enter an amount, category and wallet')),

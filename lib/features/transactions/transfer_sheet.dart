@@ -71,10 +71,10 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                 TextField(
                   controller: _amountCtrl,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  inputFormatters: [ThousandsSeparatorInputFormatter()],
                   style: AppTextStyles.displayBalance.copyWith(fontSize: 36),
-                  decoration: const InputDecoration(
-                    prefixText: 'Rp ',
+                  decoration: InputDecoration(
+                    prefixText: currencyFieldPrefix,
                     hintText: '0',
                     border: InputBorder.none,
                     filled: false,
@@ -170,7 +170,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   }
 
   Future<void> _save() async {
-    final amount = int.tryParse(_amountCtrl.text) ?? 0;
+    final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _fromId == null || _toId == null || _fromId == _toId) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

@@ -342,7 +342,9 @@ class BudgetsScreen extends ConsumerWidget {
               TextField(
                 controller: limitCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Monthly limit (Rp)'),
+                inputFormatters: [ThousandsSeparatorInputFormatter()],
+                decoration: InputDecoration(
+                    labelText: 'Monthly limit (${currentCurrency.code})'),
               ),
             ],
           ),
@@ -353,7 +355,7 @@ class BudgetsScreen extends ConsumerWidget {
         ),
       ),
     );
-    final limit = int.tryParse(limitCtrl.text) ?? 0;
+    final limit = parseAmountInput(limitCtrl.text);
     if (saved == true && catId != null && limit > 0) {
       await ref.read(databaseProvider).addBudget(
             BudgetsCompanion.insert(categoryId: catId!, month: mk, limit: limit),
@@ -371,7 +373,9 @@ class BudgetsScreen extends ConsumerWidget {
         content: TextField(
           controller: amountCtrl,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Amount (Rp)'),
+          inputFormatters: [ThousandsSeparatorInputFormatter()],
+          decoration:
+              InputDecoration(labelText: 'Amount (${currentCurrency.code})'),
         ),
         actions: [
           TextButton(
@@ -383,7 +387,7 @@ class BudgetsScreen extends ConsumerWidget {
         ],
       ),
     );
-    final amount = int.tryParse(amountCtrl.text) ?? 0;
+    final amount = parseAmountInput(amountCtrl.text);
     if (saved == true && amount > 0) {
       await ref
           .read(databaseProvider)
@@ -411,7 +415,9 @@ class BudgetsScreen extends ConsumerWidget {
             TextField(
               controller: targetCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Target (Rp)'),
+              inputFormatters: [ThousandsSeparatorInputFormatter()],
+              decoration: InputDecoration(
+                  labelText: 'Target (${currentCurrency.code})'),
             ),
           ],
         ),
@@ -421,7 +427,7 @@ class BudgetsScreen extends ConsumerWidget {
         ],
       ),
     );
-    final target = int.tryParse(targetCtrl.text) ?? 0;
+    final target = parseAmountInput(targetCtrl.text);
     if (saved == true && nameCtrl.text.trim().isNotEmpty && target > 0) {
       await ref.read(databaseProvider).addGoal(
             GoalsCompanion.insert(name: nameCtrl.text.trim(), target: target),
