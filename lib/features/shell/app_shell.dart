@@ -10,6 +10,9 @@ import '../wallets/wallets_screen.dart';
 import '../../state/providers.dart';
 
 /// Bottom navigation with a center-docked FAB opening the add-transaction sheet.
+///
+/// Tabs swipe left/right via [PageView]; tapping a nav item animates to it.
+/// External jumps (e.g. goal spotlight → Budgets) animate through the same path.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
@@ -26,6 +29,32 @@ class _AppShellState extends ConsumerState<AppShell> {
     SettingsScreen(),
   ];
 
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController =
+        PageController(initialPage: ref.read(tabIndexProvider));
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _goTo(int index) {
+    if (!_pageController.hasClients) return;
+    final current = _pageController.page?.round() ?? 0;
+    if (current == index) return;
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   void _openAddSheet() {
     showModalBottomSheet(
       context: context,
@@ -36,23 +65,14 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final index = ref.watch(tabIndexProvider);
+    // External tab jumps (quick actions, deep links) animate like taps.
+    ref.listen<int>(tabIndexProvider, (_, next) => _goTo(next));
+
     return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          final slide = Tween<Offset>(
-            begin: const Offset(0.04, 0),
-            end: Offset.zero,
-          ).animate(animation);
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(position: slide, child: child),
-          );
-        },
-        child: KeyedSubtree(key: ValueKey(index), child: _screens[index]),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (i) => ref.read(tabIndexProvider.notifier).go(i),
+        children: _screens,
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openAddSheet,
@@ -90,9 +110,22 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(active ? activeIcon : icon, color: color, size: 24),
+              AnimatedScale(
+                scale: active ? 1.18 : 1.0,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutBack,
+                child: Icon(active ? activeIcon : icon, color: color, size: 24),
+              ),
               const SizedBox(height: 2),
-              Text(label, style: TextStyle(fontSize: 11, color: color)),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: color,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                ),
+                child: Text(label),
+              ),
             ],
           ),
         ),

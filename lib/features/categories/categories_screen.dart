@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
@@ -37,7 +38,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   onPressed: () {
                     final kind = tab.index == 0 ? 'income' : 'expense';
                     Navigator.of(context).push(
-                      MaterialPageRoute(
+                      AppPageRoute(
                         builder: (_) =>
                             CategoryFormScreen(kind: kind),
                       ),
@@ -158,7 +159,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 tooltip: 'Edit',
                 icon: const Icon(Icons.edit_outlined, size: 22),
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
+                  AppPageRoute(
                     builder: (_) => CategoryFormScreen(
                       kind: c.kind,
                       existing: c,

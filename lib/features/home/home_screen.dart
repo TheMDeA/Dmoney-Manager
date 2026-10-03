@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/entrance.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -132,7 +134,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 title: 'Recent transactions',
                 action: TextButton(
                   onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const TransactionsScreen()),
+                    AppPageRoute(builder: (_) => const TransactionsScreen()),
                   ),
                   child: const Text('See all'),
                 ),
@@ -148,7 +150,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     );
                   }
                   return Column(
-                    children: [for (final d in items) TransactionTile(details: d)],
+                    children: [
+                      for (var i = 0; i < items.length; i++)
+                        Entrance(
+                          key: ValueKey(items[i].transaction.id),
+                          delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
+                          child: TransactionTile(details: items[i]),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -211,7 +220,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         IconButton(
           onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const SearchScreen()),
+            AppPageRoute(builder: (_) => const SearchScreen()),
           ),
           icon: const Icon(Icons.search),
         ),
@@ -221,7 +230,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ref.read(lockedProvider.notifier).lock();
             } else {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                AppPageRoute(builder: (_) => const SettingsScreen()),
               );
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
@@ -61,19 +62,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'Categories',
               subtitle: 'Create, edit, delete',
               onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CategoriesScreen()))),
+                  AppPageRoute(builder: (_) => const CategoriesScreen()))),
           _tile(context,
               icon: Icons.file_download_outlined,
               title: 'Export data',
               subtitle: 'CSV / Excel',
               onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ExportScreen()))),
+                  AppPageRoute(builder: (_) => const ExportScreen()))),
           _tile(context,
               icon: Icons.backup_outlined,
               title: 'Backup & restore',
               subtitle: 'Full backup to a file',
               onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => BackupScreen()))),
+                  AppPageRoute(builder: (_) => BackupScreen()))),
           SwitchListTile(
             secondary: const Icon(Icons.lock_outline),
             title: const Text('Password protection'),
@@ -87,7 +88,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 icon: Icons.password_outlined,
                 title: 'Change passcode',
                 subtitle: 'Update your 4-digit PIN',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                onTap: () => Navigator.of(context).push(AppPageRoute(
                     builder: (_) => const PinSetupScreen(isChange: true)))),
           const Divider(),
           Padding(
@@ -143,7 +144,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: currencyByCode(AppPrefs.currencyCode).label,
               onTap: () async {
                 final changed = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
+                  AppPageRoute(
                       builder: (_) => const CurrencyScreen()),
                 );
                 if (changed == true && mounted) setState(() {});
@@ -152,7 +153,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               icon: Icons.notifications_outlined,
               title: 'Notifications',
               subtitle: 'Budget alerts & debt reminders',
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              onTap: () => Navigator.of(context).push(AppPageRoute(
                   builder: (_) => const NotificationsScreen()))),
           _tile(context,
               icon: Icons.info_outline,
@@ -174,7 +175,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (enable) {
       if (!AppPrefs.hasPin) {
         final set = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(builder: (_) => const PinSetupScreen()),
+          AppPageRoute(builder: (_) => const PinSetupScreen()),
         );
         if (set != true) return;
       }

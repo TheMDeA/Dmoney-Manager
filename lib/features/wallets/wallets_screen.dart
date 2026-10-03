@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/entrance.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -87,8 +89,14 @@ class WalletsScreen extends ConsumerWidget {
                           message: 'No wallets here yet.',
                         )
                       else
-                        for (final w in wallets)
-                          _walletCard(context, w, lastByWallet[w.id]),
+                        for (var i = 0; i < wallets.length; i++)
+                          Entrance(
+                            key: ValueKey(wallets[i].id),
+                            delay:
+                                Duration(milliseconds: (i * 60).clamp(0, 300)),
+                            child: _walletCard(context, wallets[i],
+                                lastByWallet[wallets[i].id]),
+                          ),
                     ],
                   );
                 },
@@ -125,7 +133,7 @@ class WalletsScreen extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
+          AppPageRoute(
             builder: (_) => WalletDetailScreen(walletId: w.id),
           ),
         ),

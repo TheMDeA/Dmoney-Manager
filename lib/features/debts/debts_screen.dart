@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/entrance.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
@@ -34,7 +36,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           IconButton(
             tooltip: 'Add debt',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
+              AppPageRoute(
                 builder: (_) =>
                     AddDebtScreen(initialDirection: _direction),
               ),
@@ -74,10 +76,20 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 const EmptyState(
                     icon: Icons.handshake_outlined, message: 'Nothing outstanding.')
               else
-                for (final d in outstanding) _debtTile(context, ref, d, false),
+                for (var i = 0; i < outstanding.length; i++)
+                  Entrance(
+                    key: ValueKey(outstanding[i].id),
+                    delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
+                    child: _debtTile(context, ref, outstanding[i], false),
+                  ),
               const SizedBox(height: 8),
               _band(context, _direction == 'payable' ? 'Paid' : 'Received', paidTotal),
-              for (final d in paid) _debtTile(context, ref, d, true),
+              for (var i = 0; i < paid.length; i++)
+                Entrance(
+                  key: ValueKey(paid[i].id),
+                  delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
+                  child: _debtTile(context, ref, paid[i], true),
+                ),
             ],
           );
         },
@@ -145,7 +157,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 4),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
+          AppPageRoute(
             builder: (_) => DebtDetailScreen(debtId: d.id),
           ),
         ),

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
@@ -175,7 +176,7 @@ class _CategoryFormScreenState
       borderRadius: BorderRadius.circular(12),
       onTap: () async {
         final picked = await Navigator.of(context).push<String>(
-          MaterialPageRoute(
+          AppPageRoute(
             builder: (_) => PickIconScreen(initialKey: _iconKey),
           ),
         );
@@ -270,7 +271,7 @@ class _CategoryFormScreenState
                       icon: const Icon(Icons.edit_outlined, size: 20),
                       onPressed: () =>
                           Navigator.of(context).push(
-                        MaterialPageRoute(
+                        AppPageRoute(
                           builder: (_) => CategoryFormScreen(
                             kind: widget.kind,
                             existing: s,
@@ -292,7 +293,7 @@ class _CategoryFormScreenState
               leading: const Icon(Icons.add),
               title: const Text('Add subcategory'),
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
+                AppPageRoute(
                   builder: (_) => CategoryFormScreen(
                     kind: widget.kind,
                     parentId: parentId,

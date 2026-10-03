@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_text_styles.dart';
@@ -30,7 +31,7 @@ class TransactionTile extends ConsumerWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
+        AppPageRoute(
           builder: (_) => isDebtLinked
               ? DebtDetailScreen(debtId: t.debtId!)
               : TransactionDetailScreen(transactionId: t.id),
