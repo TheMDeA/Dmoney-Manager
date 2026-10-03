@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 
 part 'app_database.g.dart';
 
@@ -498,15 +501,51 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-  Future<void> addPhoto(int transactionId, String path) =>
-      into(transactionPhotos).insert(
-        TransactionPhotosCompanion.insert(transactionId: transactionId, path: path),
-      );
+  /// Attaches a photo to a transaction.
+  ///
+  /// The source file (e.g. the image_picker cache copy) is copied into the
+  /// app's documents directory first, because the picker's cache path is
+  /// not guaranteed to survive cache clears or app restarts. The stored
+  /// path (our copy) is what gets saved in the database; the user's
+  /// gallery original is never moved or modified.
+  Future<String> addPhoto(int transactionId, String sourcePath) async {
+    final docs = await getApplicationDocumentsDirectory();
+    final receipts = Directory('${docs.path}/receipts');
+    await receipts.create(recursive: true);
+    final dot = sourcePath.lastIndexOf('.');
+    final ext = (dot >= 0 && dot > sourcePath.lastIndexOf('/'))
+        ? sourcePath.substring(dot + 1).toLowerCase()
+        : 'jpg';
+    final dest =
+        '${receipts.path}/${DateTime.now().millisecondsSinceEpoch}_$transactionId.$ext';
+    final stored = await File(sourcePath).copy(dest);
+    await into(transactionPhotos).insert(
+      TransactionPhotosCompanion.insert(
+          transactionId: transactionId, path: stored.path),
+    );
+    return stored.path;
+  }
 
-  /// Removes a photo attachment. The underlying image file is left alone —
-  /// gallery picks belong to the user and camera shots live in app cache.
-  Future<void> deletePhoto(int photoId) =>
-      (delete(transactionPhotos)..where((p) => p.id.equals(photoId))).go();
+  /// Removes a photo attachment. Our stored copy is deleted too; the
+  /// user's original (gallery photo / camera roll) is always kept.
+  Future<void> deletePhoto(int photoId) async {
+    final row = await (select(transactionPhotos)
+          ..where((p) => p.id.equals(photoId)))
+        .getSingleOrNull();
+    await (delete(transactionPhotos)..where((p) => p.id.equals(photoId))).go();
+    if (row == null) return;
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final file = File(row.path);
+      // Safety: only ever delete files inside our own receipts folder,
+      // never the user's originals (covers rows stored before this fix).
+      if (file.path.startsWith('${docs.path}/receipts')) {
+        if (await file.exists()) await file.delete();
+      }
+    } catch (_) {
+      // A missing file must never block removing the attachment record.
+    }
+  }
 
   Future<int> addWallet(WalletsCompanion entry) => into(wallets).insert(entry);
 

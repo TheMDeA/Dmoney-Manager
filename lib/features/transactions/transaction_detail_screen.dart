@@ -252,7 +252,7 @@ class _TransactionDetailScreenState
                 ),
               InkWell(
                 borderRadius: BorderRadius.circular(16),
-                onTap: () => _addPhoto(ref),
+                onTap: () => _addPhoto(context, ref),
                 child: Container(
                   width: 120,
                   height: 120,
@@ -275,11 +275,21 @@ class _TransactionDetailScreenState
     );
   }
 
-  Future<void> _addPhoto(WidgetRef ref) async {
-    final picked =
-        await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      await ref.read(databaseProvider).addPhoto(widget.transactionId, picked.path);
+  Future<void> _addPhoto(BuildContext context, WidgetRef ref) async {
+    try {
+      final picked =
+          await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (picked != null) {
+        await ref
+            .read(databaseProvider)
+            .addPhoto(widget.transactionId, picked.path);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not add photo: $e')),
+        );
+      }
     }
   }
 

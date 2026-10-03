@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Camera for the "Scan receipt" quick action. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Gallery photo picking on older Android versions. API 33+ uses the
+         system photo picker, which needs no permission. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
     <application
         android:label="Dmoney Manager"
         android:name="${applicationName}">

@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Receipt photos are now reliable: picked images are copied into the
+  app's documents folder (`receipts/`) instead of referencing the
+  image_picker cache path, which the OS can wipe at any time. Deleting
+  an attachment also removes the stored copy (the user's gallery
+  original is always kept). Photo/camera failures now show an error
+  message instead of failing silently.
+
+### Added
+- Android permissions for photos: `CAMERA` (scan receipt),
+  `READ_MEDIA_IMAGES`, and `READ_EXTERNAL_STORAGE` (API ≤ 32).
+
 ## [1.1.0] - 2026-10-03
 
 ### Added

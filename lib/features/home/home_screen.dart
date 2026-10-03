@@ -159,14 +159,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _scanReceipt() async {
-    final picked =
-        await ImagePicker().pickImage(source: ImageSource.camera);
-    if (picked == null || !mounted) return;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => AddTransactionSheet(attachedPhotoPath: picked.path),
-    );
+    try {
+      final picked =
+          await ImagePicker().pickImage(source: ImageSource.camera);
+      if (picked == null || !mounted) return;
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => AddTransactionSheet(attachedPhotoPath: picked.path),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open camera: $e')),
+        );
+      }
+    }
   }
 
   Widget _header(BuildContext context) {

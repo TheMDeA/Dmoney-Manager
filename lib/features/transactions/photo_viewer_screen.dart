@@ -134,8 +134,8 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Delete photo?'),
         content: const Text(
-          'This removes the photo from the record. '
-          'The original image file is kept.',
+          'This removes the attached copy from the record. '
+          'Your original photo in the gallery is kept.',
         ),
         actions: [
           TextButton(
