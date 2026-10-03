@@ -35,34 +35,48 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       _month.year,
       _month.month + 1,
     ).subtract(const Duration(seconds: 1));
+    final now = DateTime.now();
+    final sixMonthStart = DateTime(now.year, now.month - 5);
+    final sixMonthEnd = DateTime(
+      now.year,
+      now.month + 1,
+    ).subtract(const Duration(seconds: 1));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Stats')),
-      body: StreamBuilder<List<Transaction>>(
-        stream: db.watchTransactionsRaw(),
-        builder: (context, txSnap) {
-          final txs = txSnap.data ?? const <Transaction>[];
-          return StreamBuilder<List<Category>>(
-            stream: db.watchCategories(),
-            builder: (context, catSnap) {
-              final cats = {
-                for (final c in (catSnap.data ?? const <Category>[])) c.id: c,
-              };
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _monthSelector(context),
-                    const SectionHeader(title: 'Spending by category'),
-                    _donut(context, txs, cats, monthStart, monthEnd),
-                    const SectionHeader(title: 'Last 6 months'),
-                    _bars(context, txs),
-                    const SectionHeader(title: 'Net savings trend'),
-                    _trendLine(context, txs),
-                    const SizedBox(height: 8),
-                  ],
-                ),
+      body: StreamBuilder<List<CategoryTotal>>(
+        stream: db.watchCategoryExpenseTotals(monthStart, monthEnd),
+        builder: (context, donutSnap) {
+          final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
+          return StreamBuilder<List<MonthlyTotal>>(
+            stream: db.watchMonthlyKindTotals(sixMonthStart, sixMonthEnd),
+            builder: (context, monthlySnap) {
+              final monthlyTotals =
+                  monthlySnap.data ?? const <MonthlyTotal>[];
+              return StreamBuilder<List<Category>>(
+                stream: db.watchCategories(),
+                builder: (context, catSnap) {
+                  final cats = {
+                    for (final c in (catSnap.data ?? const <Category>[]))
+                      c.id: c,
+                  };
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _monthSelector(context),
+                        const SectionHeader(title: 'Spending by category'),
+                        _donut(context, donutTotals, cats),
+                        const SectionHeader(title: 'Last 6 months'),
+                        _bars(context, monthlyTotals),
+                        const SectionHeader(title: 'Net savings trend'),
+                        _trendLine(context, monthlyTotals),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  );
+                },
               );
             },
           );
@@ -103,31 +117,23 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   /// A donut slice: either a real category or the aggregated "Other".
   ({String name, String colorHex, int amount}) _sliceOf(
-    MapEntry<int, int> e,
+    CategoryTotal e,
     Map<int, Category> cats,
   ) =>
       (
-        name: cats[e.key]?.name ?? 'Other',
-        colorHex: cats[e.key]?.colorHex ?? '#9CA3AF',
-        amount: e.value,
+        name: cats[e.categoryId]?.name ?? 'Other',
+        colorHex: cats[e.categoryId]?.colorHex ?? '#9CA3AF',
+        amount: e.total,
       );
 
   Widget _donut(
     BuildContext context,
-    List<Transaction> txs,
+    List<CategoryTotal> totals,
     Map<int, Category> cats,
-    DateTime from,
-    DateTime to,
   ) {
-    final expenses = txs.where(
-      (t) =>
-          t.kind == 'expense' && !t.date.isBefore(from) && !t.date.isAfter(to),
-    );
-    final byCat = <int, int>{};
-    for (final t in expenses) {
-      byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
-    }
-    final total = byCat.values.fold<int>(0, (s, v) => s + v);
+    // Already grouped and sorted by the database.
+    final sorted = totals;
+    final total = sorted.fold<int>(0, (s, e) => s + e.total);
     if (total == 0) {
       return const GlassCard(
         child: Center(
@@ -142,8 +148,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       );
     }
 
-    final sorted = byCat.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
     // Top 5 slices + an aggregated "Other" so no spending goes missing.
     final slices = <({String name, String colorHex, int amount})>[
       for (final e in sorted.take(5)) _sliceOf(e, cats),
@@ -151,7 +155,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         (
           name: 'Other',
           colorHex: '#9CA3AF',
-          amount: sorted.skip(5).fold<int>(0, (s, e) => s + e.value),
+          amount: sorted.skip(5).fold<int>(0, (s, e) => s + e.total),
         ),
     ];
     if (_touchedDonutIndex >= slices.length) _touchedDonutIndex = -1;
@@ -288,7 +292,19 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   // -------------------------------- bars ---------------------------------
 
-  Widget _bars(BuildContext context, List<Transaction> txs) {
+  /// Lookup: 'yyyy-MM' -> kind -> total, from the pre-aggregated stream.
+  Map<String, Map<String, int>> _monthlyLookup(List<MonthlyTotal> totals) {
+    final map = <String, Map<String, int>>{};
+    for (final t in totals) {
+      map.putIfAbsent(t.month, () => {})[t.kind] = t.total;
+    }
+    return map;
+  }
+
+  String _monthKey(DateTime m) =>
+      '${m.year}-${m.month.toString().padLeft(2, '0')}';
+
+  Widget _bars(BuildContext context, List<MonthlyTotal> totals) {
     final now = DateTime.now();
     final months = List.generate(
       6,
@@ -297,27 +313,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     const monthNames = [
       'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D',
     ];
+    final lookup = _monthlyLookup(totals);
 
     double maxY = 1;
     final groups = <BarChartGroupData>[];
     for (var i = 0; i < months.length; i++) {
-      final m = months[i];
-      final from = DateTime(m.year, m.month);
-      final to = DateTime(
-        m.year,
-        m.month + 1,
-      ).subtract(const Duration(seconds: 1));
-      final inMonth = txs.where(
-        (t) => !t.date.isBefore(from) && !t.date.isAfter(to),
-      );
-      final income = inMonth
-          .where((t) => t.kind == 'income')
-          .fold<int>(0, (s, t) => s + t.amount)
-          .toDouble();
-      final expense = inMonth
-          .where((t) => t.kind == 'expense')
-          .fold<int>(0, (s, t) => s + t.amount)
-          .toDouble();
+      final kinds = lookup[_monthKey(months[i])] ?? const {};
+      final income = (kinds['income'] ?? 0).toDouble();
+      final expense = (kinds['expense'] ?? 0).toDouble();
       if (income > maxY) maxY = income;
       if (expense > maxY) maxY = expense;
       groups.add(
@@ -420,32 +423,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   // -------------------------------- trend --------------------------------
 
-  Widget _trendLine(BuildContext context, List<Transaction> txs) {
+  Widget _trendLine(BuildContext context, List<MonthlyTotal> totals) {
     final now = DateTime.now();
     final months = List.generate(
       6,
       (i) => DateTime(now.year, now.month - 5 + i),
     );
+    final lookup = _monthlyLookup(totals);
     final spots = <FlSpot>[];
     for (var i = 0; i < months.length; i++) {
-      final m = months[i];
-      final from = DateTime(m.year, m.month);
-      final to = DateTime(
-        m.year,
-        m.month + 1,
-      ).subtract(const Duration(seconds: 1));
-      final inMonth = txs.where(
-        (t) => !t.date.isBefore(from) && !t.date.isAfter(to),
-      );
+      final kinds = lookup[_monthKey(months[i])] ?? const {};
       // Transfers move money between wallets — neutral for net savings.
-      final net = inMonth.fold<int>(
-        0,
-        (s, t) => switch (t.kind) {
-          'income' => s + t.amount,
-          'expense' => s - t.amount,
-          _ => s,
-        },
-      );
+      final net = (kinds['income'] ?? 0) - (kinds['expense'] ?? 0);
       spots.add(FlSpot(i.toDouble(), net.toDouble()));
     }
     return GlassCard(

@@ -31,24 +31,22 @@ class BudgetsScreen extends ConsumerWidget {
         stream: db.watchBudgets(mk),
         builder: (context, bSnap) {
           final budgets = bSnap.data ?? const <Budget>[];
-          return StreamBuilder<List<Transaction>>(
-            stream: db.watchTransactionsRaw(),
-            builder: (context, txSnap) {
-              final txs = txSnap.data ?? const <Transaction>[];
-              final monthStart = DateTime(now.year, now.month);
+          final monthStart = DateTime(now.year, now.month);
+          final monthEnd = DateTime(now.year, now.month + 1)
+              .subtract(const Duration(seconds: 1));
+          return StreamBuilder<List<CategoryTotal>>(
+            stream: db.watchCategoryExpenseTotals(monthStart, monthEnd),
+            builder: (context, totalsSnap) {
+              final spentByCat = {
+                for (final t in (totalsSnap.data ?? const <CategoryTotal>[]))
+                  t.categoryId: t.total,
+              };
               return StreamBuilder<List<Category>>(
                 stream: db.watchCategories(),
                 builder: (context, catSnap) {
                   final cats = {
                     for (final c in (catSnap.data ?? const <Category>[])) c.id: c
                   };
-                  final spentByCat = <int, int>{};
-                  for (final t in txs) {
-                    if (t.kind == 'expense' && !t.date.isBefore(monthStart)) {
-                      spentByCat[t.categoryId] =
-                          (spentByCat[t.categoryId] ?? 0) + t.amount;
-                    }
-                  }
                   final overBudget = budgets.where((b) =>
                       (spentByCat[b.categoryId] ?? 0) >= b.limit);
 

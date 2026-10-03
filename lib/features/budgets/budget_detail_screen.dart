@@ -65,15 +65,19 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             );
           }
           final categoryId = budget.categoryId;
-          final budgetMonth = widget.month;
+          final parts = widget.month.split('-');
+          final monthStart =
+              DateTime(int.parse(parts[0]), int.parse(parts[1]));
+          final monthEnd = DateTime(
+            monthStart.year,
+            monthStart.month + 1,
+          ).subtract(const Duration(seconds: 1));
           return StreamBuilder<List<TransactionWithDetails>>(
-            stream: db.watchTransactions(),
+            stream: db.watchTransactionsForCategory(
+                categoryId, monthStart, monthEnd),
             builder: (context, txSnap) {
               final txs = (txSnap.data ?? const <TransactionWithDetails>[])
-                  .where((d) =>
-                      d.transaction.kind == 'expense' &&
-                      d.transaction.categoryId == categoryId &&
-                      monthKey(d.transaction.date) == budgetMonth)
+                  .where((d) => d.transaction.kind == 'expense')
                   .toList();
               return StreamBuilder<List<Category>>(
                 stream: db.watchCategories(),
