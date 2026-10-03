@@ -1,63 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_auth/local_auth.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../../state/providers.dart';
 
-/// Passcode + biometric lock screen ("Secure and Private").
-/// Verifies the 4-digit passcode set in More → Password protection.
-class LockScreen extends ConsumerStatefulWidget {
-  const LockScreen({super.key});
+/// Set (or change) the 4-digit app passcode: enter once, then confirm.
+class PinSetupScreen extends ConsumerStatefulWidget {
+  const PinSetupScreen({super.key, this.isChange = false});
+
+  final bool isChange;
 
   @override
-  ConsumerState<LockScreen> createState() => _LockScreenState();
+  ConsumerState<PinSetupScreen> createState() => _PinSetupScreenState();
 }
 
-class _LockScreenState extends ConsumerState<LockScreen> {
+class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
+  String _first = '';
   String _pin = '';
+
+  bool get _confirming => _first.isNotEmpty;
 
   void _press(String digit) {
     if (_pin.length >= 4) return;
     setState(() => _pin += digit);
     if (_pin.length == 4) {
-      Future.delayed(const Duration(milliseconds: 250), () {
+      Future.delayed(const Duration(milliseconds: 250), () async {
         if (!mounted) return;
-        if (AppPrefs.verifyPin(_pin)) {
-          ref.read(lockedProvider.notifier).unlock();
+        if (!_confirming) {
+          setState(() {
+            _first = _pin;
+            _pin = '';
+          });
+        } else if (_pin == _first) {
+          await AppPrefs.setPin(_pin);
+          if (mounted) Navigator.of(context).pop(true);
         } else {
-          setState(() => _pin = '');
-          _msg('Wrong passcode, try again');
+          setState(() {
+            _first = '';
+            _pin = '';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Passcodes do not match, try again')),
+          );
         }
       });
     }
   }
 
   void _backspace() {
-    if (_pin.isNotEmpty) setState(() => _pin = _pin.substring(0, _pin.length - 1));
-  }
-
-  Future<void> _biometric() async {
-    try {
-      final auth = LocalAuthentication();
-      if (!await auth.canCheckBiometrics) {
-        _msg('No biometrics enrolled on this device');
-        return;
-      }
-      final ok = await auth.authenticate(
-        localizedReason: 'Unlock Dmoney Manager',
-        biometricOnly: true,
-      );
-      if (ok && mounted) ref.read(lockedProvider.notifier).unlock();
-    } catch (_) {
-      _msg('Biometric unlock failed');
+    if (_pin.isNotEmpty) {
+      setState(() => _pin = _pin.substring(0, _pin.length - 1));
     }
-  }
-
-  void _msg(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -65,11 +59,15 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = isDark ? AppColors.lime : AppColors.brandBlue;
     return Scaffold(
+      appBar: AppBar(title: Text(widget.isChange ? 'Change passcode' : 'Set passcode')),
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 64),
-            Text('Enter Password', style: AppTextStyles.displaySection),
+            const SizedBox(height: 48),
+            Text(
+              _confirming ? 'Confirm your passcode' : 'Enter a 4-digit passcode',
+              style: AppTextStyles.displaySection.copyWith(fontSize: 20),
+            ),
             const SizedBox(height: 32),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -90,17 +88,6 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 48),
-            InkWell(
-              borderRadius: BorderRadius.circular(40),
-              onTap: _biometric,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
-                child: const Icon(Icons.fingerprint, color: Colors.white, size: 40),
-              ),
-            ),
             const Spacer(),
             _keypad(accent),
             const SizedBox(height: 24),
@@ -120,13 +107,13 @@ class _LockScreenState extends ConsumerState<LockScreen> {
         ])
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [for (final d in row) _key(d, accent)],
+            children: [for (final d in row) _key(d)],
           ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             const SizedBox(width: 72),
-            _key('0', accent),
+            _key('0'),
             SizedBox(
               width: 72,
               child: IconButton(
@@ -140,7 +127,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     );
   }
 
-  Widget _key(String digit, Color accent) {
+  Widget _key(String digit) {
     return SizedBox(
       width: 72,
       height: 64,

@@ -218,37 +218,57 @@ class BudgetsScreen extends ConsumerWidget {
             for (final g in goals)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: GlassCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(g.name,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600)),
-                          Text(
-                              '${(g.target == 0 ? 0 : g.saved / g.target * 100).toStringAsFixed(0)}%',
-                              style: AppTextStyles.amount(size: 14)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      LinearProgressIndicator(
-                        value: g.target == 0
-                            ? 0.0
-                            : (g.saved / g.target).clamp(0.0, 1.0),
-                        backgroundColor: AppColors.hairline,
-                        color: colorFromHex(g.colorHex),
-                        borderRadius: BorderRadius.circular(4),
-                        minHeight: 8,
-                      ),
-                      const SizedBox(height: 6),
-                      Text('${formatIDR(g.saved)} of ${formatIDR(g.target)}',
-                          style: const TextStyle(
-                              color: AppColors.textMuted, fontSize: 12)),
-                    ],
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => _addSavingsDialog(context, ref, g),
+                  child: GlassCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(g.name,
+                                style:
+                                    const TextStyle(fontWeight: FontWeight.w600)),
+                            Text(
+                                '${(g.target == 0 ? 0 : g.saved / g.target * 100).toStringAsFixed(0)}%',
+                                style: AppTextStyles.amount(size: 14)),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        LinearProgressIndicator(
+                          value: g.target == 0
+                              ? 0.0
+                              : (g.saved / g.target).clamp(0.0, 1.0),
+                          backgroundColor: AppColors.hairline,
+                          color: colorFromHex(g.colorHex),
+                          borderRadius: BorderRadius.circular(4),
+                          minHeight: 8,
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('${formatIDR(g.saved)} of ${formatIDR(g.target)}',
+                                style: const TextStyle(
+                                    color: AppColors.textMuted, fontSize: 12)),
+                            const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add_circle_outline,
+                                    size: 14, color: AppColors.lime),
+                                SizedBox(width: 4),
+                                Text('Add savings',
+                                    style: TextStyle(
+                                        color: AppColors.lime, fontSize: 12)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -338,6 +358,41 @@ class BudgetsScreen extends ConsumerWidget {
       await ref.read(databaseProvider).addBudget(
             BudgetsCompanion.insert(categoryId: catId!, month: mk, limit: limit),
           );
+    }
+  }
+
+  Future<void> _addSavingsDialog(
+      BuildContext context, WidgetRef ref, Goal g) async {
+    final amountCtrl = TextEditingController();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Add savings to "${g.name}"'),
+        content: TextField(
+          controller: amountCtrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Amount (Rp)'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Add')),
+        ],
+      ),
+    );
+    final amount = int.tryParse(amountCtrl.text) ?? 0;
+    if (saved == true && amount > 0) {
+      await ref
+          .read(databaseProvider)
+          .updateGoalSaved(g.id, g.saved + amount);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${formatIDR(amount)} added to ${g.name}')),
+        );
+      }
     }
   }
 

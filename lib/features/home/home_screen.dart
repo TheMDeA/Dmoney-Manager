@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -8,10 +9,13 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
+import '../transactions/add_transaction_sheet.dart';
+import '../transactions/transfer_sheet.dart';
 import '../transactions/transactions_screen.dart';
 import '../transactions/widgets/transaction_tile.dart';
 import 'widgets/ai_insight_card.dart';
 import 'widgets/balance_card.dart';
+import 'widgets/goal_spotlight_card.dart';
 import 'widgets/quick_actions.dart';
 import 'widgets/stat_sparkline_card.dart';
 
@@ -94,8 +98,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              const QuickActions(),
+              QuickActions(
+                onTransfer: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => const TransferSheet(),
+                ),
+                onTopUp: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) =>
+                      const AddTransactionSheet(initialKind: 'income'),
+                ),
+                onScan: _scanReceipt,
+                onMore: () => ref.read(tabIndexProvider.notifier).go(4),
+              ),
               const SizedBox(height: 16),
+              const GoalSpotlightCard(),
               const AiInsightCard(),
               SectionHeader(
                 title: 'Recent transactions',
@@ -128,6 +147,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Future<void> _scanReceipt() async {
+    final picked =
+        await ImagePicker().pickImage(source: ImageSource.camera);
+    if (picked == null || !mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddTransactionSheet(attachedPhotoPath: picked.path),
+    );
+  }
+
   Widget _header(BuildContext context) {
     return Row(
       children: [
@@ -149,12 +179,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Good evening,',
+              Text(_greeting(),
                   style: Theme.of(context)
                       .textTheme
                       .bodySmall
                       ?.copyWith(color: AppColors.textMuted)),
-              Text('Track every rupiah',
+              Text(ref.watch(displayNameProvider),
                   style: AppTextStyles.displaySection.copyWith(fontSize: 18)),
             ],
           ),
@@ -183,6 +213,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ],
     );
+  }
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 11) return 'Good morning,';
+    if (h < 15) return 'Good afternoon,';
+    if (h < 19) return 'Good evening,';
+    return 'Good night,';
   }
 
   Widget _rangeSwitcher(BuildContext context, String range) {

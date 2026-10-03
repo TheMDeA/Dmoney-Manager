@@ -82,9 +82,20 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
         ),
         title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
         trailing: _editing
-            ? IconButton(
-                icon: const Icon(Icons.delete_outline, color: AppColors.expense),
-                onPressed: () => _confirmDelete(context, ref, c),
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    onPressed: () =>
+                        _categoryDialog(context, ref, c.kind, existing: c),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        color: AppColors.expense),
+                    onPressed: () => _confirmDelete(context, ref, c),
+                  ),
+                ],
               )
             : const Icon(Icons.expand_more),
         children: [
@@ -108,10 +119,20 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 contentPadding: const EdgeInsets.only(left: 72, right: 8),
                 title: Text(s.name),
                 trailing: _editing
-                    ? IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: AppColors.expense, size: 20),
-                        onPressed: () => _confirmDelete(context, ref, s),
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            onPressed: () => _categoryDialog(context, ref,
+                                s.kind, existing: s, parentId: parent.id),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline,
+                                color: AppColors.expense, size: 20),
+                            onPressed: () => _confirmDelete(context, ref, s),
+                          ),
+                        ],
                       )
                     : null,
               ),
@@ -157,16 +178,18 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   }
 
   Future<void> _categoryDialog(BuildContext context, WidgetRef ref, String kind,
-      {int? parentId}) async {
-    final nameCtrl = TextEditingController();
-    String iconKey = 'other';
-    String colorHex = availableColors.first;
+      {int? parentId, Category? existing}) async {
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    String iconKey = existing?.iconKey ?? 'other';
+    String colorHex = existing?.colorHex ?? availableColors.first;
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text(parentId == null ? 'New category' : 'New subcategory'),
+          title: Text(existing != null
+              ? 'Edit category'
+              : (parentId == null ? 'New category' : 'New subcategory')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -221,13 +244,22 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       ),
     );
     if (saved == true && nameCtrl.text.trim().isNotEmpty) {
-      await ref.read(databaseProvider).addCategory(CategoriesCompanion.insert(
-            name: nameCtrl.text.trim(),
-            iconKey: Value(iconKey),
-            colorHex: Value(colorHex),
-            kind: kind,
-            parentId: Value(parentId),
-          ));
+      if (existing != null) {
+        await ref.read(databaseProvider).updateCategory(
+              id: existing.id,
+              name: nameCtrl.text.trim(),
+              iconKey: iconKey,
+              colorHex: colorHex,
+            );
+      } else {
+        await ref.read(databaseProvider).addCategory(CategoriesCompanion.insert(
+              name: nameCtrl.text.trim(),
+              iconKey: Value(iconKey),
+              colorHex: Value(colorHex),
+              kind: kind,
+              parentId: Value(parentId),
+            ));
+      }
     }
   }
 }

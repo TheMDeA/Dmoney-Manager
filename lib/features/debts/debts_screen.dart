@@ -2,6 +2,8 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/app_prefs.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
@@ -118,7 +120,19 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         child: const Icon(Icons.undo, color: AppColors.warning),
       ),
       confirmDismiss: (direction) async {
-        await ref.read(databaseProvider).setDebtPaid(d.id, !d.isPaid);
+        final nowPaid = !d.isPaid;
+        await ref.read(databaseProvider).setDebtPaid(d.id, nowPaid);
+        if (nowPaid) {
+          await NotificationService.cancelDebtReminder(d.id);
+        } else if (d.dueDate != null && AppPrefs.debtReminders) {
+          await NotificationService.scheduleDebtReminder(
+            debtId: d.id,
+            person: d.person,
+            amount: d.amount,
+            payable: d.direction == 'payable',
+            dueDate: d.dueDate!,
+          );
+        }
         return false;
       },
       child: ListTile(
@@ -225,13 +239,23 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     );
     final amount = int.tryParse(amountCtrl.text) ?? 0;
     if (saved == true && personCtrl.text.trim().isNotEmpty && amount > 0) {
-      await ref.read(databaseProvider).addDebt(DebtsCompanion.insert(
+      final id = await ref.read(databaseProvider).addDebt(DebtsCompanion.insert(
             person: personCtrl.text.trim(),
             note: Value(noteCtrl.text.trim()),
             amount: amount,
             direction: direction,
             dueDate: Value(dueDate),
           ));
+      if (dueDate != null && AppPrefs.debtReminders) {
+        final dd = dueDate!;
+        await NotificationService.scheduleDebtReminder(
+          debtId: id,
+          person: personCtrl.text.trim(),
+          amount: amount,
+          payable: direction == 'payable',
+          dueDate: dd,
+        );
+      }
     }
   }
 }

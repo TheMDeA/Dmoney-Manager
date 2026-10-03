@@ -127,22 +127,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
       late final List<int> bytes;
       if (_format == 'csv') {
-        final txs = _includeTransactions
-            ? await db.getTransactionsInRange(from, to)
-            : const <TransactionWithDetails>[];
-        final rows = <List<dynamic>>[
-          ['Date', 'Wallet', 'Category', 'Type', 'Amount (IDR)', 'Note'],
-          for (final d in txs)
-            [
-              formatDate(d.transaction.date),
-              d.wallet.name,
-              d.category.name,
-              d.transaction.kind,
-              d.transaction.amount,
-              d.transaction.note,
-            ],
-        ];
-        bytes = Csv().encode(rows).codeUnits;
+        bytes = (await _buildCsv(db, from, to)).codeUnits;
       } else {
         bytes = await _buildExcel(db, from, to);
       }
@@ -155,7 +140,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       if (mounted) {
         await SharePlus.instance.share(
           ShareParams(
-            text: 'Money Manager export',
+            text: 'Dmoney Manager export',
             files: [XFile(file.path)],
           ),
         );
@@ -172,6 +157,56 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+
+  Future<String> _buildCsv(
+      AppDatabase db, DateTime from, DateTime to) async {
+    final rows = <List<dynamic>>[];
+    if (_includeTransactions) {
+      final txs = await db.getTransactionsInRange(from, to);
+      rows.add(['TRANSACTIONS']);
+      rows.add(['Date', 'Wallet', 'Category', 'Type', 'Amount (IDR)', 'Note']);
+      for (final d in txs) {
+        rows.add([
+          formatDate(d.transaction.date),
+          d.wallet.name,
+          d.category.name,
+          d.transaction.kind,
+          d.transaction.amount,
+          d.transaction.note,
+        ]);
+      }
+      rows.add([]);
+    }
+    if (_includeBudgets) {
+      final budgets = await db.select(db.budgets).get();
+      final cats = {
+        for (final c in await db.select(db.categories).get()) c.id: c.name
+      };
+      rows.add(['BUDGETS']);
+      rows.add(['Month', 'Category', 'Limit (IDR)']);
+      for (final b in budgets) {
+        rows.add([b.month, cats[b.categoryId] ?? '', b.limit]);
+      }
+      rows.add([]);
+      final goals = await db.select(db.goals).get();
+      rows.add(['SAVINGS GOALS']);
+      rows.add(['Goal', 'Target (IDR)', 'Saved (IDR)']);
+      for (final g in goals) {
+        rows.add([g.name, g.target, g.saved]);
+      }
+      rows.add([]);
+    }
+    if (_includeDebts) {
+      final debts = await db.select(db.debts).get();
+      rows.add(['DEBTS']);
+      rows.add(['Person', 'Note', 'Direction', 'Amount (IDR)', 'Paid']);
+      for (final d in debts) {
+        rows.add(
+            [d.person, d.note, d.direction, d.amount, d.isPaid ? 'yes' : 'no']);
+      }
+    }
+    return Csv().encode(rows);
   }
 
   Future<List<int>> _buildExcel(AppDatabase db, DateTime from, DateTime to) async {

@@ -40,11 +40,13 @@ class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get walletId => integer().references(Wallets, #id)();
   IntColumn get categoryId => integer().references(Categories, #id)();
-  TextColumn get kind => text()(); // income | expense
+  TextColumn get kind => text()(); // income | expense | transfer
   IntColumn get amount => integer()(); // whole IDR, always positive
   TextColumn get note => text().withDefault(const Constant(''))();
   DateTimeColumn get date => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  /// For transfers: the destination wallet. Null for income/expense.
+  IntColumn get toWalletId => integer().nullable().references(Wallets, #id)();
 }
 
 /// Receipt / record photos attached to a transaction ("Save Photos").
@@ -116,7 +118,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -124,7 +126,35 @@ class AppDatabase extends _$AppDatabase {
           await m.createAll();
           await _seed();
         },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(transactions, transactions.toWalletId);
+            await _ensureTransferCategory();
+          }
+        },
       );
+
+  /// Inserts the hidden "Transfer" category if it doesn't exist yet
+  /// (used by the v1→v2 migration; the fresh seed inserts it directly).
+  Future<void> _ensureTransferCategory() async {
+    final existing = await (select(categories)
+          ..where((c) => c.kind.equals('transfer')))
+        .get();
+    if (existing.isEmpty) {
+      await into(categories).insert(CategoriesCompanion.insert(
+        name: 'Transfer',
+        iconKey: const Value('swap_horiz'),
+        colorHex: const Value('#9CA3AF'),
+        kind: 'transfer',
+      ));
+    }
+  }
+
+  Future<int> get transferCategoryId async =>
+      (await (select(categories)..where((c) => c.kind.equals('transfer')))
+              .get())
+          .first
+          .id;
 
   // ------------------------------- watches -------------------------------
 
@@ -170,13 +200,133 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<TransactionPhoto>> watchPhotos(int transactionId) =>
       (select(transactionPhotos)..where((p) => p.transactionId.equals(transactionId))).watch();
 
+  Future<Wallet?> getWalletById(int id) =>
+      (select(wallets)..where((w) => w.id.equals(id))).getSingleOrNull();
+
   // -------------------------------- writes -------------------------------
 
-  Future<int> addTransaction(TransactionsCompanion entry) =>
-      into(transactions).insert(entry);
+  /// Adjusts a wallet balance atomically (delta may be negative).
+  Future<void> adjustWalletBalance(int walletId, int delta) {
+    return customUpdate(
+      'UPDATE wallets SET balance = balance + ? WHERE id = ?',
+      variables: [Variable.withInt(delta), Variable.withInt(walletId)],
+      updates: {wallets},
+    );
+  }
 
-  Future<void> deleteTransaction(int id) =>
-      (delete(transactions)..where((t) => t.id.equals(id))).go();
+  /// Records an income/expense and keeps the wallet balance in sync.
+  Future<int> addTransaction(TransactionsCompanion entry) {
+    return transaction(() async {
+      final id = await into(transactions).insert(entry);
+      final kind = entry.kind.value;
+      final amount = entry.amount.value;
+      if (kind == 'income') {
+        await adjustWalletBalance(entry.walletId.value, amount);
+      } else if (kind == 'expense') {
+        await adjustWalletBalance(entry.walletId.value, -amount);
+      }
+      return id;
+    });
+  }
+
+  /// Records a wallet-to-wallet transfer and moves the balances.
+  /// The row uses the hidden "Transfer" category and kind 'transfer'.
+  Future<int> addTransfer({
+    required int fromWalletId,
+    required int toWalletId,
+    required int amount,
+    String note = '',
+    DateTime? date,
+  }) {
+    return transaction(() async {
+      final catId = await transferCategoryId;
+      final id = await into(transactions).insert(TransactionsCompanion.insert(
+        walletId: fromWalletId,
+        categoryId: catId,
+        kind: 'transfer',
+        amount: amount,
+        note: Value(note),
+        date: date ?? DateTime.now(),
+        toWalletId: Value(toWalletId),
+      ));
+      await adjustWalletBalance(fromWalletId, -amount);
+      await adjustWalletBalance(toWalletId, amount);
+      return id;
+    });
+  }
+
+  Future<void> _reverseBalanceEffect(Transaction t) async {
+    switch (t.kind) {
+      case 'income':
+        await adjustWalletBalance(t.walletId, -t.amount);
+      case 'expense':
+        await adjustWalletBalance(t.walletId, t.amount);
+      case 'transfer':
+        if (t.toWalletId != null) {
+          await adjustWalletBalance(t.walletId, t.amount);
+          await adjustWalletBalance(t.toWalletId!, -t.amount);
+        }
+    }
+  }
+
+  Future<void> deleteTransaction(int id) {
+    return transaction(() async {
+      final t = await (select(transactions)..where((e) => e.id.equals(id)))
+          .getSingleOrNull();
+      if (t == null) return;
+      await _reverseBalanceEffect(t);
+      await (delete(transactionPhotos)..where((p) => p.transactionId.equals(id)))
+          .go();
+      await (delete(transactions)..where((e) => e.id.equals(id))).go();
+    });
+  }
+
+  /// Updates an income/expense record, keeping the wallet balance correct.
+  Future<void> updateTransaction({
+    required int id,
+    required int walletId,
+    required int categoryId,
+    required String kind,
+    required int amount,
+    required String note,
+    required DateTime date,
+  }) {
+    return transaction(() async {
+      final old = await (select(transactions)..where((e) => e.id.equals(id)))
+          .getSingleOrNull();
+      if (old == null) return;
+      await _reverseBalanceEffect(old);
+      await (update(transactions)..where((e) => e.id.equals(id))).write(
+        TransactionsCompanion(
+          walletId: Value(walletId),
+          categoryId: Value(categoryId),
+          kind: Value(kind),
+          amount: Value(amount),
+          note: Value(note),
+          date: Value(date),
+        ),
+      );
+      if (kind == 'income') {
+        await adjustWalletBalance(walletId, amount);
+      } else if (kind == 'expense') {
+        await adjustWalletBalance(walletId, -amount);
+      }
+    });
+  }
+
+  Future<void> updateCategory({
+    required int id,
+    required String name,
+    required String iconKey,
+    required String colorHex,
+  }) =>
+      (update(categories)..where((c) => c.id.equals(id))).write(
+        CategoriesCompanion(
+          name: Value(name),
+          iconKey: Value(iconKey),
+          colorHex: Value(colorHex),
+        ),
+      );
 
   Future<void> addPhoto(int transactionId, String path) =>
       into(transactionPhotos).insert(
@@ -335,6 +485,13 @@ class AppDatabase extends _$AppDatabase {
       iconKey: const Value('other'),
       colorHex: const Value('#9CA3AF'),
       kind: 'expense',
+    ));
+    // Hidden category used by wallet-to-wallet transfers (kind 'transfer').
+    await into(categories).insert(CategoriesCompanion.insert(
+      name: 'Transfer',
+      iconKey: const Value('swap_horiz'),
+      colorHex: const Value('#9CA3AF'),
+      kind: 'transfer',
     ));
 
     Future<void> tx({
