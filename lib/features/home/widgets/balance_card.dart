@@ -26,16 +26,16 @@ class BalanceCard extends ConsumerWidget {
         builder: (context, walletsSnap) {
           final wallets = walletsSnap.data ?? const <Wallet>[];
           final total = wallets.fold<int>(0, (s, w) => s + w.balance);
-          return StreamBuilder<List<Transaction>>(
-            stream: db.watchTransactionsRaw(),
+          final (from, to) = _rangeBounds(range);
+          return StreamBuilder<List<KindTotal>>(
+            stream: db.watchKindTotals(from, to),
             builder: (context, txSnap) {
-              final txs = txSnap.data ?? const <Transaction>[];
-              final (from, to) = _rangeBounds(range);
-              final inRange = txs.where(
-                (t) => !t.date.isBefore(from) && !t.date.isAfter(to),
-              );
-              final income = inRange.where((t) => t.kind == 'income').fold<int>(0, (s, t) => s + t.amount);
-              final expense = inRange.where((t) => t.kind == 'expense').fold<int>(0, (s, t) => s + t.amount);
+              final totals = {
+                for (final t in (txSnap.data ?? const <KindTotal>[]))
+                  t.kind: t.total,
+              };
+              final income = totals['income'] ?? 0;
+              final expense = totals['expense'] ?? 0;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

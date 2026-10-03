@@ -74,13 +74,9 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           }
           final w = wallet;
           return StreamBuilder<List<TransactionWithDetails>>(
-            stream: db.watchTransactions(),
+            stream: db.watchTransactionsForWallet(w.id),
             builder: (context, txSnap) {
-              final txs = (txSnap.data ?? const <TransactionWithDetails>[])
-                  .where((d) =>
-                      d.transaction.walletId == w.id ||
-                      d.transaction.toWalletId == w.id)
-                  .toList();
+              final txs = txSnap.data ?? const <TransactionWithDetails>[];
               return _content(context, db, w, wallets, txs);
             },
           );
@@ -550,18 +546,16 @@ class _WalletTransactionsScreenState
               ? 'Transactions'
               : '${widget.walletName} transactions')),
       body: StreamBuilder<List<TransactionWithDetails>>(
-        stream: db.watchTransactions(),
+        stream: db.watchTransactionsForWallet(widget.walletId),
         builder: (context, snap) {
-          var txs = (snap.data ?? const <TransactionWithDetails>[]).where(
-              (d) =>
-                  d.transaction.walletId == widget.walletId ||
-                  d.transaction.toWalletId == widget.walletId);
+          var txs = snap.data ?? const <TransactionWithDetails>[];
           if (_kind != null) {
-            txs = txs.where((d) => d.transaction.kind == _kind);
+            txs = txs.where((d) => d.transaction.kind == _kind).toList();
           }
           if (widget.categoryId != null) {
-            txs = txs.where(
-                (d) => d.transaction.categoryId == widget.categoryId);
+            txs = txs
+                .where((d) => d.transaction.categoryId == widget.categoryId)
+                .toList();
           }
           final list = txs.toList()
             ..sort((a, b) => b.transaction.date.compareTo(a.transaction.date));

@@ -50,50 +50,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 12),
               _rangeSwitcher(context, range),
               const SizedBox(height: 12),
-              StreamBuilder<List<Transaction>>(
-                stream: db.watchTransactionsRaw(),
-                builder: (context, snap) {
-                  final txs = snap.data ?? const <Transaction>[];
+              StreamBuilder<List<DailyTotal>>(
+                stream: db.watchDailyKindTotals(
+                  // Midnight 6 days ago .. now, so the 7 day buckets align
+                  // with the local-time strftime grouping in the query.
+                  DateTime(DateTime.now().year, DateTime.now().month,
+                          DateTime.now().day)
+                      .subtract(const Duration(days: 6)),
+                  DateTime.now(),
+                ),
+                builder: (context, dailySnap) {
                   final now = DateTime.now();
-                  List<double> daily(String kind) {
-                    return List.generate(7, (i) {
-                      final day = DateTime(now.year, now.month, now.day)
-                          .subtract(Duration(days: 6 - i));
-                      return txs
-                          .where((t) =>
-                              t.kind == kind &&
-                              t.date.year == day.year &&
-                              t.date.month == day.month &&
-                              t.date.day == day.day)
-                          .fold<double>(0, (s, t) => s + t.amount)
-                          .toDouble();
-                    });
-                  }
+                  final dailyTotals =
+                      dailySnap.data ?? const <DailyTotal>[];
+                  return StreamBuilder<List<KindTotal>>(
+                    stream: db.watchKindTotals(
+                        _rangeStart(range), DateTime.now()),
+                    builder: (context, kindSnap) {
+                      final kinds = {
+                        for (final k
+                            in (kindSnap.data ?? const <KindTotal>[]))
+                          k.kind: k.total,
+                      };
+                      final income = kinds['income'] ?? 0;
+                      final expense = kinds['expense'] ?? 0;
+                      List<double> daily(String kind) {
+                        return List.generate(7, (i) {
+                          final day = DateTime(now.year, now.month, now.day)
+                              .subtract(Duration(days: 6 - i));
+                          final key =
+                              '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+                          return dailyTotals
+                              .where((t) => t.day == key && t.kind == kind)
+                              .fold<double>(0, (s, t) => s + t.total)
+                              .toDouble();
+                        });
+                      }
 
-                  final from = _rangeStart(range);
-                  final inRange = txs.where((t) => !t.date.isBefore(from));
-                  final income = inRange
-                      .where((t) => t.kind == 'income')
-                      .fold<int>(0, (s, t) => s + t.amount);
-                  final expense = inRange
-                      .where((t) => t.kind == 'expense')
-                      .fold<int>(0, (s, t) => s + t.amount);
-                  return Row(
-                    children: [
-                      StatSparklineCard(
-                        label: 'Income',
-                        amount: income,
-                        isIncome: true,
-                        dailyTotals: daily('income'),
-                      ),
-                      const SizedBox(width: 12),
-                      StatSparklineCard(
-                        label: 'Expenses',
-                        amount: expense,
-                        isIncome: false,
-                        dailyTotals: daily('expense'),
-                      ),
-                    ],
+                      return Row(
+                        children: [
+                          StatSparklineCard(
+                            label: 'Income',
+                            amount: income,
+                            isIncome: true,
+                            dailyTotals: daily('income'),
+                          ),
+                          const SizedBox(width: 12),
+                          StatSparklineCard(
+                            label: 'Expenses',
+                            amount: expense,
+                            isIncome: false,
+                            dailyTotals: daily('expense'),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
