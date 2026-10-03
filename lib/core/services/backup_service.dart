@@ -5,6 +5,7 @@ import 'package:archive/archive_io.dart';
 import 'package:drift/drift.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import '../../data/database/app_database.dart';
 
@@ -149,9 +150,11 @@ class BackupService {
     }
   }
 
-  /// Copies every table from the backup file into the live database
-  /// via ATTACH, matching columns by name so minor schema drift
-  /// doesn't break the restore.
+  /// Copies every table from the backup file into the live database,
+  /// matching columns by name so minor schema drift doesn't break the
+  /// restore. The backup is read through its own read-only connection —
+  /// no ATTACH/DETACH, so a failed restore can never leave the live
+  /// database in a half-attached state.
   static Future<void> _restoreDatabase(
       AppDatabase db, String backupPath) async {
     final liveTables = {
@@ -160,34 +163,44 @@ class BackupService {
     final tables =
         _insertOrder.where(liveTables.contains).toList();
 
-    await db.transaction(() async {
-      await db.customStatement(
-          "ATTACH DATABASE '${_escape(backupPath)}' AS backup");
-      try {
+    final backup =
+        sqlite3.open(backupPath, mode: OpenMode.readOnly);
+    try {
+      // Fail fast if this isn't a database at all.
+      backup.select('SELECT 1 FROM sqlite_master LIMIT 1');
+      await db.transaction(() async {
         // Children first on the way out.
         for (final t in tables.reversed) {
           await db.customStatement('DELETE FROM "$t"');
         }
         for (final t in tables) {
-          final liveCols = await _columns(db, null, t);
-          final backupCols = await _columns(db, 'backup', t);
+          final liveCols = await _columns(db, t);
+          final backupCols = [
+            for (final r in backup.select('PRAGMA table_info("$t")'))
+              r['name'] as String
+          ];
           final common =
               liveCols.where(backupCols.contains).toList();
           if (common.isEmpty) continue;
           final cols = common.map((c) => '"$c"').join(', ');
-          await db.customStatement(
-              'INSERT INTO "$t" ($cols) SELECT $cols FROM backup."$t"');
+          final placeholders =
+              List.filled(common.length, '?').join(', ');
+          final rows = backup.select('SELECT $cols FROM "$t"');
+          for (final row in rows) {
+            final args = [for (final c in common) row[c]];
+            await db.customStatement(
+                'INSERT INTO "$t" ($cols) VALUES ($placeholders)',
+                args);
+          }
         }
         // Keep autoincrement counters in sync.
         try {
           await db.customStatement('DELETE FROM sqlite_sequence');
-          final seqRows = await db
-              .customSelect(
-                  'SELECT name, seq FROM backup.sqlite_sequence')
-              .get();
+          final seqRows =
+              backup.select('SELECT name, seq FROM sqlite_sequence');
           for (final row in seqRows) {
-            final name = row.read<String>('name');
-            final seq = row.read<int>('seq');
+            final name = row['name'] as String;
+            final seq = row['seq'] as int;
             if (liveTables.contains(name)) {
               await db.customStatement(
                   "INSERT INTO sqlite_sequence (name, seq) VALUES ('${_escape(name)}', $seq)");
@@ -196,10 +209,10 @@ class BackupService {
         } catch (_) {
           // Backup has no autoincrement counters — nothing to sync.
         }
-      } finally {
-        await db.customStatement('DETACH DATABASE backup');
-      }
-    });
+      });
+    } finally {
+      backup.close();
+    }
 
     // Raw SQL is invisible to drift's stream tracking — refresh manually.
     db.notifyUpdates({
@@ -208,11 +221,9 @@ class BackupService {
   }
 
   static Future<List<String>> _columns(
-      AppDatabase db, String? schema, String table) async {
-    final prefix = schema == null ? '' : '$schema.';
-    final rows = await db
-        .customSelect('PRAGMA ${prefix}table_info("$table")')
-        .get();
+      AppDatabase db, String table) async {
+    final rows =
+        await db.customSelect('PRAGMA table_info("$table")').get();
     return [for (final r in rows) r.read<String>('name')];
   }
 

@@ -167,8 +167,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           'Restore complete. Your data is back.');
     } on BackupException catch (e) {
       setState(() => _status = e.message);
-    } catch (e) {
-      setState(() => _status = 'Restore failed: $e');
+    } catch (_) {
+      setState(() => _status =
+          'Restore failed. Please try again with a valid backup file.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

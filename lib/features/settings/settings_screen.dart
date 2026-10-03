@@ -3,19 +3,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/formatters.dart';
 import '../../state/providers.dart';
 import '../categories/categories_screen.dart';
 import '../backup/backup_screen.dart';
 import '../export/export_screen.dart';
 import '../lock/pin_setup_screen.dart';
+import 'currency_screen.dart';
 import 'notifications_screen.dart';
 
 /// "More" tab: settings, tools, and app info.
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  @override
+  Widget build(BuildContext context) {
     final lockEnabled = ref.watch(lockEnabledProvider);
     final themeMode = ref.watch(themeModeProvider);
 
@@ -114,21 +121,14 @@ class SettingsScreen extends ConsumerWidget {
           _tile(context,
               icon: Icons.attach_money,
               title: 'Currency',
-              subtitle: 'Indonesian Rupiah (IDR)',
-              onTap: () => showDialog(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Currency'),
-                      content: const Text(
-                          'Dmoney Manager uses Indonesian Rupiah (IDR) for all amounts.'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('OK'),
-                        ),
-                      ],
-                    ),
-                  )),
+              subtitle: currencyByCode(AppPrefs.currencyCode).label,
+              onTap: () async {
+                final changed = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                      builder: (_) => const CurrencyScreen()),
+                );
+                if (changed == true && mounted) setState(() {});
+              }),
           _tile(context,
               icon: Icons.notifications_outlined,
               title: 'Notifications',

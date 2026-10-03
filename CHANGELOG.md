@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Currency can now be changed after the initial setup: the Settings
+  "Currency" tile opens a picker with all 14 currencies instead of an
+  informational dialog. Switching only changes the symbol and number
+  formatting — a confirmation dialog makes clear that existing amounts
+  are not converted (e.g. Rp100.000 becomes $100.000).
 - Backup & restore (the promised future update is here): Settings has a
   new "Backup & restore" screen, and the onboarding "Restore data"
   button works for real. A backup is a single zip containing a
@@ -40,6 +45,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   Fun & Hobbies).
 
 ### Fixed
+- The currency symbol is now always visible when entering an amount
+  (new AmountField widget): the old `prefixText` didn't render while
+  the field was empty and unfocused, so the add-transaction, transfer,
+  and add-debt sheets showed a bare "0". The symbol is now a permanent
+  label next to the field.
+- Restore rewritten for reliability: the backup is now read through a
+  separate read-only connection instead of `ATTACH DATABASE`, which
+  could fail on `DETACH` ("database is locked") and leave the app unable
+  to restore until restarted. Restore failures also show a friendly
+  message instead of raw SQL errors.
 - Receipt photos are now reliable: picked images are copied into the
   app's documents folder (`receipts/`) instead of referencing the
   image_picker cache path, which the OS can wipe at any time. Deleting

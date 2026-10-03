@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/widgets/amount_field.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -122,17 +123,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   }),
                 ),
                 const SizedBox(height: 16),
-                TextField(
+                AmountField(
                   controller: _amountCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [ThousandsSeparatorInputFormatter()],
-                  style: AppTextStyles.displayBalance.copyWith(fontSize: 36),
-                  decoration: InputDecoration(
-                    prefixText: currencyFieldPrefix,
-                    hintText: '0',
-                    border: InputBorder.none,
-                    filled: false,
-                  ),
+                  style:
+                      AppTextStyles.displayBalance.copyWith(fontSize: 36),
                 ),
                 const SizedBox(height: 8),
                 Text('Category', style: Theme.of(context).textTheme.labelLarge),
