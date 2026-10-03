@@ -1,6 +1,6 @@
-# Money Manager — Flutter Starter
+# Dmoney Manager — Flutter App
 
-A starter scaffold for a simple, modern money manager Android (and iOS) app,
+A starter scaffold for a simple, modern money manager Android app,
 built from the interactive UI mockup. Dark-first 2026 design language:
 near-black surfaces, lime accent, liquid-glass cards, expressive tabular
 numerals, animated charts.

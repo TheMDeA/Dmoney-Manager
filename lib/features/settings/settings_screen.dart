@@ -112,7 +112,7 @@ class SettingsScreen extends ConsumerWidget {
           _tile(context,
               icon: Icons.info_outline,
               title: 'About',
-              subtitle: 'Money Manager 0.1.0',
+              subtitle: 'Dmoney Manager 1.0.0',
               onTap: () {}),
         ],
       ),

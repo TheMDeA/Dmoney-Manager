@@ -16,7 +16,7 @@ class MoneyManagerApp extends ConsumerWidget {
     final locked = ref.watch(lockedProvider);
 
     return MaterialApp(
-      title: 'Money Manager',
+      title: 'Dmoney Manager',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
