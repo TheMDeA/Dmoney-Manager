@@ -76,7 +76,14 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
       body: StreamBuilder<List<TransactionPhoto>>(
         stream: db.watchPhotos(widget.transactionId),
         builder: (context, snap) {
-          final photos = snap.data ?? const <TransactionPhoto>[];
+          if (!snap.hasData) {
+            // Stream hasn't emitted yet — don't confuse "loading"
+            // with "empty", or the viewer would pop itself on open.
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+          final photos = snap.data!;
           if (photos.isEmpty) {
             // All photos deleted — close the viewer on the next frame.
             WidgetsBinding.instance.addPostFrameCallback((_) {

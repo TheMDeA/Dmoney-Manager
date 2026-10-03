@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-10-04
+
+### Fixed
+- Receipt photo viewer opened and instantly closed itself ("nothing
+  happens" on tap): the body treated the stream's initial no-data
+  state as "all photos deleted" and popped the route. It now shows a
+  loading indicator until the photo list actually arrives.
+
 ## [1.1.2] - 2026-10-04
 
 ### Added
