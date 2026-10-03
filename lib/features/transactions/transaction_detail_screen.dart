@@ -12,6 +12,7 @@ import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'add_transaction_sheet.dart';
+import 'photo_viewer_screen.dart';
 
 /// Record detail screen with duplicate / edit / delete actions
 /// and attachable receipt photos ("Save Photos").
@@ -217,13 +218,36 @@ class _TransactionDetailScreenState
           return ListView(
             scrollDirection: Axis.horizontal,
             children: [
-              for (final p in photos)
+              for (var i = 0; i < photos.length; i++)
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
-                  child: ClipRRect(
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.file(File(p.path),
-                        width: 120, height: 120, fit: BoxFit.cover),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PhotoViewerScreen(
+                          transactionId: widget.transactionId,
+                          initialIndex: i,
+                        ),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.file(File(photos[i].path),
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(
+                                width: 120,
+                                height: 120,
+                                color: AppColors.bgRaised,
+                                child: const Icon(
+                                  Icons.broken_image_outlined,
+                                  color: AppColors.textMuted,
+                                ),
+                              )),
+                    ),
                   ),
                 ),
               InkWell(

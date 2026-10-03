@@ -331,6 +331,11 @@ class AppDatabase extends _$AppDatabase {
         TransactionPhotosCompanion.insert(transactionId: transactionId, path: path),
       );
 
+  /// Removes a photo attachment. The underlying image file is left alone —
+  /// gallery picks belong to the user and camera shots live in app cache.
+  Future<void> deletePhoto(int photoId) =>
+      (delete(transactionPhotos)..where((p) => p.id.equals(photoId))).go();
+
   Future<int> addWallet(WalletsCompanion entry) => into(wallets).insert(entry);
 
   Future<int> addAccount(AccountsCompanion entry) =>
