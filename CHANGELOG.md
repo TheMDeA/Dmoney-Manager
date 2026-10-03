@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-04
+
 ### Added
 - Theme colors: Settings → Appearance now has 6 accents — Lime
   (default), Sky, Violet, Tangerine, Rose, and Material You (follows
