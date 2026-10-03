@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Backup & restore (the promised future update is here): Settings has a
+  new "Backup & restore" screen, and the onboarding "Restore data"
+  button works for real. A backup is a single zip containing a
+  consistent database snapshot (`VACUUM INTO`), receipt photos, and app
+  preferences — share it to your cloud drive, then restore it on any
+  device. Restore copies rows into the live database (column-matched,
+  so minor schema drift doesn't break it) and refreshes every screen
+  automatically.
 - Debts can now appear in the transaction history: the add/edit debt
   forms have a "Show in transaction history" toggle (on by default).
   When enabled, the debt's creation and each repayment are recorded as

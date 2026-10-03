@@ -5,6 +5,7 @@ import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_colors.dart';
 import '../../state/providers.dart';
 import '../categories/categories_screen.dart';
+import '../backup/backup_screen.dart';
 import '../export/export_screen.dart';
 import '../lock/pin_setup_screen.dart';
 import 'notifications_screen.dart';
@@ -59,6 +60,12 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: 'CSV / Excel',
               onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const ExportScreen()))),
+          _tile(context,
+              icon: Icons.backup_outlined,
+              title: 'Backup & restore',
+              subtitle: 'Full backup to a file',
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const BackupScreen()))),
           SwitchListTile(
             secondary: const Icon(Icons.lock_outline),
             title: const Text('Password protection'),
