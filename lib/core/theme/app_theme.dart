@@ -59,7 +59,13 @@ abstract final class AppTheme {
       colorScheme: ColorScheme.dark(
         primary: accent,
         onPrimary: onAccent(accent),
-        secondary: AppColors.violet,
+        // Secondary follows the chosen accent too — M3 components like
+        // SegmentedButton paint their selected state from it, so a
+        // hardcoded violet here leaked purple into every theme.
+        secondary: accent,
+        onSecondary: onAccent(accent),
+        secondaryContainer: accent,
+        onSecondaryContainer: onAccent(accent),
         surface: AppColors.bgSurface,
         onSurface: AppColors.textPrimary,
         onSurfaceVariant: AppColors.textMuted,
@@ -91,6 +97,19 @@ abstract final class AppTheme {
         foregroundColor: onAccent(accent),
         shape: const CircleBorder(),
       ),
+      // Selected segment: solid accent fill, uniform with the FAB and
+      // other accents regardless of which theme color is chosen.
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected) ? accent : null,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) =>
+                states.contains(WidgetState.selected) ? onAccent(accent) : null,
+          ),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.bgRaised,
@@ -111,7 +130,11 @@ abstract final class AppTheme {
       colorScheme: ColorScheme.light(
         primary: accent,
         onPrimary: onAccent(accent),
-        secondary: AppColors.violet,
+        // Secondary follows the chosen accent too — see dark theme.
+        secondary: accent,
+        onSecondary: onAccent(accent),
+        secondaryContainer: accent,
+        onSecondaryContainer: onAccent(accent),
         surface: AppColors.lightSurface,
         onSurface: AppColors.lightInk,
         onSurfaceVariant: AppColors.lightMuted,
@@ -142,6 +165,19 @@ abstract final class AppTheme {
         backgroundColor: accent,
         foregroundColor: onAccent(accent),
         shape: const CircleBorder(),
+      ),
+      // Selected segment: solid accent fill, uniform with the FAB and
+      // other accents regardless of which theme color is chosen.
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected) ? accent : null,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) =>
+                states.contains(WidgetState.selected) ? onAccent(accent) : null,
+          ),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

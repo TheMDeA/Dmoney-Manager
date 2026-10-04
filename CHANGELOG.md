@@ -1,10 +1,4 @@
-# Changelog
-
-All notable changes to Dmoney Manager will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-
-## [Unreleased]
+## [2.1.0] - 2026-10-04
 
 ### Added
 - Goal celebration: pushing a savings goal to 100% triggers a trophy pop-in with ripple ring, haptic, and a "Goal complete!" dialog.
@@ -12,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fast-scroll date scrubber: a drag strip on the right edge of the history (and wallet transactions) scrubs through months with a floating month bubble and haptic ticks.
 
 ### Changed
+- Wallet detail: the blue ADJUST BALANCE button below the balance is now the single entry point for balance adjustments — it opens the new reconciliation dialog (adjust by transaction or change initial amount). The top-right shortcut icon is gone, and the old direct-set behavior is retired in favor of the "Change initial amount" mode, which keeps the wallet's initial amount consistent.
+- Balance privacy toggle now counts the digits down to the dot mask when hiding and counts them back up when revealing (fast micro-interaction), replacing the fade-and-rise swap. Balance changes while visible keep the slow count-up.
+- Swipe actions on transaction rows are now two-step: swiping reveals the Edit/Delete button but nothing fires until it's tapped (new `flutter_slidable` dependency) — a stray swipe can no longer open the edit sheet or the delete flow. Open panes close on scroll.
+- Transfer sheet: pressing the swap button now plays a visible animation — the button spins a full 360° (the old half-turn was invisible on the symmetric swap icon) and the From/To fields cross-fade with a directional slide, like the values trading places.
 - Save success animation: the checkmark pop now has an overshoot bounce plus an expanding ripple ring.
 - Wrong passcode now shakes the PIN dots side-to-side (with haptic) instead of just clearing them.
 - AI insight card auto-cycles through up to three insights (rising category, biggest monthly category, daily pace) every 6 seconds with cross-fade and dot indicators.
@@ -21,13 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Net-worth chart draws itself left-to-right on load and replays when switching 3M/6M/12M ranges.
 - The + FAB now morphs into the add-transaction sheet via a container transform (new `animations` dependency); tapping the scrim or saving reverses it back into the FAB.
 
-## [2.0.1] - 2026-10-04
-
-### Changed
-- Wallet detail: the blue ADJUST BALANCE button below the balance is now the single entry point for balance adjustments — it opens the new reconciliation dialog (adjust by transaction or change initial amount). The top-right shortcut icon is gone, and the old direct-set behavior is retired in favor of the "Change initial amount" mode, which keeps the wallet's initial amount consistent.
-- Balance privacy toggle now counts the digits down to the dot mask when hiding and counts them back up when revealing (fast micro-interaction), replacing the fade-and-rise swap. Balance changes while visible keep the slow count-up.
-- Swipe actions on transaction rows are now two-step: swiping reveals the Edit/Delete button but nothing fires until it's tapped (new `flutter_slidable` dependency) — a stray swipe can no longer open the edit sheet or the delete flow. Open panes close on scroll.
-- Transfer sheet: pressing the swap button now plays a visible animation — the button spins a full 360° (the old half-turn was invisible on the symmetric swap icon) and the From/To fields cross-fade with a directional slide, like the values trading places.
+### Fixed
+- Theme accents are now uniform: the color scheme's secondary colors are derived from the chosen theme color instead of a hardcoded violet, so Material components (e.g. the System/Light/Dark segmented control's selected segment) follow the accent — no more stray purple when Lime is selected. An explicit `SegmentedButtonTheme` guarantees the selected segment is a solid accent fill.
 
 ## [2.0.0] - 2026-10-04
 
