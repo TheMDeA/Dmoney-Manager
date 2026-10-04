@@ -11,6 +11,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/animated_progress_bar.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/pressable.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -172,7 +173,8 @@ class BudgetsScreen extends ConsumerWidget {
     final catColor = colorFromHex(c?.colorHex ?? '#9CA3AF');
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
+      child: Pressable(
+        child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
           AppPageRoute(
@@ -222,6 +224,7 @@ class BudgetsScreen extends ConsumerWidget {
           ],
         ),
         ),
+        ),
       ),
     );
   }
@@ -247,7 +250,8 @@ class BudgetsScreen extends ConsumerWidget {
                 delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: InkWell(
+                  child: Pressable(
+                    child: InkWell(
                   borderRadius: BorderRadius.circular(20),
                   onTap: () => Navigator.of(context).push(
                     AppPageRoute(
@@ -300,6 +304,7 @@ class BudgetsScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
                   ),
                   ),
                 ),

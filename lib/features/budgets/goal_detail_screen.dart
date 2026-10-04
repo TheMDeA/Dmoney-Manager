@@ -498,7 +498,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 children: [
                   TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0.5, end: 1.8),
-                    duration: const Duration(milliseconds: 700),
+                    duration: AppMotion.slow,
                     curve: Curves.easeOut,
                     builder: (context, scale, child) => Transform.scale(
                       scale: scale,

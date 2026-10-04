@@ -121,7 +121,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             children: [
               AnimatedScale(
                 scale: active ? 1.18 : 1.0,
-                duration: const Duration(milliseconds: 220),
+                duration: AppMotion.fast,
                 curve: Curves.easeOutBack,
                 child: Icon(active ? activeIcon : icon, color: color, size: 24),
               ),

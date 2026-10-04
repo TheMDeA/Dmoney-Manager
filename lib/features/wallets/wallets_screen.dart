@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/pressable.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'wallet_detail_screen.dart';
@@ -144,7 +146,8 @@ class WalletsScreen extends ConsumerWidget {
     final negative = w.balance < 0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
+      child: Pressable(
+        child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
           AppPageRoute(
@@ -200,6 +203,7 @@ class WalletsScreen extends ConsumerWidget {
           ],
         ),
         ),
+        ),
       ),
     );
   }
@@ -235,7 +239,7 @@ class WalletsScreen extends ConsumerWidget {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.85, end: 1.0),
-          duration: const Duration(milliseconds: 280),
+          duration: AppMotion.normal,
           curve: Curves.easeOutBack,
           builder: (context, scale, child) =>
               Transform.scale(scale: scale, child: child),

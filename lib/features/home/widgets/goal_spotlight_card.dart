@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../core/widgets/pressable.dart';
 import '../../../data/database/app_database.dart';
 import '../../../state/providers.dart';
 
@@ -29,7 +30,8 @@ class GoalSpotlightCard extends ConsumerWidget {
         final color = colorFromHex(g.colorHex);
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: InkWell(
+          child: Pressable(
+            child: InkWell(
             borderRadius: BorderRadius.circular(20),
             onTap: () => ref.read(tabIndexProvider.notifier).go(4),
             child: GlassCard(
@@ -82,6 +84,7 @@ class GoalSpotlightCard extends ConsumerWidget {
                   Icon(Icons.chevron_right, color: context.textMuted),
                 ],
               ),
+            ),
             ),
           ),
         );
