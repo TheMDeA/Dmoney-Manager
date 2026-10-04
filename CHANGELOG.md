@@ -6,13 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added
-- Transaction history redesign: month pager with a month/year picker, an income/expense/total overview per month, and transactions grouped by date with daily totals. Rows now show a circular category icon with the entry time (HH.mm) under the amount.
-- Calendar view (bottom-nav tab next to Wallets): month grid with per-day income/expense/net totals, income/expense/total summary, Sunday-first layout with dimmed adjacent-month days, today highlighted. Tapping a day opens its transactions in a bottom sheet.
-
 ## [1.1.4] - 2026-10-04
 
 ### Added
+- Transaction history redesign: month pager with a month/year picker, an income/expense/total overview per month, and transactions grouped by date with daily totals. Rows now show a circular category icon with the entry time (HH.mm) under the amount.
+- Calendar view (bottom-nav tab next to Wallets): month grid with per-day income/expense/net totals, income/expense/total summary, Sunday-first layout with dimmed adjacent-month days, today highlighted. Tapping a day opens its transactions in a bottom sheet.
 - Transfer sheet: swap button between From/To wallets with a flip rotation animation.
 - Amount fields: built-in calculator keypad — type expressions like `12000+3500` with a live result preview, `=` writes the result back.
 - Transaction delete: 5-second Undo snackbar restores the record with its wallet balances and receipt photos.
