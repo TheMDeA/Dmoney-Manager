@@ -1,3 +1,16 @@
+## [Unreleased]
+
+### Added
+- Double-press back to exit: pressing back on the Home tab shows a "Press back again to exit" snackbar, and only a second press within 2 seconds closes the app. Back on any other tab returns to Home first; pushed screens and sheets still dismiss normally.
+
+## [2.2.1] - 2026-10-05
+
+### Added
+- Optional Memo field on transactions (new `memo` column, DB v11): the add/edit sheet now has Description (mandatory, right below the amount) plus a Memo for extra details where the note used to be. The detail screen, CSV/Excel export, and search all include the memo.
+
+### Changed
+- The transaction note field is now "Description", moved above the category picker, and required — saving with an empty description shows an inline error. Smart suggestions learn from the description.
+
 ## [2.2.0] - 2026-10-05
 
 ### Added

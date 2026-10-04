@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_motion.dart';
@@ -24,7 +25,9 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  static const _screens = [
+  /// Timestamp of the last back press on the Home tab, for the
+  /// double-press-to-exit guard.
+  DateTime? _lastBackPress;  static const _screens = [
     HomeScreen(),
     WalletsScreen(),
     CalendarScreen(),
@@ -64,7 +67,35 @@ class _AppShellState extends ConsumerState<AppShell> {
     // External tab jumps (quick actions, deep links) animate like taps.
     ref.listen<int>(tabIndexProvider, (_, next) => _goTo(next));
 
-    return Scaffold(
+    // Double-press back to exit: back on a non-home tab returns to Home
+    // first; on Home, the first press warns and the second (within
+    // 2 seconds) exits. Pushed routes and sheets pop normally — this
+    // only guards the root.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (ref.read(tabIndexProvider) != 0) {
+          ref.read(tabIndexProvider.notifier).go(0);
+          return;
+        }
+        final now = DateTime.now();
+        if (_lastBackPress != null &&
+            now.difference(_lastBackPress!) <
+                const Duration(seconds: 2)) {
+          SystemNavigator.pop();
+        } else {
+          _lastBackPress = now;
+          Haptics.light();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
       body: PageView(
         controller: _pageController,
         onPageChanged: (i) => ref.read(tabIndexProvider.notifier).go(i),
@@ -99,6 +130,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             _navItem(5, Icons.settings_outlined, Icons.settings, 'More'),
           ],
         ),
+      ),
       ),
     );
   }
