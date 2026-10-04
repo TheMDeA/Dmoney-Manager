@@ -64,6 +64,7 @@ const Map<String, IconData> categoryIconMap = {
   'currency': Icons.currency_exchange,
   'paid': Icons.paid,
   'cash': Icons.attach_money,
+  'tune': Icons.tune,
   // Health & fitness.
   'medical': Icons.medical_services,
   'fitness': Icons.fitness_center,

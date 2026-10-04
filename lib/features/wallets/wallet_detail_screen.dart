@@ -12,6 +12,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'adjust_balance_dialog.dart';
 import '../transactions/add_transaction_sheet.dart';
 import '../transactions/widgets/grouped_transaction_list.dart';
 import '../transactions/widgets/month_overview.dart';
@@ -44,6 +45,15 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         actions: [
+          IconButton(
+            tooltip: 'Adjust balance',
+            icon: const Icon(Icons.tune_outlined),
+            onPressed: () async {
+              final wallet = await db.getWalletById(_walletId);
+              if (wallet == null || !context.mounted) return;
+              AdjustBalanceDialog.show(context, wallet);
+            },
+          ),
           IconButton(
             tooltip: 'Edit wallet',
             icon: const Icon(Icons.edit_outlined),

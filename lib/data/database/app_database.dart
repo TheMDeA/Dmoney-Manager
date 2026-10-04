@@ -361,6 +361,64 @@ class AppDatabase extends _$AppDatabase {
     await debtCategoryId;
   }
 
+  /// Hidden "Adjustment" category for balance-adjustment transactions.
+  /// Ensured lazily like the Debt category, so no DB migration is needed.
+  /// Pickers filter by kind 'income'/'expense', so kind 'adjustment'
+  /// keeps it out of sight; stats filter by transaction kind, so the
+  /// adjustment still counts as income/expense there.
+  Future<int> get adjustmentCategoryId async {
+    final existing = await (select(categories)
+          ..where((c) => c.kind.equals('adjustment')))
+        .get();
+    if (existing.isNotEmpty) return existing.first.id;
+    return into(categories).insert(CategoriesCompanion.insert(
+      name: 'Adjustment',
+      iconKey: const Value('tune'),
+      colorHex: const Value('#9CA3AF'),
+      kind: 'adjustment',
+    ));
+  }
+
+  /// Adjusts a wallet's balance by recording an income/expense transaction
+  /// for the difference (dated now, note "Balance adjustment").
+  /// Returns the created transaction id, or 0 when there's no difference.
+  Future<int> adjustBalanceByTransaction(int walletId, int newBalance) {
+    return transaction(() async {
+      final w = await (select(wallets)..where((e) => e.id.equals(walletId)))
+          .getSingleOrNull();
+      if (w == null) return 0;
+      final diff = newBalance - w.balance;
+      if (diff == 0) return 0;
+      final catId = await adjustmentCategoryId;
+      return addTransaction(TransactionsCompanion.insert(
+        walletId: walletId,
+        categoryId: catId,
+        kind: diff > 0 ? 'income' : 'expense',
+        amount: diff.abs(),
+        note: const Value('Balance adjustment'),
+        date: DateTime.now(),
+      ));
+    });
+  }
+
+  /// Sets a wallet's balance to [newBalance] by shifting its initial amount,
+  /// leaving the transaction history untouched.
+  Future<void> changeWalletInitialAmount(int walletId, int newBalance) {
+    return transaction(() async {
+      final w = await (select(wallets)..where((e) => e.id.equals(walletId)))
+          .getSingleOrNull();
+      if (w == null) return;
+      final diff = newBalance - w.balance;
+      if (diff == 0) return;
+      await (update(wallets)..where((e) => e.id.equals(walletId))).write(
+        WalletsCompanion(
+          balance: Value(newBalance),
+          initialAmount: Value(w.initialAmount + diff),
+        ),
+      );
+    });
+  }
+
   // ------------------------------- watches -------------------------------
 
   Stream<List<Account>> watchAccounts() => select(accounts).watch();
