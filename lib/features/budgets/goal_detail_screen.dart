@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
@@ -75,6 +76,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
     final ratio =
         goal.target == 0 ? 0.0 : goal.saved / goal.target;
     final remain = goal.target - goal.saved;
+    final goalColor = colorFromHex(goal.colorHex);
     final now = DateTime.now();
     final daysLeft = goal.deadline
         ?.difference(DateTime(now.year, now.month, now.day))
@@ -122,7 +124,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                   Container(color: context.raised),
                   FractionallySizedBox(
                     widthFactor: ratio.clamp(0.0, 1.0),
-                    child: Container(color: AppColors.brandBlue),
+                    child: Container(color: goalColor),
                   ),
                   Center(
                     child: Text(
@@ -247,8 +249,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             const SizedBox(height: 6),
             Text(
               label,
-              style: const TextStyle(
-                color: AppColors.brandBlue,
+              style: TextStyle(
+                color: context.accent,
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
                 letterSpacing: 0.5,
@@ -357,12 +359,12 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: AppColors.brandBlue.withValues(alpha: 0.16),
+                color: AppColors.income.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(23),
               ),
               child: Icon(
                 isDeposit ? Icons.savings_outlined : Icons.atm_outlined,
-                color: AppColors.brandBlue,
+                color: isDeposit ? AppColors.income : AppColors.expense,
                 size: 22,
               ),
             ),
@@ -383,7 +385,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                   formatSignedMoney(d.amount, isIncome: isDeposit),
                   style: AppTextStyles.amount(size: 15).copyWith(
                       color: isDeposit
-                          ? AppColors.brandBlue
+                          ? AppColors.income
                           : AppColors.expense),
                 ),
                 Text(

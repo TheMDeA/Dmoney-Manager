@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-10-04
+
+### Added
+- Wallet transactions screen now mirrors the main history: month pager with a month/year picker, income/expense/total overview, and date groups with daily totals. The month selector, overview, date headers, and grouped list are shared widgets so both screens stay consistent.
+
+### Fixed
+- Goal screens use consistent accent colors instead of hardcoded blue: the progress bar uses the goal's own color, Deposit/Withdraw labels follow the theme accent, and deposit amounts/icons use semantic income green (withdrawals stay red) — matching the Budget screens.
+
 ## [1.1.5] - 2026-10-04
 
 ### Added
