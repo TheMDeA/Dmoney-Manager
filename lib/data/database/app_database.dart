@@ -876,12 +876,6 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
 
-  /// Sets a wallet's balance directly (Adjust Balance). The difference is
-  /// absorbed as a correction — no transaction is created.
-  Future<void> setWalletBalance(int id, int newBalance) =>
-      (update(wallets)..where((w) => w.id.equals(id)))
-          .write(WalletsCompanion(balance: Value(newBalance)));
-
   /// Deletes a wallet. Returns false when it still has transactions —
   /// those must be moved or deleted first.
   Future<bool> deleteWallet(int id) async {

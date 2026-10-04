@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-04
+
+### Changed
+- Wallet detail: the blue ADJUST BALANCE button below the balance is now the single entry point for balance adjustments — it opens the new reconciliation dialog (adjust by transaction or change initial amount). The top-right shortcut icon is gone, and the old direct-set behavior is retired in favor of the "Change initial amount" mode, which keeps the wallet's initial amount consistent.
+- Balance privacy toggle now counts the digits down to the dot mask when hiding and counts them back up when revealing (fast micro-interaction), replacing the fade-and-rise swap. Balance changes while visible keep the slow count-up.
+- Swipe actions on transaction rows are now two-step: swiping reveals the Edit/Delete button but nothing fires until it's tapped (new `flutter_slidable` dependency) — a stray swipe can no longer open the edit sheet or the delete flow. Open panes close on scroll.
+- Transfer sheet: pressing the swap button now plays a visible animation — the button spins a full 360° (the old half-turn was invisible on the symmetric swap icon) and the From/To fields cross-fade with a directional slide, like the values trading places.
+
 ## [2.0.0] - 2026-10-04
 
 ### Added

@@ -46,15 +46,6 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       appBar: AppBar(
         actions: [
           IconButton(
-            tooltip: 'Adjust balance',
-            icon: const Icon(Icons.tune_outlined),
-            onPressed: () async {
-              final wallet = await db.getWalletById(_walletId);
-              if (wallet == null || !context.mounted) return;
-              AdjustBalanceDialog.show(context, wallet);
-            },
-          ),
-          IconButton(
             tooltip: 'Edit wallet',
             icon: const Icon(Icons.edit_outlined),
             onPressed: () => _editWallet(context, db),
@@ -194,7 +185,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => _adjustBalance(context, db, wallet),
+              onPressed: () => AdjustBalanceDialog.show(context, wallet),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brandBlue,
                 foregroundColor: Colors.white,
@@ -407,59 +398,6 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     );
     if (picked != null && picked != _walletId) {
       setState(() => _walletId = picked);
-    }
-  }
-
-  Future<void> _adjustBalance(
-      BuildContext context, AppDatabase db, Wallet wallet) async {
-    final ctrl =
-        TextEditingController(text: formatAmountInput(wallet.balance.abs()));
-    final negative = wallet.balance < 0;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Adjust balance'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Current: ${formatMoney(wallet.balance)}',
-              style:
-                  TextStyle(color: context.textMuted, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ThousandsSeparatorInputFormatter()],
-              decoration: InputDecoration(
-                  labelText: 'New balance (${currentCurrency.code})',
-                  prefixText: negative ? '- ' : ''),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sets the balance directly. No transaction is created.',
-              style:
-                  TextStyle(color: context.textMuted, fontSize: 12),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save')),
-        ],
-      ),
-    );
-    if (saved == true && context.mounted) {
-      var amount = parseAmountInput(ctrl.text);
-      if (negative) amount = -amount;
-      await db.setWalletBalance(wallet.id, amount);
     }
   }
 
