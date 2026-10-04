@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Total-balance privacy toggle animates with a fade + rise when hiding/revealing.
 
 ### Fixed
+- Fixed a misplaced `CategoryStat` typedef that sat between the `@DriftDatabase` annotation and the database class, which made drift's code generator silently skip emitting `app_database.g.dart` (CI release builds failed with hundreds of "not found" errors even though `flutter analyze` was clean).
 - Home sparklines now match their figures: graph buckets follow the selected Day/Week/Month range (24 hourly buckets for Day, 7/30 daily buckets for Week/Month) instead of always showing the last 7 days. Range starts are midnight-aligned so amounts and graphs cover identical periods. New `watchHourlyKindTotals` DAO.
 - Goal screens use consistent accent colors instead of hardcoded blue: the progress bar uses the goal's own color, Deposit/Withdraw labels follow the theme accent, and deposit amounts/icons use semantic income green (withdrawals stay red) — matching the Budget screens.
 

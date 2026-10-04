@@ -181,6 +181,7 @@ class TransactionWithDetails {
 
 /// Per-category expense total for a period (donut chart).
 typedef CategoryTotal = ({int categoryId, int total});
+typedef CategoryStat = ({int categoryId, int total, int count});
 
 /// Per-month, per-kind total (bar chart + savings trend).
 /// [month] is 'yyyy-MM', [kind] is 'income' | 'expense'.
@@ -211,11 +212,6 @@ typedef HourlyTotal = ({String hour, String kind, int total});
   RecurringTransactions,
   TransactionTemplates,
 ])
-typedef CategoryStat = ({
-  int categoryId,
-  int total,
-  int count,
-});
 
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
