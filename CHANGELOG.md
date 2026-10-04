@@ -6,9 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Fixed
-- Status bar icons are now visible in light mode (dark icons on light backgrounds, light icons on dark) — applied per theme and on screens without an AppBar.
-
 ## [1.1.4] - 2026-10-04
 
 ### Added
@@ -33,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   it also follows Android 13+ themed icons).
 
 ### Fixed
+- Status bar icons are now visible in light mode (dark icons on light backgrounds, light icons on dark) — applied per theme and on screens without an AppBar.
 - Transaction detail screen no longer scans the entire transaction table (3-table join over all history) just to load one record — new `getTransactionDetailById` DAO used by open, duplicate, and delete.
 - Receipt thumbnails now decode a 240px downscaled copy instead of the full multi-megapixel camera photo, cutting memory use in the photo grid.
 
