@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_expense">Add expense</string>
+    <string name="shortcut_expense_long">Add expense in Dmoney Manager</string>
+    <string name="shortcut_income">Add income</string>
+    <string name="shortcut_income_long">Add income in Dmoney Manager</string>
+    <string name="qs_tile_label">Add expense</string>
+    <string name="qs_tile_desc">Quickly add an expense in Dmoney Manager</string>
+</resources>

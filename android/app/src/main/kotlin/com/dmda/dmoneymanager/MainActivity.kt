@@ -11,8 +11,26 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
+    // Channel for launcher shortcuts + the Quick Settings tile. Both fire
+    // intents carrying a "quick_action" extra ("expense" | "income");
+    // MainActivity forwards it to Flutter, which opens the add sheet.
+    private var quickAddChannel: MethodChannel? = null
+    private var pendingQuickAction: String? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        quickAddChannel =
+            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dmoney/quickadd")
+        quickAddChannel?.setMethodCallHandler { call, result ->
+            if (call.method == "takePendingAction") {
+                result.success(pendingQuickAction)
+                pendingQuickAction = null
+            } else {
+                result.notImplemented()
+            }
+        }
+        // Cold start via shortcut / tile: the intent is already here.
+        handleQuickActionIntent(intent)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dmoney/update")
             .setMethodCallHandler { call, result ->
                 if (call.method == "installApk") {
@@ -56,5 +74,25 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Warm start: the app is already running.
+        handleQuickActionIntent(intent)
+    }
+
+    private fun handleQuickActionIntent(intent: Intent?) {
+        val action = intent?.getStringExtra("quick_action") ?: return
+        if (action != "expense" && action != "income") return
+        val channel = quickAddChannel
+        if (channel != null) {
+            channel.invokeMethod("onQuickAction", action)
+        } else {
+            // Flutter isn't up yet (cold start raced the engine init);
+            // the Dart side picks it up via takePendingAction.
+            pendingQuickAction = action
+        }
     }
 }

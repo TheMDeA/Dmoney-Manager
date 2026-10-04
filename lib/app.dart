@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/services/quick_add.dart';
 import 'core/theme/app_accents.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/app_navigator.dart';
 import 'features/lock/lock_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/shell/app_shell.dart';
@@ -35,6 +37,7 @@ class MoneyManagerApp extends ConsumerWidget {
         return MaterialApp(
           title: 'Dmoney Manager',
           debugShowCheckedModeBanner: false,
+          navigatorKey: appNavigatorKey,
           theme: AppTheme.light(resolve(lightDynamic)),
           darkTheme: AppTheme.dark(resolve(darkDynamic)),
           themeMode: themeMode,
@@ -44,7 +47,8 @@ class MoneyManagerApp extends ConsumerWidget {
           builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
             value:
                 AppTheme.overlayStyle(Theme.of(context).brightness),
-            child: child!,
+            // Binds the launcher-shortcut / Quick Settings tile channel.
+            child: QuickAddListener(child: child!),
           ),
           home: accounts.when(
             // No accounts yet -> first-launch onboarding. Existing installs that

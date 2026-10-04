@@ -36,7 +36,24 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Launcher long-press shortcuts: Add expense / Add income.
+                 Each fires with a "quick_action" extra that MainActivity
+                 forwards to Flutter over the dmoney/quickadd channel. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
+        <!-- Quick Settings tile: one tap opens the add-expense sheet. -->
+        <service
+            android:name=".QuickAddTileService"
+            android:icon="@drawable/ic_shortcut_expense"
+            android:label="@string/qs_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
         <!-- FileProvider for the in-app updater: shares the downloaded APK
              with the system installer. -->
         <provider

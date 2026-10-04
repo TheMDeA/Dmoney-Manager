@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher long-press shortcuts. Each fires an intent at MainActivity
+     with a "quick_action" extra; MainActivity forwards it to Flutter over
+     the dmoney/quickadd channel, which opens the add sheet directly. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_expense"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_expense"
+        android:shortcutShortLabel="@string/shortcut_expense"
+        android:shortcutLongLabel="@string/shortcut_expense_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.dmda.dmoneymanager"
+            android:targetClass="com.dmda.dmoneymanager.MainActivity">
+            <extra android:name="quick_action" android:value="expense" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="add_income"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_income"
+        android:shortcutShortLabel="@string/shortcut_income"
+        android:shortcutLongLabel="@string/shortcut_income_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.dmda.dmoneymanager"
+            android:targetClass="com.dmda.dmoneymanager.MainActivity">
+            <extra android:name="quick_action" android:value="income" />
+        </intent>
+    </shortcut>
+</shortcuts>
