@@ -6,14 +6,19 @@ expressive tabular numerals, animated charts.
 
 - **Home** — total balance card, sparklines, data-driven AI insight, recent
   transactions, savings-goal spotlight
-- **Transactions** — add/edit/duplicate/delete, wallet-to-wallet transfers,
+- **Transactions** — month pager with a month/year picker, grouped by date
+  with daily totals, add/edit/duplicate/delete, wallet-to-wallet transfers,
   receipt photos (full-screen viewer with zoom + delete), search,
-  one-tap templates (save the current form, tap a chip to refill it)
+  one-tap templates (save the current form, tap a chip to refill it),
+  calculator keypad in amount fields, 5-second undo after delete
+- **Calendar** — month grid with per-day income/expense/net totals,
+  income/expense/total summary, tap any day for its transactions
 - **Wallets** — Personal/Work/Family accounts, per-wallet detail (balance,
   adjust balance, income/expense/transfer stats, category-grouped history),
   initial amounts
-- **Stats** — interactive donut, 6-month bars, net-savings trend, and
-  net-worth-over-time chart (3M/6M/12M ranges)
+- **Stats** — interactive donut, 6-month bars, net-savings trend,
+  net-worth-over-time chart (3M/6M/12M ranges), and an insights card
+  comparing the selected month vs the previous one
   (tap slices, bars, and points)
 - **Budgets** — monthly limits per category with a detail view (spent/left,
   daily burn chart vs. limit, pace stats), 80%/100% notifications
@@ -69,8 +74,8 @@ lib/
   state/                    # Riverpod providers
   features/                 # one folder per screen (screen + widgets)
     onboarding/             # first-launch setup flow
-    home/ transactions/ wallets/ stats/ budgets/ debts/
-    categories/ search/ export/ backup/ lock/ settings/
+    home/ transactions/ wallets/ calendar/ stats/ budgets/ goals/ debts/
+    categories/ search/ export/ backup/ lock/ recurring/ settings/
 ```
 
 ## Building a release APK
@@ -89,10 +94,10 @@ no future update can share the same signature.
 
 Release checklist:
 
-1. Bump `version` in `pubspec.yaml` (e.g. `1.1.2+5`).
+1. Bump `version` in `pubspec.yaml` (e.g. `1.1.4+11`).
 2. Move the `[Unreleased]` changelog entries into a dated version section
    in `CHANGELOG.md`.
-3. Commit, then `git tag v1.1.2 && git push origin v1.1.2`.
+3. Commit, then `git tag v1.1.4 && git push origin v1.1.4`.
 
 ## App identity
 
