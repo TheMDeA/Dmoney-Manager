@@ -38,6 +38,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
     final start = DateTime(_month.year, _month.month);
     final end = DateTime(_month.year, _month.month + 1)
         .subtract(const Duration(seconds: 1));
@@ -53,7 +54,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         ],
       ),
       body: StreamBuilder<List<TransactionWithDetails>>(
-        stream: db.watchTransactionsInRange(start, end),
+        stream: db.watchTransactionsInRange(start, end, accountId: accountId),
         builder: (context, snap) {
           final items = snap.data ?? const <TransactionWithDetails>[];
           var income = 0;

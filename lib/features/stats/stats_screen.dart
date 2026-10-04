@@ -38,6 +38,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
     final monthStart = DateTime(_month.year, _month.month);
     final monthEnd = DateTime(
       _month.year,
@@ -55,7 +56,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Stats')),
       body: StreamBuilder<List<CategoryTotal>>(
-        stream: db.watchCategoryExpenseTotals(monthStart, monthEnd),
+        stream: db.watchCategoryExpenseTotals(monthStart, monthEnd,
+            accountId: accountId),
         builder: (context, donutSnap) {
           if (!donutSnap.hasData) {
             return const SingleChildScrollView(
@@ -76,7 +78,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           }
           final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
           return StreamBuilder<List<MonthlyTotal>>(
-            stream: db.watchMonthlyKindTotals(sixMonthStart, sixMonthEnd),
+            stream: db.watchMonthlyKindTotals(sixMonthStart, sixMonthEnd,
+              accountId: accountId),
             builder: (context, monthlySnap) {
               final monthlyTotals =
                   monthlySnap.data ?? const <MonthlyTotal>[];
@@ -89,7 +92,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   };
                   return StreamBuilder<List<CategoryTotal>>(
                     stream: db.watchCategoryExpenseTotals(
-                        prevStart, prevEnd),
+                        prevStart, prevEnd,
+                        accountId: accountId),
                     builder: (context, prevSnap) {
                       final prevTotals =
                           prevSnap.data ?? const <CategoryTotal>[];
@@ -102,7 +106,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                           children: [
                             _monthSelector(context),
                             _overviewSection(
-                                context, db, monthStart, monthEnd),
+                                context, db, monthStart, monthEnd,
+                                accountId),
                             const SectionHeader(
                                 title: 'Insights'),
                             _insightsCard(
@@ -126,7 +131,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               title: 'Net worth',
                               action: _netWorthRangeChips(),
                             ),
-                            _netWorthCard(context, db),
+                            _netWorthCard(context, db, accountId),
                             SizedBox(height: 8),
                           ],
                         ),
@@ -176,16 +181,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   /// net of later transactions (balance adjustments fold into the nearest
   /// month).
   Widget _overviewSection(BuildContext context, AppDatabase db,
-      DateTime monthStart, DateTime monthEnd) {
+      DateTime monthStart, DateTime monthEnd, int? accountId) {
     final afterStart = monthEnd.add(const Duration(seconds: 1));
     final now = DateTime.now();
     return StreamBuilder<List<Wallet>>(
-      stream: db.watchWallets(),
+      stream: db.watchWallets(accountId: accountId),
       builder: (context, wSnap) {
         final current = (wSnap.data ?? const <Wallet>[])
             .fold<int>(0, (s, w) => s + w.balance);
         return StreamBuilder<List<KindTotal>>(
-          stream: db.watchKindTotals(monthStart, monthEnd),
+          stream: db.watchKindTotals(monthStart, monthEnd, accountId: accountId),
           builder: (context, mSnap) {
             final kinds = {
               for (final k in (mSnap.data ?? const <KindTotal>[]))
@@ -195,7 +200,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             final expense = kinds['expense'] ?? 0;
             final monthNet = income - expense;
             return StreamBuilder<List<KindTotal>>(
-              stream: db.watchKindTotals(afterStart, now),
+              stream: db.watchKindTotals(afterStart, now, accountId: accountId),
               builder: (context, aSnap) {
                 final afterNet = _netOf(aSnap.data);
                 final opening = current - monthNet - afterNet;
@@ -954,18 +959,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   /// Total balance over time, derived backwards from today's total using
   /// monthly income/expense sums (transfers are neutral).
-  Widget _netWorthCard(BuildContext context, AppDatabase db) {
+  Widget _netWorthCard(BuildContext context, AppDatabase db, int? accountId) {
     final now = DateTime.now();
     final from = DateTime(now.year, now.month - 11);
     final to = DateTime(now.year, now.month + 1)
         .subtract(const Duration(seconds: 1));
     return StreamBuilder<List<Wallet>>(
-      stream: db.watchWallets(),
+      stream: db.watchWallets(accountId: accountId),
       builder: (context, wSnap) {
         final wallets = wSnap.data ?? const <Wallet>[];
         final currentTotal = wallets.fold<int>(0, (s, w) => s + w.balance);
         return StreamBuilder<List<MonthlyTotal>>(
-          stream: db.watchMonthlyKindTotals(from, to),
+          stream: db.watchMonthlyKindTotals(from, to, accountId: accountId),
           builder: (context, mSnap) {
             final totals = mSnap.data ?? const <MonthlyTotal>[];
             return _netWorthChart(context, currentTotal, totals);

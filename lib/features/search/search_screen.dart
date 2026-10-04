@@ -29,6 +29,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Search')),
       body: Column(
@@ -76,7 +77,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           const SizedBox(height: 8),
           Expanded(
             child: StreamBuilder<List<TransactionWithDetails>>(
-              stream: db.watchTransactions(),
+              stream: db.watchTransactions(accountId: accountId),
               builder: (context, snap) {
                 final all = snap.data ?? const <TransactionWithDetails>[];
                 final q = _ctrl.text.trim().toLowerCase();

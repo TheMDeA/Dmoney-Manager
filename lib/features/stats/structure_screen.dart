@@ -100,6 +100,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
     final from = DateTime(_month.year, _month.month);
     final to = DateTime(_month.year, _month.month + 1)
         .subtract(const Duration(seconds: 1));
@@ -129,7 +130,8 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
           ),
           Expanded(
             child: StreamBuilder<List<CategoryStat>>(
-              stream: db.watchCategoryKindStats(_kind, from, to),
+              stream: db.watchCategoryKindStats(_kind, from, to,
+                  accountId: accountId),
               builder: (context, statSnap) {
                 final stats = statSnap.data ?? const <CategoryStat>[];
                 return StreamBuilder<List<Category>>(

@@ -223,7 +223,11 @@ class WalletsScreen extends ConsumerWidget {
     final initialCtrl = TextEditingController();
     String kind = 'cash';
     final accounts = await ref.read(databaseProvider).watchAccounts().first;
-    int? accountId = accounts.isNotEmpty ? accounts.first.id : null;
+    final selected = ref.read(selectedAccountProvider);
+    // New wallets default to the active account scope when it still exists.
+    int? accountId = selected != null && accounts.any((a) => a.id == selected)
+        ? selected
+        : (accounts.isNotEmpty ? accounts.first.id : null);
 
     if (!context.mounted) return;
     final saved = await showDialog<bool>(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,6 +29,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final lockEnabled = ref.watch(lockEnabledProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final hapticsEnabled = ref.watch(hapticsEnabledProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('More')),
@@ -143,6 +145,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onSelectionChanged: (s) =>
                   ref.read(themeModeProvider.notifier).set(s.first),
             ),
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.vibration_outlined),
+            title: const Text('Haptic feedback'),
+            subtitle: Text('Vibrations on taps and actions',
+                style: TextStyle(color: context.textMuted, fontSize: 12)),
+            value: hapticsEnabled,
+            onChanged: (v) {
+              ref.read(hapticsEnabledProvider.notifier).set(v);
+              // A confirming buzz when turning it back on.
+              if (v) HapticFeedback.mediumImpact();
+            },
           ),
           const Divider(),
           _tile(context,

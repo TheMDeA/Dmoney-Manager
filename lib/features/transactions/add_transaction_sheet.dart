@@ -161,10 +161,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 Text('Wallet', style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 StreamBuilder<List<Wallet>>(
-                  stream: db.watchWallets(),
+                  // In edit mode the transaction's own wallet must stay
+                  // selectable even when it sits outside the active scope.
+                  stream: db.watchWallets(
+                      accountId:
+                          _editing ? null : ref.watch(selectedAccountProvider)),
                   builder: (context, snap) {
                     final wallets = snap.data ?? const <Wallet>[];
-                    _walletId ??= wallets.isNotEmpty ? wallets.first.id : null;
+                    if (_walletId == null ||
+                        wallets.every((w) => w.id != _walletId)) {
+                      _walletId = wallets.isNotEmpty ? wallets.first.id : null;
+                    }
                     return Wrap(
                       spacing: 8,
                       runSpacing: 8,
