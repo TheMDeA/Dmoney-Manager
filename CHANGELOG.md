@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Goal celebration: pushing a savings goal to 100% triggers a trophy pop-in with ripple ring, haptic, and a "Goal complete!" dialog.
+- Wallet peek: long-press a wallet card for a springy popup with its balance, initial amount, and last transaction — no need to open the detail screen.
+- Fast-scroll date scrubber: a drag strip on the right edge of the history (and wallet transactions) scrubs through months with a floating month bubble and haptic ticks.
+
+### Changed
+- Save success animation: the checkmark pop now has an overshoot bounce plus an expanding ripple ring.
+- Wrong passcode now shakes the PIN dots side-to-side (with haptic) instead of just clearing them.
+- AI insight card auto-cycles through up to three insights (rising category, biggest monthly category, daily pace) every 6 seconds with cross-fade and dot indicators.
+- Pull-to-refresh on the transaction history and wallets screens.
+- Date group headers now stick to the top while their day scrolls by (history, wallet transactions, category screens).
+- Budget and goal progress bars tween to new values instead of jumping (new shared `AnimatedProgressBar`).
+- Net-worth chart draws itself left-to-right on load and replays when switching 3M/6M/12M ranges.
+- The + FAB now morphs into the add-transaction sheet via a container transform (new `animations` dependency); tapping the scrim or saving reverses it back into the FAB.
+
 ## [2.0.1] - 2026-10-04
 
 ### Changed

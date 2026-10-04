@@ -1,14 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/database/app_database.dart';
 import '../../../state/providers.dart';
 
-/// Collapsible AI insight zone — data-driven: spots the category whose
-/// spending rose the most versus last week. Kept visually quiet so it never
-/// competes with the balance or transactions for priority.
+/// Collapsible AI insight zone — data-driven. Cycles through up to three
+/// insights every few seconds with a cross-fade, so the card stays alive
+/// without competing with the balance or transactions for priority.
 class AiInsightCard extends ConsumerStatefulWidget {
   const AiInsightCard({super.key});
 
@@ -18,6 +21,26 @@ class AiInsightCard extends ConsumerStatefulWidget {
 
 class _AiInsightCardState extends ConsumerState<AiInsightCard> {
   bool _expanded = false;
+  int _index = 0;
+  Timer? _cycle;
+
+  @override
+  void dispose() {
+    _cycle?.cancel();
+    super.dispose();
+  }
+
+  void _maybeStartCycle(int count) {
+    if (count < 2) {
+      _cycle?.cancel();
+      _cycle = null;
+      return;
+    }
+    _cycle ??= Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted) return;
+      setState(() => _index++);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +49,10 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       stream: db.watchTransactions(),
       builder: (context, snap) {
         final all = snap.data ?? const <TransactionWithDetails>[];
-        final insight = _computeInsight(all);
-        if (insight == null) return const SizedBox.shrink();
+        final insights = _computeInsights(all);
+        if (insights.isEmpty) return const SizedBox.shrink();
+        _maybeStartCycle(insights.length);
+        final insight = insights[_index % insights.length];
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: Container(
@@ -51,10 +76,31 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                             size: 18, color: AppColors.violet),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            insight.$1,
-                            style: TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w500),
+                          child: AnimatedSwitcher(
+                            duration: AppMotion.normal,
+                            switchInCurve: AppMotion.enter,
+                            switchOutCurve: AppMotion.exit,
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position: animation.drive(
+                                  Tween(
+                                          begin: const Offset(0, 0.35),
+                                          end: Offset.zero)
+                                      .chain(CurveTween(
+                                          curve: AppMotion.enter)),
+                                ),
+                                child: child,
+                              ),
+                            ),
+                            child: Text(
+                              insight.$1,
+                              key: ValueKey(insight.$1),
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500),
+                            ),
                           ),
                         ),
                         Icon(
@@ -66,12 +112,39 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                     ),
                     if (_expanded) ...[
                       const SizedBox(height: 8),
-                      Text(
-                        insight.$2,
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: context.textMuted,
-                            height: 1.5),
+                      AnimatedSwitcher(
+                        duration: AppMotion.normal,
+                        child: Text(
+                          insight.$2,
+                          key: ValueKey(insight.$2),
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: context.textMuted,
+                              height: 1.5),
+                        ),
+                      ),
+                    ],
+                    if (insights.length > 1) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (var i = 0; i < insights.length; i++)
+                            AnimatedContainer(
+                              duration: AppMotion.fast,
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 3),
+                              width: i == _index % insights.length ? 16 : 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(3),
+                                color: i == _index % insights.length
+                                    ? AppColors.violet
+                                    : AppColors.violet
+                                        .withValues(alpha: 0.3),
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ],
@@ -84,14 +157,17 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     );
   }
 
-  /// Returns (headline, detail) or null when there is nothing to say.
-  (String, String)? _computeInsight(List<TransactionWithDetails> all) {
+  /// Returns up to three (headline, detail) insights, or empty when there is
+  /// nothing to say.
+  List<(String, String)> _computeInsights(List<TransactionWithDetails> all) {
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
     final twoWeeksAgo = now.subtract(const Duration(days: 14));
+    final monthAgo = DateTime(now.year, now.month - 1, now.day);
 
     final thisWeek = <int, int>{};
     final lastWeek = <int, int>{};
+    final thisMonth = <int, int>{};
     final names = <int, String>{};
     for (final d in all) {
       final t = d.transaction;
@@ -102,7 +178,13 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       } else if (!t.date.isBefore(twoWeeksAgo)) {
         lastWeek[t.categoryId] = (lastWeek[t.categoryId] ?? 0) + t.amount;
       }
+      if (!t.date.isBefore(monthAgo)) {
+        thisMonth[t.categoryId] = (thisMonth[t.categoryId] ?? 0) + t.amount;
+      }
     }
+    final out = <(String, String)>[];
+
+    // 1. Fastest-rising category vs last week.
     String? topCat;
     double topRise = 0;
     for (final e in thisWeek.entries) {
@@ -114,21 +196,39 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
         topCat = names[e.key];
       }
     }
-    if (topCat == null) {
-      final total = thisWeek.values.fold<int>(0, (s, v) => s + v);
-      if (total == 0) return null;
-      return (
-        'Spending is steady this week.',
-        'You spent ${formatMoney(total)} in the last 7 days — nicely under control.'
-      );
+    if (topCat != null) {
+      final pct = (topRise * 100).toStringAsFixed(0);
+      final spent = formatMoney(thisWeek.entries
+          .firstWhere((e) => names[e.key] == topCat)
+          .value);
+      out.add((
+        '$topCat spending is $pct% higher than last week.',
+        'You spent $spent on $topCat in the last 7 days. Small cuts here compound fast.',
+      ));
     }
-    final pct = (topRise * 100).toStringAsFixed(0);
-    final spent = formatMoney(thisWeek.entries
-        .firstWhere((e) => names[e.key] == topCat)
-        .value);
-    return (
-      '$topCat spending is $pct% higher than last week.',
-      'You spent $spent on $topCat in the last 7 days. Small cuts here compound fast.',
-    );
+
+    // 2. Biggest category this month.
+    if (thisMonth.isNotEmpty) {
+      final biggest =
+          thisMonth.entries.reduce((a, b) => a.value >= b.value ? a : b);
+      final name = names[biggest.key] ?? 'Unknown';
+      out.add((
+        '$name leads your spending this month.',
+        '${formatMoney(biggest.value)} on $name in the last 30 days.',
+      ));
+    }
+
+    // 3. Daily pace this week.
+    final weekTotal = thisWeek.values.fold<int>(0, (s, v) => s + v);
+    if (weekTotal > 0) {
+      final pace = weekTotal ~/ 7;
+      out.add((
+        'You\'re spending about ${formatMoney(pace)} a day.',
+        '${formatMoney(weekTotal)} total in the last 7 days.',
+      ));
+    }
+
+    if (out.isEmpty) return const [];
+    return out.take(3).toList();
   }
 }

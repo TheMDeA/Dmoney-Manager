@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
@@ -5,6 +7,7 @@ import 'package:local_auth/local_auth.dart';
 import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/haptics.dart';
 import '../../state/providers.dart';
 
 /// Passcode + biometric lock screen ("Secure and Private").
@@ -16,8 +19,28 @@ class LockScreen extends ConsumerStatefulWidget {
   ConsumerState<LockScreen> createState() => _LockScreenState();
 }
 
-class _LockScreenState extends ConsumerState<LockScreen> {
+class _LockScreenState extends ConsumerState<LockScreen>
+    with SingleTickerProviderStateMixin {
   String _pin = '';
+
+  // Shake animation for wrong passcode entries.
+  late final AnimationController _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 400),
+  );
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
+
+  void _wrongPin() {
+    setState(() => _pin = '');
+    _shake.forward(from: 0);
+    Haptics.medium();
+    _msg('Wrong passcode, try again');
+  }
 
   void _press(String digit) {
     if (_pin.length >= 4) return;
@@ -28,8 +51,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
         if (AppPrefs.verifyPin(_pin)) {
           ref.read(lockedProvider.notifier).unlock();
         } else {
-          setState(() => _pin = '');
-          _msg('Wrong passcode, try again');
+          _wrongPin();
         }
       });
     }
@@ -70,24 +92,37 @@ class _LockScreenState extends ConsumerState<LockScreen> {
             const SizedBox(height: 64),
             Text('Enter Password', style: AppTextStyles.displaySection),
             const SizedBox(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                for (var i = 0; i < 4; i++)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 12),
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i < _pin.length ? accent : Colors.transparent,
-                      border: Border.all(
-                        color: accent.withValues(alpha: 0.4),
-                        width: 2,
+            // The dot row wiggles side-to-side on a wrong entry.
+            AnimatedBuilder(
+              animation: _shake,
+              builder: (context, child) {
+                final t = _shake.value;
+                // Two side-to-side oscillations with linear decay.
+                final dx = 14 * sin(t * 4 * pi) * (1 - t);
+                return Transform.translate(
+                  offset: Offset(dx, 0),
+                  child: child,
+                );
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < 4; i++)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: i < _pin.length ? accent : Colors.transparent,
+                        border: Border.all(
+                          color: accent.withValues(alpha: 0.4),
+                          width: 2,
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 48),
             InkWell(
