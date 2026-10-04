@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../data/database/app_database.dart';
@@ -69,8 +70,8 @@ class GoalSpotlightCard extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text(
                           '${formatMoney(g.saved)} of ${formatMoney(g.target)}',
-                          style: TextStyle(
-                              color: context.textMuted, fontSize: 12),
+                          style: AppTextStyles.amount(size: 12)
+                              .copyWith(color: context.textMuted),
                         ),
                       ],
                     ),

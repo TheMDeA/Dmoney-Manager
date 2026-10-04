@@ -113,9 +113,14 @@ class BudgetsScreen extends ConsumerWidget {
                           ),
                         ),
                         if (budgets.isEmpty)
-                          const EmptyState(
+                          EmptyState(
                               icon: Icons.savings_outlined,
-                              message: 'No budgets yet. Add one to control spending.')
+                              title: 'No budgets',
+                              message:
+                                  'Set monthly limits per category to control spending.',
+                              actionLabel: 'Add budget',
+                              onAction: () => _addBudgetDialog(context, ref,
+                                  cats.values.toList(), mk))
                         else
                           for (var i = 0; i < budgets.length; i++)
                             Entrance(
@@ -210,8 +215,7 @@ class BudgetsScreen extends ConsumerWidget {
               ratio >= 1
                   ? 'Over budget by ${formatMoney(spent - b.limit)}'
                   : '${formatMoney(b.limit - spent)} left',
-              style: TextStyle(
-                  fontSize: 12,
+              style: AppTextStyles.amount(size: 12).copyWith(
                   color: ratio >= 1 ? AppColors.expense : context.textMuted),
             ),
           ],
@@ -280,8 +284,8 @@ class BudgetsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('${formatMoney(goals[i].saved)} of ${formatMoney(goals[i].target)}',
-                                style: TextStyle(
-                                    color: context.textMuted, fontSize: 12)),
+                                style: AppTextStyles.amount(size: 12).copyWith(
+                                    color: context.textMuted)),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

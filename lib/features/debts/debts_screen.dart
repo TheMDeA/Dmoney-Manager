@@ -74,7 +74,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                   outstandingTotal),
               if (outstanding.isEmpty)
                 const EmptyState(
-                    icon: Icons.handshake_outlined, message: 'Nothing outstanding.')
+                    icon: Icons.handshake_outlined,
+                    title: 'All clear',
+                    message: 'No outstanding debts right now.')
               else
                 for (var i = 0; i < outstanding.length; i++)
                   Entrance(

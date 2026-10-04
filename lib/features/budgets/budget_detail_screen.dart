@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
@@ -393,7 +394,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             ),
           ],
         ),
-        duration: const Duration(milliseconds: 800),
+        duration: AppMotion.slow,
         curve: Curves.easeOutCubic,
       ),
     );

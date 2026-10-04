@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -48,7 +49,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 12),
               BalanceCard(
                 balanceHidden: _balanceHidden,
-                onToggleHidden: () => setState(() => _balanceHidden = !_balanceHidden),
+                onToggleHidden: () {
+                  Haptics.light();
+                  setState(() => _balanceHidden = !_balanceHidden);
+                },
               ),
               const SizedBox(height: 12),
               _rangeSwitcher(context, range),
@@ -262,8 +266,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ButtonSegment(value: 'month', label: Text('Month')),
         ],
         selected: {range},
-        onSelectionChanged: (s) =>
-            ref.read(dateRangeProvider.notifier).set(s.first),
+        onSelectionChanged: (s) {
+          Haptics.select();
+          ref.read(dateRangeProvider.notifier).set(s.first);
+        },
         showSelectedIcon: false,
         style: SegmentedButton.styleFrom(
           visualDensity: VisualDensity.compact,

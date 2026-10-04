@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/glass_card.dart';
@@ -66,8 +67,8 @@ class StatSparklineCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                duration: const Duration(milliseconds: 700),
-                curve: Curves.easeOutCubic,
+                duration: AppMotion.slow,
+                curve: AppMotion.enter,
               ),
             ),
           ],

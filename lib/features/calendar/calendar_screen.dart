@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/amount_text.dart';
 import '../../data/database/app_database.dart';
@@ -139,27 +140,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           cell(
             'Income',
             Text(formatMoney(income),
-                style: TextStyle(
-                    color: AppColors.income,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15)),
+                style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
+                    .copyWith(color: AppColors.income)),
           ),
           cell(
             'Expense',
             Text('-${formatMoney(expense)}',
-                style: TextStyle(
-                    color: AppColors.expense,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15)),
+                style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
+                    .copyWith(color: AppColors.expense)),
           ),
           cell(
             'Total',
             total == 0
                 ? Text(formatMoney(0),
-                    style: TextStyle(
-                        color: context.textMuted,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15))
+                    style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
+                        .copyWith(color: context.textMuted))
                 : AmountText(total.abs(),
                     isIncome: total > 0, size: 15),
           ),
