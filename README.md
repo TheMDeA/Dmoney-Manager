@@ -94,10 +94,10 @@ no future update can share the same signature.
 
 Release checklist:
 
-1. Bump `version` in `pubspec.yaml` (e.g. `1.1.7+19`).
+1. Bump `version` in `pubspec.yaml` (e.g. `2.0.0+21`).
 2. Move the `[Unreleased]` changelog entries into a dated version section
    in `CHANGELOG.md`.
-3. Commit, then `git tag v1.1.7 && git push origin v1.1.7`.
+3. Commit, then `git tag v2.0.0 && git push origin v2.0.0`.
 
 ## App identity
 

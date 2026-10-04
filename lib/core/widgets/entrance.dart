@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_motion.dart';
+
 /// Plays a fade + rise entrance once when first inserted into the tree.
 ///
 /// Give list items a stable [Key] (e.g. the row id) so rebuilds don't
@@ -11,7 +13,7 @@ class Entrance extends StatefulWidget {
     required this.child,
     this.delay = Duration.zero,
     this.distance = 14,
-    this.duration = const Duration(milliseconds: 380),
+    this.duration = AppMotion.normal,
   });
 
   final Widget child;
@@ -32,7 +34,7 @@ class _EntranceState extends State<Entrance>
   late final Animation<Offset> _offset = Tween<Offset>(
     begin: Offset(0, widget.distance / 100),
     end: Offset.zero,
-  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+  ).animate(CurvedAnimation(parent: _controller, curve: AppMotion.enter));
 
   @override
   void initState() {

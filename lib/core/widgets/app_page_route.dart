@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_motion.dart';
+
 /// App-wide page transition: gentle slide + fade with soft cubic curves.
 ///
 /// Drop-in replacement for [MaterialPageRoute] — same constructor shape,
@@ -9,14 +11,14 @@ class AppPageRoute<T> extends PageRouteBuilder<T> {
       : super(
           pageBuilder: (context, animation, secondaryAnimation) =>
               builder(context),
-          transitionDuration: const Duration(milliseconds: 320),
-          reverseTransitionDuration: const Duration(milliseconds: 260),
+          transitionDuration: AppMotion.normal,
+          reverseTransitionDuration: AppMotion.normal,
           transitionsBuilder:
               (context, animation, secondaryAnimation, child) {
             final slide =
                 Tween<Offset>(begin: const Offset(0.08, 0), end: Offset.zero)
                     .animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              CurvedAnimation(parent: animation, curve: AppMotion.enter),
             );
             final fade =
                 CurvedAnimation(parent: animation, curve: Curves.easeOut);
@@ -25,7 +27,7 @@ class AppPageRoute<T> extends PageRouteBuilder<T> {
                 Tween<Offset>(begin: Offset.zero, end: const Offset(-0.04, 0))
                     .animate(
               CurvedAnimation(
-                  parent: secondaryAnimation, curve: Curves.easeOutCubic),
+                  parent: secondaryAnimation, curve: AppMotion.enter),
             );
             return SlideTransition(
               position: outSlide,

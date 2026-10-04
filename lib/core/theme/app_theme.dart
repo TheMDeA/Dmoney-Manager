@@ -26,6 +26,32 @@ abstract final class AppTheme {
   // TextStyle class and is safe to use).
   static String get _interFamily => GoogleFonts.inter().fontFamily ?? 'Inter';
 
+  /// Tabular numerals across the whole text theme so amounts never jitter
+  /// when digits change (e.g. during count-up animations). Only digit
+  /// glyphs are affected; prose renders exactly as before.
+  static TextTheme _tabular(TextTheme t) {
+    TextStyle? f(TextStyle? s) => s?.copyWith(
+          fontFeatures: const [FontFeature.tabularFigures()],
+        );
+    return TextTheme(
+      displayLarge: f(t.displayLarge),
+      displayMedium: f(t.displayMedium),
+      displaySmall: f(t.displaySmall),
+      headlineLarge: f(t.headlineLarge),
+      headlineMedium: f(t.headlineMedium),
+      headlineSmall: f(t.headlineSmall),
+      titleLarge: f(t.titleLarge),
+      titleMedium: f(t.titleMedium),
+      titleSmall: f(t.titleSmall),
+      bodyLarge: f(t.bodyLarge),
+      bodyMedium: f(t.bodyMedium),
+      bodySmall: f(t.bodySmall),
+      labelLarge: f(t.labelLarge),
+      labelMedium: f(t.labelMedium),
+      labelSmall: f(t.labelSmall),
+    );
+  }
+
   static ThemeData dark(Color accent) {
     final base = ThemeData(brightness: Brightness.dark, useMaterial3: true);
     return base.copyWith(
@@ -41,7 +67,7 @@ abstract final class AppTheme {
         outline: AppColors.hairline,
         error: AppColors.expense,
       ),
-      textTheme: base.textTheme.apply(fontFamily: _interFamily),
+      textTheme: _tabular(base.textTheme.apply(fontFamily: _interFamily)),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         scrolledUnderElevation: 0,
@@ -93,7 +119,7 @@ abstract final class AppTheme {
         outline: AppColors.lightHairline,
         error: AppColors.expense,
       ),
-      textTheme: base.textTheme.apply(fontFamily: _interFamily),
+      textTheme: _tabular(base.textTheme.apply(fontFamily: _interFamily)),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         scrolledUnderElevation: 0,

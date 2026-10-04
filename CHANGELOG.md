@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-04
+
+### Added
+- Swipe actions on transaction rows: swipe right to edit, swipe left to delete (with the 5-second undo), on the history, wallet transactions, wallet category, and calendar day lists. Transfers and debt-linked entries show their usual guidance instead.
+- Shimmer skeleton placeholders while lists and cards load (history, wallet screens, stats), replacing blank frames and spinners.
+- Haptic feedback: light/medium vibrations on save, delete/undo, swipe actions, balance toggle, tab switches, and the Day/Week/Month switcher.
+- Empty states with guidance and action buttons (add transaction / wallet / budget) across history, wallets, budgets, and debts.
+- Hero transitions on drill-downs: the wallet color bar morphs into the detail header, and the category icon flies into the category screen's app bar.
+
+### Changed
+- One motion spec (`AppMotion`): fast/normal/slow durations and enter/exit curves now shared by every animation in the app.
+- Tabular figures applied theme-wide so amounts never jitter when digits change.
+- Total balance counts up/down to its new value instead of jumping.
+- Transaction lists animate insertions (slide + fade) and removals (collapse); the grouped list is now one shared stateful widget.
+
 ## [1.1.7] - 2026-10-04
 
 ### Added
