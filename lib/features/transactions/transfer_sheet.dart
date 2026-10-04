@@ -99,10 +99,30 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                     }
                     return Column(
                       children: [
-                        DropdownButtonFormField<int>(
-                          key: ValueKey('from-$_fromId'),
-                          initialValue: _fromId,
-                          decoration: const InputDecoration(labelText: 'From'),
+                        // The fields cross-fade with a directional slide when
+                        // the wallets swap (From's new value drops in from
+                        // above, To's rises from below), instead of the text
+                        // just blinking to the new value.
+                        AnimatedSwitcher(
+                          duration: AppMotion.normal,
+                          switchInCurve: AppMotion.enter,
+                          switchOutCurve: AppMotion.exit,
+                          transitionBuilder: (child, animation) =>
+                              SlideTransition(
+                            position: animation.drive(
+                              Tween(
+                                begin: const Offset(0, -0.35),
+                                end: Offset.zero,
+                              ).chain(CurveTween(curve: AppMotion.enter)),
+                            ),
+                            child: FadeTransition(
+                                opacity: animation, child: child),
+                          ),
+                          child: DropdownButtonFormField<int>(
+                            key: ValueKey('from-$_fromId'),
+                            initialValue: _fromId,
+                            decoration:
+                                const InputDecoration(labelText: 'From'),
                           items: [
                             for (final w in wallets)
                               DropdownMenuItem(
@@ -121,13 +141,17 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                             }
                           }),
                         ),
+                        ),
                         const SizedBox(height: 4),
                         Center(
                           child: Material(
                             shape: const CircleBorder(),
                             color: context.raised,
+                            // A full 360° spin per press: the half-turn was
+                            // invisible because Icons.swap_vert is vertically
+                            // symmetric.
                             child: AnimatedRotation(
-                              turns: _swaps * 0.5,
+                              turns: _swaps.toDouble(),
                               duration: AppMotion.normal,
                               curve: AppMotion.enter,
                               child: IconButton(
@@ -142,22 +166,39 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        DropdownButtonFormField<int>(
-                          key: ValueKey('to-$_toId'),
-                          initialValue: _toId,
-                          decoration: const InputDecoration(labelText: 'To'),
-                          items: [
-                            for (final w in wallets.where(
-                              (w) => w.id != _fromId,
-                            ))
-                              DropdownMenuItem(
-                                value: w.id,
-                                child: Text(
-                                  '${w.name} (${formatMoney(w.balance)})',
+                        AnimatedSwitcher(
+                          duration: AppMotion.normal,
+                          switchInCurve: AppMotion.enter,
+                          switchOutCurve: AppMotion.exit,
+                          transitionBuilder: (child, animation) =>
+                              SlideTransition(
+                            position: animation.drive(
+                              Tween(
+                                begin: const Offset(0, 0.35),
+                                end: Offset.zero,
+                              ).chain(CurveTween(curve: AppMotion.enter)),
+                            ),
+                            child: FadeTransition(
+                                opacity: animation, child: child),
+                          ),
+                          child: DropdownButtonFormField<int>(
+                            key: ValueKey('to-$_toId'),
+                            initialValue: _toId,
+                            decoration:
+                                const InputDecoration(labelText: 'To'),
+                            items: [
+                              for (final w in wallets.where(
+                                (w) => w.id != _fromId,
+                              ))
+                                DropdownMenuItem(
+                                  value: w.id,
+                                  child: Text(
+                                    '${w.name} (${formatMoney(w.balance)})',
+                                  ),
                                 ),
-                              ),
-                          ],
-                          onChanged: (v) => setState(() => _toId = v),
+                            ],
+                            onChanged: (v) => setState(() => _toId = v),
+                          ),
                         ),
                       ],
                     );

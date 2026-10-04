@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_motion.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/category_icons.dart';
@@ -20,7 +20,9 @@ import '../../debts/debt_detail_screen.dart';
 /// Transfers render with a "From → To" subtitle.
 /// Debt-linked entries show a debt badge and open the debt detail instead.
 ///
-/// Swipe right to edit, swipe left to delete (with undo).
+/// Swipe right to reveal Edit, swipe left to reveal Delete — tapping the
+/// revealed action runs it (two steps, so a stray swipe can't fire anything).
+/// Delete still offers the 5-second undo.
 class TransactionTile extends ConsumerWidget {
   const TransactionTile({super.key, required this.details});
 
@@ -35,37 +37,46 @@ class TransactionTile extends ConsumerWidget {
     final isDebtLinked = t.debtId != null;
     final color = colorFromHex(c.colorHex);
 
-    return Dismissible(
+    // Two-step swipe actions: the swipe only reveals the action — nothing
+    // fires until the revealed button is tapped. The pane closes on scroll
+    // or when another row is swiped.
+    return Slidable(
       key: ValueKey('tx-${t.id}'),
-      direction: DismissDirection.horizontal,
-      dismissThresholds: const {
-        DismissDirection.startToEnd: 0.35,
-        DismissDirection.endToStart: 0.35,
-      },
-      movementDuration: AppMotion.fast,
-      background: _swipeBackground(
-        context,
-        alignLeft: true,
-        icon: Icons.edit_outlined,
-        label: 'Edit',
-        color: Theme.of(context).colorScheme.primary,
+      closeOnScroll: true,
+      startActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.32,
+        children: [
+          SlidableAction(
+            onPressed: (actionContext) async {
+              Slidable.of(actionContext)?.close();
+              Haptics.medium();
+              await editTransaction(context, details);
+            },
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            icon: Icons.edit_outlined,
+            label: 'Edit',
+          ),
+        ],
       ),
-      secondaryBackground: _swipeBackground(
-        context,
-        alignLeft: false,
-        icon: Icons.delete_outline,
-        label: 'Delete',
-        color: AppColors.expense,
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.32,
+        children: [
+          SlidableAction(
+            onPressed: (actionContext) async {
+              Slidable.of(actionContext)?.close();
+              Haptics.medium();
+              await deleteTransactionFlow(context, ref, details);
+            },
+            backgroundColor: AppColors.expense,
+            foregroundColor: Colors.white,
+            icon: Icons.delete_outline,
+            label: 'Delete',
+          ),
+        ],
       ),
-      confirmDismiss: (direction) async {
-        Haptics.medium();
-        if (direction == DismissDirection.startToEnd) {
-          await editTransaction(context, details);
-        } else {
-          await deleteTransactionFlow(context, ref, details);
-        }
-        return false; // reveal actions only; never dismiss the row
-      },
       child: InkWell(
         onTap: () => Navigator.of(context).push(
           AppPageRoute(
@@ -179,36 +190,6 @@ class TransactionTile extends ConsumerWidget {
           ],
         ),
       ),
-      ),
-    );
-  }
-
-  /// Colored action reveal shown behind the row during a swipe.
-  Widget _swipeBackground(
-    BuildContext context, {
-    required bool alignLeft,
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      color: color,
-      alignment: alignLeft ? Alignment.centerLeft : Alignment.centerRight,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 22),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-            ),
-          ),
-        ],
       ),
     );
   }

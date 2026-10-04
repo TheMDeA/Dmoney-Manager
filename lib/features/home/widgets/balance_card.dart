@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
-import '../../../core/widgets/count_up_money.dart';
+import '../../../core/widgets/count_up_balance.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../data/database/app_database.dart';
 import '../../../state/providers.dart';
@@ -60,48 +59,13 @@ class BalanceCard extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  AnimatedSwitcher(
-                    duration: AppMotion.normal,
-                    switchInCurve: AppMotion.enter,
-                    switchOutCurve: AppMotion.exit,
-                    // Default Stack centers children, which made the text
-                    // jump to the middle mid-animation and snap back after.
-                    // Keep everything left-aligned instead.
-                    layoutBuilder: (currentChild, previousChildren) {
-                      final children = [...previousChildren];
-                      final current = currentChild;
-                      if (current != null) children.add(current);
-                      return Stack(
-                        alignment: Alignment.centerLeft,
-                        children: children,
-                      );
-                    },
-                    transitionBuilder: (child, animation) =>
-                        FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: animation.drive(
-                          Tween(
-                                  begin: const Offset(0, 0.3),
-                                  end: Offset.zero)
-                              .chain(CurveTween(curve: AppMotion.enter)),
-                        ),
-                        child: child,
-                      ),
-                    ),
-                    child: balanceHidden
-                        ? Text(
-                            'Rp ••••••••',
-                            key: const ValueKey('hidden'),
-                            style: AppTextStyles.displayBalance
-                                .copyWith(color: context.textPrimary),
-                          )
-                        : CountUpMoney(
-                            key: const ValueKey('visible'),
-                            amount: total,
-                            style: AppTextStyles.displayBalance
-                                .copyWith(color: context.textPrimary),
-                          ),
+                  // The digits count down to the dot mask when hiding and
+                  // count back up when revealing — no fade/swap.
+                  CountUpBalance(
+                    amount: total,
+                    hidden: balanceHidden,
+                    style: AppTextStyles.displayBalance
+                        .copyWith(color: context.textPrimary),
                   ),
                   SizedBox(height: 16),
                   Row(
