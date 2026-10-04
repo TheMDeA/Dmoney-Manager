@@ -9,6 +9,11 @@ import 'package:flutter/material.dart';
 ///
 /// - [enter]: elements arriving on screen
 /// - [exit]: elements leaving the screen
+///
+/// Deliberate exceptions (documented at their sites, not spec drift):
+/// continuous loops (the skeleton shimmer) and oscillations (the
+/// passcode shake) keep their own timing — the spec covers one-shot
+/// transitions.
 abstract final class AppMotion {
   static const Duration fast = Duration(milliseconds: 150);
   static const Duration normal = Duration(milliseconds: 300);

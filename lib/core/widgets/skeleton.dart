@@ -20,6 +20,8 @@ class SkeletonBox extends StatefulWidget {
 
 class _SkeletonBoxState extends State<SkeletonBox>
     with SingleTickerProviderStateMixin {
+  // Deliberate AppMotion exception: a continuous shimmer loop keeps its
+  // own timing; the spec covers one-shot transitions.
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1200),

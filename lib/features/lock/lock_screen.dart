@@ -24,6 +24,8 @@ class _LockScreenState extends ConsumerState<LockScreen>
   String _pin = '';
 
   // Shake animation for wrong passcode entries.
+  // Deliberate AppMotion exception: an oscillation needs its own timing,
+  // not one of the one-shot transition durations.
   late final AnimationController _shake = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 400),

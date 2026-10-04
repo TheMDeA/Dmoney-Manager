@@ -770,15 +770,29 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           barRods: [
             BarChartRodData(
               toY: income,
-              color: AppColors.income,
               width: 9,
               borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  AppColors.income,
+                  AppColors.income.withValues(alpha: 0.55),
+                ],
+              ),
             ),
             BarChartRodData(
               toY: expense,
-              color: AppColors.expense,
               width: 9,
               borderRadius: BorderRadius.circular(4),
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  AppColors.expense,
+                  AppColors.expense.withValues(alpha: 0.55),
+                ],
+              ),
             ),
           ],
         ),
@@ -1057,7 +1071,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             child: TweenAnimationBuilder<double>(
               key: ValueKey(_netWorthRange),
               tween: Tween(begin: 0.0, end: 1.0),
-              duration: const Duration(milliseconds: 900),
+              duration: AppMotion.slow,
               curve: AppMotion.enter,
               builder: (context, progress, child) => ClipRect(
                 child: Align(
@@ -1102,7 +1116,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     dotData: const FlDotData(show: false),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: context.accent.withValues(alpha: 0.12),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          context.accent.withValues(alpha: 0.32),
+                          context.accent.withValues(alpha: 0.0),
+                        ],
+                      ),
                     ),
                   ),
                 ],

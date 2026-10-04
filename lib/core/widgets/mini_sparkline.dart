@@ -36,7 +36,14 @@ class MiniSparkline extends StatelessWidget {
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
-              color: color.withValues(alpha: 0.15),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  color.withValues(alpha: 0.35),
+                  color.withValues(alpha: 0.0),
+                ],
+              ),
             ),
           ),
         ],
