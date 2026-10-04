@@ -9,6 +9,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/add_transaction_sheet.dart';
@@ -67,6 +68,21 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       body: StreamBuilder<List<Wallet>>(
         stream: db.watchWallets(),
         builder: (context, wSnap) {
+          if (!wSnap.hasData) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonBox(width: 180, height: 22),
+                  SizedBox(height: 12),
+                  SkeletonBox(height: 90, radius: 20),
+                  SizedBox(height: 12),
+                  SkeletonBox(width: 120, height: 16),
+                ],
+              ),
+            );
+          }
           final wallets = wSnap.data ?? const <Wallet>[];
           Wallet? wallet;
           for (final w in wallets) {
@@ -118,15 +134,18 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
       child: Column(
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(20),
+          Hero(
+            tag: 'wallet-${wallet.id}',
+            child: Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(iconForKey(_walletIconKey(wallet.kind)),
+                  color: onAccent(color), size: 36),
             ),
-            child: Icon(iconForKey(_walletIconKey(wallet.kind)),
-                color: onAccent(color), size: 36),
           ),
           const SizedBox(height: 12),
           InkWell(
@@ -270,6 +289,9 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           builder: (_) => WalletCategoryScreen(
             walletId: d.transaction.walletId,
             categoryId: d.transaction.categoryId,
+            categoryName: d.category.name,
+            iconKey: d.category.iconKey,
+            colorHex: d.category.colorHex,
           ),
         ),
       ),
@@ -278,15 +300,19 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: catColor.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(23),
+            Hero(
+              tag:
+                  'walletcat-${d.transaction.walletId}-${d.transaction.categoryId}',
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: catColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(23),
+                ),
+                child: Icon(iconForKey(d.category.iconKey),
+                    color: catColor, size: 22),
               ),
-              child: Icon(iconForKey(d.category.iconKey),
-                  color: catColor, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -618,12 +644,16 @@ class _WalletTransactionsScreenState
                 ),
               ),
               Expanded(
-                child: list.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.receipt_long_outlined,
-                        message: 'No transactions this month.',
-                      )
-                    : groupedTransactionList(list),
+                child: !snap.hasData
+                    ? const SkeletonTransactionList()
+                    : list.isEmpty
+                        ? const EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            title: 'No transactions',
+                            message:
+                                'Nothing recorded in this wallet this month.',
+                          )
+                        : GroupedTransactionList(items: list),
               ),
             ],
           );

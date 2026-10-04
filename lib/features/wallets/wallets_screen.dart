@@ -84,9 +84,13 @@ class WalletsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 12),
                       if (wallets.isEmpty)
-                        const EmptyState(
+                        EmptyState(
                           icon: Icons.wallet_outlined,
-                          message: 'No wallets here yet.',
+                          title: 'No wallets',
+                          message:
+                              'Add your first wallet to start tracking money.',
+                          actionLabel: 'Add wallet',
+                          onAction: () => _addWalletDialog(context, ref),
                         )
                       else
                         for (var i = 0; i < wallets.length; i++)
@@ -141,12 +145,15 @@ class WalletsScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(18),
         child: Row(
           children: [
-            Container(
-              width: 6,
-              height: 56,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(3),
+            Hero(
+              tag: 'wallet-${w.id}',
+              child: Container(
+                width: 6,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
             ),
             const SizedBox(width: 14),
