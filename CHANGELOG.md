@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-10-04
+
+### Fixed
+- Home sparklines now match their figures: graph buckets follow the selected Day/Week/Month range (24 hourly buckets for Day, 7/30 daily buckets for Week/Month) instead of always showing the last 7 days. Range starts are midnight-aligned so amounts and graphs cover identical periods. New `watchHourlyKindTotals` DAO.
+
+### Added
+- Sparkline graphs animate (700ms eased tween) when switching ranges or when new transactions arrive.
+- Total-balance privacy toggle animates with a fade + rise when hiding/revealing.
+
 ## [1.1.6] - 2026-10-04
 
 ### Added

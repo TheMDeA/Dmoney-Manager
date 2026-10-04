@@ -58,9 +58,32 @@ class BalanceCard extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  Text(
-                    balanceHidden ? 'Rp ••••••••' : formatMoney(total),
-                    style: AppTextStyles.displayBalance.copyWith(color: context.textPrimary),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 350),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) =>
+                        FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: animation.drive(
+                          Tween(
+                                  begin: const Offset(0, 0.3),
+                                  end: Offset.zero)
+                              .chain(CurveTween(
+                                  curve: Curves.easeOutCubic)),
+                        ),
+                        child: child,
+                      ),
+                    ),
+                    child: Text(
+                      balanceHidden
+                          ? 'Rp ••••••••'
+                          : formatMoney(total),
+                      key: ValueKey(balanceHidden),
+                      style: AppTextStyles.displayBalance
+                          .copyWith(color: context.textPrimary),
+                    ),
                   ),
                   SizedBox(height: 16),
                   Row(
