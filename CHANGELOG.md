@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Goal detail screen showed a blank page when the goal had deposits: `DateFormat` with an explicit locale threw `LocaleDataException` because date symbols were never initialized. `main()` now calls `initializeDateFormatting()`. Added a regression widget test (`test/goal_detail_test.dart`) plus a `@visibleForTesting` database constructor to support it.
+
 ## [1.1.4] - 2026-10-04
 
 ### Added

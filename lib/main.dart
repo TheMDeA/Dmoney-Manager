@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/services/app_prefs.dart';
@@ -10,6 +11,10 @@ import 'state/providers.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppPrefs.init();
+  // Date symbols for every locale (needed by DateFormat with an explicit
+  // locale, e.g. weekday names in the goal detail screen). Without this,
+  // those calls throw LocaleDataException and the screen goes blank.
+  await initializeDateFormatting();
   // Notifications must never prevent the app from starting.
   try {
     await NotificationService.init();
