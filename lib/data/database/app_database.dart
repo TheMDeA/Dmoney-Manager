@@ -191,6 +191,7 @@ typedef KindTotal = ({String kind, int total});
 
 /// Per-day, per-kind total. [day] is 'yyyy-MM-dd'.
 typedef DailyTotal = ({String day, String kind, int total});
+typedef HourlyTotal = ({String hour, String kind, int total});
 
 // ---------------------------------------------------------------------------
 // Database
@@ -471,6 +472,27 @@ class AppDatabase extends _$AppDatabase {
     return q.watch().map((rows) => rows
         .map((row) => (
               day: row.read(dayExpr) ?? '',
+              kind: row.read(transactions.kind) ?? '',
+              total: row.read(total) ?? 0,
+            ))
+        .toList());
+  }
+
+  /// Per-hour, per-kind totals inside [from, to], oldest hour first.
+  /// [hour] is 'HH' (00-23 local). Backs the day-range sparkline.
+  Stream<List<HourlyTotal>> watchHourlyKindTotals(
+      DateTime from, DateTime to) {
+    final hourExpr = CustomExpression<String>(
+        "strftime('%H', transactions.date, 'unixepoch', 'localtime')");
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions)
+      ..addColumns([hourExpr, transactions.kind, total])
+      ..where(transactions.date.isBetweenValues(from, to))
+      ..groupBy([hourExpr, transactions.kind])
+      ..orderBy([OrderingTerm.asc(hourExpr)]);
+    return q.watch().map((rows) => rows
+        .map((row) => (
+              hour: row.read(hourExpr) ?? '',
               kind: row.read(transactions.kind) ?? '',
               total: row.read(total) ?? 0,
             ))
