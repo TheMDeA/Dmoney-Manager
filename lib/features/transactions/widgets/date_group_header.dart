@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/amount_text.dart';
 
@@ -48,10 +49,8 @@ class DateGroupHeader extends StatelessWidget {
           const Spacer(),
           net == 0
               ? Text(formatMoney(0),
-                  style: TextStyle(
-                      color: context.textMuted,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15))
+                  style: AppTextStyles.amount(size: 15)
+                      .copyWith(color: context.textMuted))
               : AmountText(net.abs(), isIncome: net > 0, size: 15),
         ],
       ),

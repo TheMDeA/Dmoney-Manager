@@ -12,8 +12,8 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
-import 'add_transaction_sheet.dart';
 import 'photo_viewer_screen.dart';
+import 'transaction_actions.dart';
 
 /// Record detail screen with duplicate / edit / delete actions
 /// and attachable receipt photos ("Save Photos").
@@ -57,34 +57,18 @@ class _TransactionDetailScreenState
             onPressed: () async {
               final d = await _future;
               if (!context.mounted || d == null) return;
-              if (d.transaction.kind == 'transfer') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text(
-                          'Transfers can\'t be edited — delete and create a new one')),
-                );
-                return;
-              }
-              if (d.transaction.debtId != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text(
-                          'Debt entries are managed from the debt itself')),
-                );
-                return;
-              }
-              await showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                builder: (_) => AddTransactionSheet(existing: d),
-              );
-              _refresh();
+              if (await editTransaction(context, d)) _refresh();
             },
             icon: const Icon(Icons.edit_outlined),
           ),
           IconButton(
             tooltip: 'Delete',
-            onPressed: () => _delete(context, ref),
+            onPressed: () async {
+              final d = await _future;
+              if (!context.mounted || d == null) return;
+              await deleteTransactionFlow(context, ref, d,
+                  afterDelete: () => Navigator.of(context).pop());
+            },
             icon: const Icon(Icons.delete_outline),
           ),
         ],
@@ -359,66 +343,5 @@ class _TransactionDetailScreenState
     }
   }
 
-  Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final db = ref.read(databaseProvider);
-    final current =
-        await db.getTransactionDetailById(widget.transactionId);
-    if (current != null && current.transaction.debtId != null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'Debt entries can\'t be deleted here — delete the debt itself')),
-        );
-      }
-      return;
-    }
-    if (!context.mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete record?'),
-        content: const Text('You can undo this right after deleting.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete')),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      if (!context.mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      // Snapshot everything needed to restore, before the delete.
-      final snapshot = current?.transaction;
-      final photos = snapshot == null
-          ? const <TransactionPhoto>[]
-          : await db.watchPhotos(snapshot.id).first;
-      await db.deleteTransaction(widget.transactionId);
-      if (context.mounted) Navigator.of(context).pop();
-      if (snapshot != null) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: const Text('Record deleted'),
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Undo',
-              onPressed: () async {
-                await db.restoreTransaction(snapshot, photos);
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Record restored'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-              },
-            ),
-          ),
-        );
-      }
-    }
-  }
+
 }

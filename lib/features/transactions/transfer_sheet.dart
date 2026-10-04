@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
@@ -127,9 +128,8 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                             color: context.raised,
                             child: AnimatedRotation(
                               turns: _swaps * 0.5,
-                              duration:
-                                  const Duration(milliseconds: 320),
-                              curve: Curves.easeOutCubic,
+                              duration: AppMotion.normal,
+                              curve: AppMotion.enter,
                               child: IconButton(
                                 tooltip: 'Swap wallets',
                                 icon: const Icon(Icons.swap_vert),
@@ -247,7 +247,7 @@ class _TransferSuccessOverlay extends StatelessWidget {
         alignment: Alignment.center,
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.4, end: 1.0),
-          duration: const Duration(milliseconds: 350),
+          duration: AppMotion.normal,
           curve: Curves.elasticOut,
           builder: (context, scale, child) =>
               Transform.scale(scale: scale, child: child),
