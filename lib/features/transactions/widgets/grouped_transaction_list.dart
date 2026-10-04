@@ -19,9 +19,13 @@ import 'transaction_tile.dart';
 /// the list swaps to the new data. Wholesale changes (e.g. switching
 /// months) swap immediately without the exit choreography.
 class GroupedTransactionList extends StatefulWidget {
-  const GroupedTransactionList({super.key, required this.items});
+  const GroupedTransactionList(
+      {super.key, required this.items, this.controller});
 
   final List<TransactionWithDetails> items;
+
+  /// Optional scroll controller, e.g. for a date scrubber overlay.
+  final ScrollController? controller;
 
   @override
   State<GroupedTransactionList> createState() =>
@@ -128,6 +132,7 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
       i = j;
     }
     return CustomScrollView(
+      controller: widget.controller,
       slivers: [
         ...slivers,
         const SliverToBoxAdapter(child: SizedBox(height: 96)),

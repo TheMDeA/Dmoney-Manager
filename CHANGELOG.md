@@ -1,3 +1,8 @@
+## [Unreleased]
+
+### Added
+- Transaction history now has a Month / All view toggle. The All view shows the full transaction list with a fast date scrubber — a drag strip on the right edge that proportionally scrolls the list with a floating date bubble and haptic ticks. The scrubber no longer appears in the Month view, where the month pager already handles navigation.
+
 ## [2.1.0] - 2026-10-04
 
 ### Added
