@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
@@ -10,6 +11,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_header.dart';
+import '../../core/widgets/skeleton.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'structure_screen.dart';
@@ -25,7 +27,7 @@ class StatsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatsScreenState extends ConsumerState<StatsScreen> {
-  static const _animDuration = Duration(milliseconds: 800);
+  static const _animDuration = AppMotion.slow;
   static const _animCurve = Curves.easeOutCubic;
 
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
@@ -54,6 +56,23 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       body: StreamBuilder<List<CategoryTotal>>(
         stream: db.watchCategoryExpenseTotals(monthStart, monthEnd),
         builder: (context, donutSnap) {
+          if (!donutSnap.hasData) {
+            return const SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 96),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SkeletonBox(width: 160, height: 20),
+                  SizedBox(height: 12),
+                  SkeletonBox(height: 110, radius: 20),
+                  SizedBox(height: 16),
+                  SkeletonBox(width: 120, height: 18),
+                  SizedBox(height: 12),
+                  SkeletonBox(height: 220, radius: 20),
+                ],
+              ),
+            );
+          }
           final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
           return StreamBuilder<List<MonthlyTotal>>(
             stream: db.watchMonthlyKindTotals(sixMonthStart, sixMonthEnd),

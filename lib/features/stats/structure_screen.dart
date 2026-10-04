@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
+import '../../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
@@ -60,7 +61,7 @@ class _Slice {
 }
 
 class _StructureScreenState extends ConsumerState<StructureScreen> {
-  static const _animDuration = Duration(milliseconds: 800);
+  static const _animDuration = AppMotion.slow;
   static const _animCurve = Curves.easeOutCubic;
 
   /// Donut geometry (fl_chart 1.x draws the ring outward from the hole).
@@ -359,12 +360,11 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                     _isIncome
                         ? formatMoney(s.total)
                         : '-${formatMoney(s.total)}',
-                    style: TextStyle(
+                    style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
+                        .copyWith(
                       color: _isIncome
                           ? AppColors.income
                           : AppColors.expense,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
                     ),
                   ),
                   const SizedBox(height: 2),
