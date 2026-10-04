@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_motion.dart';
+import '../../core/utils/haptics.dart';
 import '../budgets/budgets_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../home/home_screen.dart';
@@ -52,8 +54,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (current == index) return;
     _pageController.animateToPage(
       index,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
+      duration: AppMotion.normal,
+      curve: AppMotion.enter,
     );
   }
 
@@ -108,7 +110,10 @@ class _AppShellState extends ConsumerState<AppShell> {
         : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
     return Expanded(
       child: InkWell(
-        onTap: () => ref.read(tabIndexProvider.notifier).go(index),
+        onTap: () {
+          Haptics.select();
+          ref.read(tabIndexProvider.notifier).go(index);
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Column(
@@ -122,7 +127,7 @@ class _AppShellState extends ConsumerState<AppShell> {
               ),
               const SizedBox(height: 2),
               AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
+                duration: AppMotion.fast,
                 style: TextStyle(
                   fontSize: 11,
                   color: color,

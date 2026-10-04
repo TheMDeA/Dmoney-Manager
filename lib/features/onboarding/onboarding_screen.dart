@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/services/app_prefs.dart';
 import '../../core/services/backup_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
@@ -66,7 +67,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       backgroundColor: AppColors.bgBase,
       body: SafeArea(
         child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
+          duration: AppMotion.normal,
           child: switch (_step) {
             0 => _welcomeStep(key: const ValueKey(0)),
             1 => _nameStep(key: const ValueKey(1)),
