@@ -180,7 +180,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                 TextField(
                   controller: _noteCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Note (optional)',
+                    labelText: 'Description (optional)',
                   ),
                 ),
                 const SizedBox(height: 8),

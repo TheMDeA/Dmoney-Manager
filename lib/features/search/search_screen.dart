@@ -110,6 +110,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   final t = d.transaction;
                   if (_filter != 'all' && t.kind != _filter) return false;
                   return t.note.toLowerCase().contains(q) ||
+                      t.memo.toLowerCase().contains(q) ||
                       d.category.name.toLowerCase().contains(q) ||
                       d.wallet.name.toLowerCase().contains(q) ||
                       t.amount.toString().contains(q) ||

@@ -16,6 +16,7 @@ Transaction _tx({
     kind: kind,
     amount: amount,
     note: note,
+    memo: '',
     date: date,
     createdAt: date,
     toWalletId: null,

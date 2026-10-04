@@ -166,7 +166,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     if (_includeTransactions) {
       final txs = await db.getTransactionsInRange(from, to);
       rows.add(['TRANSACTIONS']);
-      rows.add(['Date', 'Wallet', 'Category', 'Type', 'Amount (IDR)', 'Note']);
+      rows.add(['Date', 'Wallet', 'Category', 'Type', 'Amount (IDR)', 'Description', 'Memo']);
       for (final d in txs) {
         rows.add([
           formatDate(d.transaction.date),
@@ -175,6 +175,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           d.transaction.kind,
           d.transaction.amount,
           d.transaction.note,
+          d.transaction.memo,
         ]);
       }
       rows.add([]);
@@ -223,7 +224,8 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         TextCellValue('Category'),
         TextCellValue('Type'),
         TextCellValue('Amount (IDR)'),
-        TextCellValue('Note'),
+        TextCellValue('Description'),
+        TextCellValue('Memo'),
       ]);
       for (final d in txs) {
         sheet.appendRow([
@@ -233,6 +235,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           TextCellValue(d.transaction.kind),
           IntCellValue(d.transaction.amount),
           TextCellValue(d.transaction.note),
+          TextCellValue(d.transaction.memo),
         ]);
       }
     }

@@ -193,7 +193,9 @@ class _TransactionDetailScreenState
                   _row(context, 'Wallet', d.wallet.name),
                 _row(context, 'Type',
                     isTransfer ? 'Transfer' : (isIncome ? 'Income' : 'Expense')),
-                if (t.note.isNotEmpty) _row(context, 'Note', t.note),
+                if (t.note.isNotEmpty)
+                  _row(context, 'Description', t.note),
+                if (t.memo.isNotEmpty) _row(context, 'Memo', t.memo),
                 const SizedBox(height: 24),
                 Text('Receipt photos',
                     style: Theme.of(context)
