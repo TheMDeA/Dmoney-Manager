@@ -184,17 +184,8 @@ class _TransactionDetailScreenState
     );
   }
 
-  Future<TransactionWithDetails?> _load(AppDatabase db) async {
-    final all = await db.getTransactionsInRange(
-      DateTime(2000),
-      DateTime(2100),
-    );
-    try {
-      return all.firstWhere((d) => d.transaction.id == widget.transactionId);
-    } catch (_) {
-      return null;
-    }
-  }
+  Future<TransactionWithDetails?> _load(AppDatabase db) =>
+      db.getTransactionDetailById(widget.transactionId);
 
   Widget _transferWalletRow(
       BuildContext context, AppDatabase db, Transaction t) {
@@ -268,6 +259,11 @@ class _TransactionDetailScreenState
                       child: Image.file(File(photos[i].path),
                           width: 120,
                           height: 120,
+                          // Decode a downscaled copy: the source can be a
+                          // multi-megapixel camera photo, far larger than
+                          // this 120px thumbnail.
+                          cacheWidth: 240,
+                          cacheHeight: 240,
                           fit: BoxFit.cover,
                           errorBuilder: (_, _, _) => Container(
                                 width: 120,
@@ -326,8 +322,8 @@ class _TransactionDetailScreenState
 
   Future<void> _duplicate(BuildContext context, WidgetRef ref) async {
     final db = ref.read(databaseProvider);
-    final all = await db.getTransactionsInRange(DateTime(2000), DateTime(2100));
-    final d = all.firstWhere((e) => e.transaction.id == widget.transactionId);
+    final d = await db.getTransactionDetailById(widget.transactionId);
+    if (d == null) return;
     final t = d.transaction;
     if (t.debtId != null) {
       if (context.mounted) {
@@ -365,11 +361,8 @@ class _TransactionDetailScreenState
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final db = ref.read(databaseProvider);
-    final existing = await db.getTransactionsInRange(
-        DateTime(2000), DateTime(2100));
-    final current = existing
-        .where((e) => e.transaction.id == widget.transactionId)
-        .firstOrNull;
+    final current =
+        await db.getTransactionDetailById(widget.transactionId);
     if (current != null && current.transaction.debtId != null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

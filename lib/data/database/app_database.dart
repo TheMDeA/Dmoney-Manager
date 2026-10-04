@@ -1128,6 +1128,15 @@ class AppDatabase extends _$AppDatabase {
     return _toDetails(await q.get());
   }
 
+  /// One transaction with its category + wallet, or null when missing.
+  /// Prefer this over scanning [getTransactionsInRange] when only a
+  /// single row is needed (detail screen, duplicate, delete).
+  Future<TransactionWithDetails?> getTransactionDetailById(int id) async {
+    final q = _joinedTransactions()..where(transactions.id.equals(id));
+    final rows = await q.get();
+    return rows.isEmpty ? null : _toDetails(rows).first;
+  }
+
   // ------------------------- recurring transactions ----------------------
 
   Stream<List<RecurringTransaction>> watchRecurringTransactions() =>

@@ -4,6 +4,12 @@ All notable changes to Dmoney Manager will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Fixed
+- Transaction detail screen no longer scans the entire transaction table (3-table join over all history) just to load one record — new `getTransactionDetailById` DAO used by open, duplicate, and delete.
+- Receipt thumbnails now decode a 240px downscaled copy instead of the full multi-megapixel camera photo, cutting memory use in the photo grid.
+
 ## [1.1.4] - 2026-10-04
 
 ### Added
