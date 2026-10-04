@@ -45,8 +45,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
     return StreamBuilder<List<TransactionWithDetails>>(
-      stream: db.watchTransactions(),
+      stream: db.watchTransactions(accountId: accountId),
       builder: (context, snap) {
         final all = snap.data ?? const <TransactionWithDetails>[];
         final insights = _computeInsights(all);

@@ -40,6 +40,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
     final first = DateTime(_month.year, _month.month);
     // Sunday-first grid covering 6 weeks.
     final gridStart =
@@ -55,7 +56,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Calendar')),
       body: StreamBuilder<List<TransactionWithDetails>>(
-        stream: db.watchTransactionsInRange(gridStart, gridEnd),
+        stream: db.watchTransactionsInRange(gridStart, gridEnd,
+            accountId: accountId),
         builder: (context, snap) {
           final items = snap.data ?? const <TransactionWithDetails>[];
           final totals = <DateTime, _DayTotal>{};

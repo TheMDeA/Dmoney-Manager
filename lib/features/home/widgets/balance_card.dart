@@ -20,16 +20,17 @@ class BalanceCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
     final range = ref.watch(dateRangeProvider);
+    final accountId = ref.watch(selectedAccountProvider);
 
     return GlassCard(
       child: StreamBuilder<List<Wallet>>(
-        stream: db.watchWallets(),
+        stream: db.watchWallets(accountId: accountId),
         builder: (context, walletsSnap) {
           final wallets = walletsSnap.data ?? const <Wallet>[];
           final total = wallets.fold<int>(0, (s, w) => s + w.balance);
           final (from, to) = _rangeBounds(range);
           return StreamBuilder<List<KindTotal>>(
-            stream: db.watchKindTotals(from, to),
+            stream: db.watchKindTotals(from, to, accountId: accountId),
             builder: (context, txSnap) {
               final totals = {
                 for (final t in (txSnap.data ?? const <KindTotal>[]))

@@ -5,9 +5,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../core/widgets/glass_card.dart';
 
 /// Small stat card with an inline sparkline micro-graph.
+/// Tapping drills into the Stats structure screen on the matching tab.
 class StatSparklineCard extends StatelessWidget {
   const StatSparklineCard({
     super.key,
@@ -15,12 +17,14 @@ class StatSparklineCard extends StatelessWidget {
     required this.amount,
     required this.isIncome,
     required this.dailyTotals,
+    this.onTap,
   });
 
   final String label;
   final int amount;
   final bool isIncome;
   final List<double> dailyTotals;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +36,15 @@ class StatSparklineCard extends StatelessWidget {
     return Expanded(
       child: GlassCard(
         padding: const EdgeInsets.all(16),
-        child: Column(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap == null
+              ? null
+              : () {
+                  Haptics.select();
+                  onTap!();
+                },
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -72,6 +84,7 @@ class StatSparklineCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

@@ -407,7 +407,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     try {
       final db = ref.read(databaseProvider);
       final accountId = await db.addAccount(AccountsCompanion.insert(
-        name: _nameController.text.trim(),
+        name: 'Personal',
         kind: 'personal',
       ));
       await db.addWallet(WalletsCompanion.insert(

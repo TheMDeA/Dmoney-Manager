@@ -25,6 +25,7 @@ class BudgetsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
     final mk = monthKey(DateTime.now());
     final now = DateTime.now();
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
@@ -39,7 +40,8 @@ class BudgetsScreen extends ConsumerWidget {
           final monthEnd = DateTime(now.year, now.month + 1)
               .subtract(const Duration(seconds: 1));
           return StreamBuilder<List<CategoryTotal>>(
-            stream: db.watchCategoryExpenseTotals(monthStart, monthEnd),
+            stream: db.watchCategoryExpenseTotals(monthStart, monthEnd,
+                accountId: accountId),
             builder: (context, totalsSnap) {
               final spentByCat = {
                 for (final t in (totalsSnap.data ?? const <CategoryTotal>[]))
