@@ -4,12 +4,6 @@ All notable changes to Dmoney Manager will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
-
-### Fixed
-- Transaction detail screen no longer scans the entire transaction table (3-table join over all history) just to load one record — new `getTransactionDetailById` DAO used by open, duplicate, and delete.
-- Receipt thumbnails now decode a 240px downscaled copy instead of the full multi-megapixel camera photo, cutting memory use in the photo grid.
-
 ## [1.1.4] - 2026-10-04
 
 ### Added
@@ -27,6 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   name), long-press to delete. Most-used templates sort first.
 - Net worth chart in Stats: total balance over time with 3M/6M/12M
   ranges, headline total, and period gain/loss pill.
+
+### Fixed
+- Transaction detail screen no longer scans the entire transaction table (3-table join over all history) just to load one record — new `getTransactionDetailById` DAO used by open, duplicate, and delete.
+- Receipt thumbnails now decode a 240px downscaled copy instead of the full multi-megapixel camera photo, cutting memory use in the photo grid.
 
 ## [1.1.3] - 2026-10-04
 
