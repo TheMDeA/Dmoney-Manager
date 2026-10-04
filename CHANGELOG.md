@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - Wallet detail: tapping a category in the Transaction list now opens a dedicated category screen — an overview total plus that category's transactions grouped by date (same rows and animations as the history). "View all" still opens the full month-paged wallet transactions.
+
+## [1.1.6] - 2026-10-04
+
+### Added
 - Stats: new Overview section — Balance card (opening/ending balance) plus an income/expense/total summary, with a "Show more" drill-down into the new Structure screen.
 - Stats: new Structure screen — income and expense by category for the month, with INCOME/EXPENSE tabs, a large donut with percentage callouts, and per-category rows showing share, amount and transaction count.
 - Add-transaction sheet: attach a receipt photo (camera or gallery) with a thumbnail preview — tap for full-screen, X to remove. The scan flow now shows the captured photo as a preview in the sheet before saving.
