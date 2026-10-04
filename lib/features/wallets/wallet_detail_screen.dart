@@ -8,10 +8,13 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/add_transaction_sheet.dart';
-import '../transactions/transaction_detail_screen.dart';
+import '../transactions/widgets/grouped_transaction_list.dart';
+import '../transactions/widgets/month_overview.dart';
+import '../transactions/widgets/month_selector.dart';
 
 /// Detail view for one wallet: balance, adjust-balance, per-kind stats,
 /// and its transactions grouped by category.
@@ -532,6 +535,8 @@ class WalletTransactionsScreen extends ConsumerStatefulWidget {
 class _WalletTransactionsScreenState
     extends ConsumerState<WalletTransactionsScreen> {
   String? _kind;
+  late DateTime _month =
+      DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
@@ -539,30 +544,58 @@ class _WalletTransactionsScreenState
     _kind = widget.initialKind;
   }
 
+  void _shift(int delta) => setState(() {
+        _month = DateTime(_month.year, _month.month + delta);
+      });
+
+  Future<void> _pickMonth() async {
+    final picked = await showMonthYearPicker(context, _month);
+    if (picked != null) setState(() => _month = picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final start = DateTime(_month.year, _month.month);
+    final end = DateTime(_month.year, _month.month + 1)
+        .subtract(const Duration(seconds: 1));
     return Scaffold(
       appBar: AppBar(
           title: Text(widget.walletName.isEmpty
               ? 'Transactions'
               : '${widget.walletName} transactions')),
       body: StreamBuilder<List<TransactionWithDetails>>(
-        stream: db.watchTransactionsForWallet(widget.walletId),
+        stream: db.watchTransactionsForWalletInRange(
+            widget.walletId, start, end),
         builder: (context, snap) {
-          var txs = snap.data ?? const <TransactionWithDetails>[];
+          final items = snap.data ?? const <TransactionWithDetails>[];
+          var income = 0;
+          var expense = 0;
+          for (final d in items) {
+            final t = d.transaction;
+            if (t.kind == 'income') {
+              income += t.amount;
+            } else if (t.kind == 'expense') {
+              expense += t.amount;
+            }
+          }
+          var list = items;
           if (_kind != null) {
-            txs = txs.where((d) => d.transaction.kind == _kind).toList();
+            list = list.where((d) => d.transaction.kind == _kind).toList();
           }
           if (widget.categoryId != null) {
-            txs = txs
+            list = list
                 .where((d) => d.transaction.categoryId == widget.categoryId)
                 .toList();
           }
-          final list = txs.toList()
-            ..sort((a, b) => b.transaction.date.compareTo(a.transaction.date));
           return Column(
             children: [
+              MonthSelector(
+                month: _month,
+                onShift: _shift,
+                onPick: _pickMonth,
+              ),
+              MonthOverview(income: income, expense: expense),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding:
@@ -578,61 +611,11 @@ class _WalletTransactionsScreenState
               ),
               Expanded(
                 child: list.isEmpty
-                    ? Center(
-                        child: Text('No transactions',
-                            style: TextStyle(
-                                color: context.textMuted)),
+                    ? const EmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        message: 'No transactions this month.',
                       )
-                    : ListView.builder(
-                        padding:
-                            const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                        itemCount: list.length,
-                        itemBuilder: (context, i) {
-                          final d = list[i];
-                          final t = d.transaction;
-                          final catColor =
-                              colorFromHex(d.category.colorHex);
-                          final isIncome = t.kind == 'income';
-                          return ListTile(
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 4),
-                            leading: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: catColor.withValues(alpha: 0.16),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(iconForKey(d.category.iconKey),
-                                  color: catColor, size: 20),
-                            ),
-                            title: Text(
-                                t.note.isEmpty ? d.category.name : t.note),
-                            subtitle: Text(
-                              '${formatDate(t.date)}${t.toWalletId != null ? ' · transfer' : ''}',
-                              style: TextStyle(
-                                  color: context.textMuted,
-                                  fontSize: 12),
-                            ),
-                            trailing: Text(
-                              formatSignedMoney(t.amount,
-                                  isIncome: isIncome),
-                              style: AppTextStyles.amount(size: 14)
-                                  .copyWith(
-                                      color: isIncome
-                                          ? AppColors.income
-                                          : AppColors.expense),
-                            ),
-                            onTap: () => Navigator.push(
-                              context,
-                              AppPageRoute(
-                                builder: (_) => TransactionDetailScreen(
-                                    transactionId: t.id),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                    : groupedTransactionList(list),
               ),
             ],
           );
