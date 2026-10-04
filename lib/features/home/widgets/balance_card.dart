@@ -191,10 +191,19 @@ class BalanceCard extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    formatSignedMoney(amount, isIncome: isIncome),
-                    style: AppTextStyles.amount(size: 16)
-                        .copyWith(color: color),
+                  // The column narrowed when the sparkline moved in; scale
+                  // the amount down instead of wrapping it under the
+                  // currency symbol.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      formatSignedMoney(amount, isIncome: isIncome),
+                      maxLines: 1,
+                      softWrap: false,
+                      style: AppTextStyles.amount(size: 16)
+                          .copyWith(color: color),
+                    ),
                   ),
                 ],
               ),

@@ -12,10 +12,11 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'select_category_screen.dart';
 
-/// Compact category section for the form sheets: a short radio list of
-/// top-level categories plus a "View all categories" tile that opens the
-/// full-screen [SelectCategoryScreen]. Selecting there also reports the
-/// category's kind, so sheets like the transaction form can follow it.
+/// Compact category section for the form sheets: a two-column quick-pick
+/// grid with the first few top-level categories plus an "All" shortcut
+/// that opens the full-screen [SelectCategoryScreen]. Selecting there also
+/// reports the category's kind, so sheets like the transaction form can
+/// follow it.
 class CategoryPickerSection extends ConsumerWidget {
   const CategoryPickerSection({
     super.key,
@@ -23,7 +24,7 @@ class CategoryPickerSection extends ConsumerWidget {
     required this.selectedId,
     required this.onSelected,
     this.label = 'Category',
-    this.compactCount = 5,
+    this.quickPickCount = 3,
     this.lockKind = false,
   });
 
@@ -31,7 +32,10 @@ class CategoryPickerSection extends ConsumerWidget {
   final int? selectedId;
   final ValueChanged<Category> onSelected;
   final String label;
-  final int compactCount;
+
+  /// How many categories appear as quick-pick tiles. The grid always has
+  /// two columns; the last cell is the "All" shortcut.
+  final int quickPickCount;
   final bool lockKind;
 
   Future<void> _openFullList(BuildContext context) async {
@@ -58,48 +62,17 @@ class CategoryPickerSection extends ConsumerWidget {
           stream: db.watchCategories(kind: kind, topLevelOnly: true),
           builder: (context, snap) {
             final cats = snap.data ?? const <Category>[];
-            final shown = cats.take(compactCount).toList();
-            return Column(
+            final picks = cats.take(quickPickCount).toList();
+            return GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 3.4,
               children: [
-                for (final c in shown) _row(context, c),
-                InkWell(
-                  onTap: () {
-                    Haptics.light();
-                    _openFullList(context);
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 12),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: context.accent.withValues(alpha: 0.14),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.grid_view_rounded,
-                              color: context.accent, size: 20),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            'View all categories',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: context.accent,
-                            ),
-                          ),
-                        ),
-                        Icon(Icons.chevron_right,
-                            color: context.textMuted),
-                      ],
-                    ),
-                  ),
-                ),
+                for (final c in picks) _categoryTile(context, c),
+                _allTile(context),
               ],
             );
           },
@@ -108,35 +81,106 @@ class CategoryPickerSection extends ConsumerWidget {
     );
   }
 
-  Widget _row(BuildContext context, Category c) {
+  Widget _categoryTile(BuildContext context, Category c) {
     final selected = c.id == selectedId;
     final color = colorFromHex(c.colorHex);
+    final accent = context.accent;
     return InkWell(
       onTap: () {
         Haptics.light();
         onSelected(c);
       },
       borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: 0.14)
+              : context.raised,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? accent : context.hairline,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
               ),
               child: Icon(iconForKey(c.iconKey),
-                  color: onAccent(color), size: 20),
+                  color: onAccent(color), size: 16),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(c.name, style: const TextStyle(fontSize: 15)),
+              child: Text(
+                c.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight:
+                      selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? accent : null,
+                ),
+              ),
             ),
-            RadioCircle(selected: selected),
+            if (selected)
+              Icon(Icons.check_circle,
+                  size: 18, color: accent),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _allTile(BuildContext context) {
+    final accent = context.accent;
+    return InkWell(
+      onTap: () {
+        Haptics.light();
+        _openFullList(context);
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: accent.withValues(alpha: 0.35),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.grid_view_rounded,
+                  color: accent, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'All',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: accent,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                size: 18, color: accent),
           ],
         ),
       ),
