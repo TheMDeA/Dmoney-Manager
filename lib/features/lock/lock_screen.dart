@@ -44,6 +44,7 @@ class _LockScreenState extends ConsumerState<LockScreen>
 
   void _press(String digit) {
     if (_pin.length >= 4) return;
+    Haptics.light();
     setState(() => _pin += digit);
     if (_pin.length == 4) {
       Future.delayed(const Duration(milliseconds: 250), () {
@@ -58,7 +59,9 @@ class _LockScreenState extends ConsumerState<LockScreen>
   }
 
   void _backspace() {
-    if (_pin.isNotEmpty) setState(() => _pin = _pin.substring(0, _pin.length - 1));
+    if (_pin.isEmpty) return;
+    Haptics.light();
+    setState(() => _pin = _pin.substring(0, _pin.length - 1));
   }
 
   Future<void> _biometric() async {

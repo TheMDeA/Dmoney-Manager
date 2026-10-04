@@ -8,7 +8,8 @@ import '../../../core/widgets/glass_card.dart';
 import '../../../data/database/app_database.dart';
 import '../../../state/providers.dart';
 
-/// Home savings-goal spotlight: first goal with a progress ring.
+/// Home savings-goal spotlight: first *incomplete* goal with a progress ring.
+/// Completed goals stay visible in Budgets; the spotlight is for what's left.
 class GoalSpotlightCard extends ConsumerWidget {
   const GoalSpotlightCard({super.key});
 
@@ -18,7 +19,9 @@ class GoalSpotlightCard extends ConsumerWidget {
     return StreamBuilder<List<Goal>>(
       stream: db.watchGoals(),
       builder: (context, snap) {
-        final goals = snap.data ?? const <Goal>[];
+        final goals = (snap.data ?? const <Goal>[])
+            .where((g) => g.saved < g.target)
+            .toList();
         if (goals.isEmpty) return const SizedBox.shrink();
         final g = goals.first;
         final ratio =

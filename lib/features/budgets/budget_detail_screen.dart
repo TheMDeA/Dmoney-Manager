@@ -13,7 +13,7 @@ import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/transaction_detail_screen.dart';
-import 'budgets_screen.dart' show EditBudgetLimitDialog;
+import 'budget_form_sheet.dart';
 
 /// Detail view for one monthly budget: spent/left, progress, daily burn
 /// chart against the limit, pace stats, and its transactions.
@@ -489,9 +489,10 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
   }
 
   Future<void> _editLimit(BuildContext context, AppDatabase db) async {
-    final result = await showDialog<int>(
-      context: context,
-      builder: (_) => EditBudgetLimitDialog(budgetId: widget.budgetId),
+    final result = await showEditBudgetLimitSheet(
+      context,
+      ref,
+      budgetId: widget.budgetId,
     );
     if (result != null && result > 0) {
       await db.updateBudgetLimit(widget.budgetId, result);

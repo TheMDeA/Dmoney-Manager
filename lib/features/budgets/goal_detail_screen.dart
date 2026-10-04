@@ -11,6 +11,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'goal_form_sheet.dart';
 
 /// Detail view for one savings goal: saved/remain progress, deadline info,
 /// deposit/withdraw actions, and the full deposit history.
@@ -566,76 +567,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   Future<void> _editGoal(BuildContext context, AppDatabase db) async {
     final goal = await db.getGoalById(widget.goalId);
     if (goal == null || !context.mounted) return;
-    final nameCtrl = TextEditingController(text: goal.name);
-    final targetCtrl =
-        TextEditingController(text: formatAmountInput(goal.target));
-    DateTime? deadline = goal.deadline;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Edit goal'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                    controller: nameCtrl,
-                    decoration:
-                        const InputDecoration(labelText: 'Name')),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: targetCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [ThousandsSeparatorInputFormatter()],
-                  decoration: InputDecoration(
-                      labelText: 'Target (${currentCurrency.code})'),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: deadline ??
-                          DateTime.now().add(const Duration(days: 30)),
-                      firstDate: DateTime.now(),
-                      lastDate:
-                          DateTime.now().add(const Duration(days: 365 * 10)),
-                    );
-                    if (picked != null) {
-                      setState(() => deadline = picked);
-                    }
-                  },
-                  icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                  label: Text(deadline == null
-                      ? 'Goal date (optional)'
-                      : formatDate(deadline!)),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Save')),
-          ],
-        ),
-      ),
-    );
-    final target = parseAmountInput(targetCtrl.text);
-    if (saved == true &&
-        nameCtrl.text.trim().isNotEmpty &&
-        target > 0) {
-      await db.updateGoal(
-        id: goal.id,
-        name: nameCtrl.text.trim(),
-        target: target,
-        deadline: deadline,
-      );
-    }
+    await showGoalFormSheet(context, ref, existing: goal);
   }
 
   Future<void> _confirmDelete(BuildContext context, AppDatabase db) async {

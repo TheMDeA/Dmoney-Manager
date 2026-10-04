@@ -23,8 +23,6 @@ import 'widgets/ai_insight_card.dart';
 import 'widgets/balance_card.dart';
 import 'widgets/goal_spotlight_card.dart';
 import 'widgets/quick_actions.dart';
-import 'widgets/stat_sparkline_card.dart';
-import '../stats/structure_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -60,69 +58,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               const SizedBox(height: 12),
               _rangeSwitcher(context, range),
-              const SizedBox(height: 12),
-              StreamBuilder<List<KindTotal>>(
-                stream: db.watchKindTotals(
-                    _rangeStart(range), DateTime.now(),
-                    accountId: accountId),
-                builder: (context, kindSnap) {
-                  final kinds = {
-                    for (final k
-                        in (kindSnap.data ?? const <KindTotal>[]))
-                      k.kind: k.total,
-                  };
-                  final income = kinds['income'] ?? 0;
-                  final expense = kinds['expense'] ?? 0;
-                  if (range == 'day') {
-                    return StreamBuilder<List<HourlyTotal>>(
-                      stream: db.watchHourlyKindTotals(
-                          _rangeStart(range), DateTime.now(),
-                          accountId: accountId),
-                      builder: (context, hourlySnap) {
-                        final hourly =
-                            hourlySnap.data ?? const <HourlyTotal>[];
-                        List<double> buckets(String kind) =>
-                            List.generate(24, (h) {
-                          final key = h.toString().padLeft(2, '0');
-                          return hourly
-                              .where((t) =>
-                                  t.hour == key && t.kind == kind)
-                              .fold<double>(0, (s, t) => s + t.total)
-                              .toDouble();
-                        });
-                        return _sparkRow(context, income, expense,
-                            buckets('income'), buckets('expense'));
-                      },
-                    );
-                  }
-                  return StreamBuilder<List<DailyTotal>>(
-                    stream: db.watchDailyKindTotals(
-                        _rangeStart(range), DateTime.now(),
-                        accountId: accountId),
-                    builder: (context, dailySnap) {
-                      final now = DateTime.now();
-                      final midnight = DateTime(
-                          now.year, now.month, now.day);
-                      final days = range == 'week' ? 7 : 30;
-                      final dailyTotals =
-                          dailySnap.data ?? const <DailyTotal>[];
-                      List<double> buckets(String kind) =>
-                          List.generate(days, (i) {
-                        final day = midnight.subtract(
-                            Duration(days: days - 1 - i));
-                        final key =
-                            '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-                        return dailyTotals
-                            .where((t) => t.day == key && t.kind == kind)
-                            .fold<double>(0, (s, t) => s + t.total)
-                            .toDouble();
-                      });
-                      return _sparkRow(context, income, expense,
-                          buckets('income'), buckets('expense'));
-                    },
-                  );
-                },
-              ),
               const SizedBox(height: 16),
               QuickActions(
                 onTransfer: () => showModalBottomSheet(
@@ -353,52 +288,5 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
-  }
-
-  Widget _sparkRow(BuildContext context, int income, int expense,
-      List<double> incomeBuckets, List<double> expenseBuckets) {
-    final now = DateTime.now();
-    final month = DateTime(now.year, now.month);
-    return Row(
-      children: [
-        StatSparklineCard(
-          label: 'Income',
-          amount: income,
-          isIncome: true,
-          dailyTotals: incomeBuckets,
-          onTap: () => StructureScreen.open(
-            context,
-            month: month,
-            initialKind: 'income',
-          ),
-        ),
-        const SizedBox(width: 12),
-        StatSparklineCard(
-          label: 'Expenses',
-          amount: expense,
-          isIncome: false,
-          dailyTotals: expenseBuckets,
-          onTap: () => StructureScreen.open(
-            context,
-            month: month,
-            initialKind: 'expense',
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Midnight-aligned range start so the headline amounts and the sparkline
-  /// buckets cover exactly the same period.
-  DateTime _rangeStart(String range) {    final now = DateTime.now();
-    final midnight = DateTime(now.year, now.month, now.day);
-    switch (range) {
-      case 'day':
-        return midnight;
-      case 'week':
-        return midnight.subtract(const Duration(days: 6));
-      default:
-        return midnight.subtract(const Duration(days: 29));
-    }
   }
 }
