@@ -125,7 +125,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       const AddTransactionSheet(initialKind: 'income'),
                 ),
                 onScan: _scanReceipt,
-                onMore: () => ref.read(tabIndexProvider.notifier).go(4),
+                onMore: () => ref.read(tabIndexProvider.notifier).go(5),
               ),
               const SizedBox(height: 16),
               const GoalSpotlightCard(),

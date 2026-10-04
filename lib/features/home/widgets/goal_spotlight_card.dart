@@ -27,7 +27,7 @@ class GoalSpotlightCard extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 16),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
-            onTap: () => ref.read(tabIndexProvider.notifier).go(3),
+            onTap: () => ref.read(tabIndexProvider.notifier).go(4),
             child: GlassCard(
               child: Row(
                 children: [

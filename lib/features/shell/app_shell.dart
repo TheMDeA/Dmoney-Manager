@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../budgets/budgets_screen.dart';
+import '../calendar/calendar_screen.dart';
 import '../home/home_screen.dart';
 import '../settings/settings_screen.dart';
 import '../stats/stats_screen.dart';
@@ -24,6 +25,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   static const _screens = [
     HomeScreen(),
     WalletsScreen(),
+    CalendarScreen(),
     StatsScreen(),
     BudgetsScreen(),
     SettingsScreen(),
@@ -87,10 +89,12 @@ class _AppShellState extends ConsumerState<AppShell> {
           children: [
             _navItem(0, Icons.home_outlined, Icons.home, 'Home'),
             _navItem(1, Icons.wallet_outlined, Icons.wallet, 'Wallets'),
+            _navItem(2, Icons.calendar_month_outlined, Icons.calendar_month,
+                'Calendar'),
             const Spacer(),
-            _navItem(2, Icons.pie_chart_outline, Icons.pie_chart, 'Stats'),
-            _navItem(3, Icons.savings_outlined, Icons.savings, 'Budgets'),
-            _navItem(4, Icons.settings_outlined, Icons.settings, 'More'),
+            _navItem(3, Icons.pie_chart_outline, Icons.pie_chart, 'Stats'),
+            _navItem(4, Icons.savings_outlined, Icons.savings, 'Budgets'),
+            _navItem(5, Icons.settings_outlined, Icons.settings, 'More'),
           ],
         ),
       ),
