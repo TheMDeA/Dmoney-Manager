@@ -16,6 +16,8 @@ class Accounts extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
   TextColumn get kind => text()(); // personal | work | family
+  TextColumn get colorHex =>
+      text().withDefault(const Constant('#C6FF4A'))(); // v9
 }
 
 /// Cash, bank accounts, e-wallets, credit cards.
@@ -220,7 +222,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -294,6 +296,9 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(transactionTemplates);
             await m.addColumn(transactions, transactions.recurringId);
             await m.createIndex(idxRecurringNextDue);
+          }
+          if (from < 9) {
+            await m.addColumn(accounts, accounts.colorHex);
           }
         },
       );
@@ -423,6 +428,17 @@ class AppDatabase extends _$AppDatabase {
 
   Stream<List<Account>> watchAccounts() => select(accounts).watch();
 
+  /// Joins wallets onto an aggregate-over-transactions query so it can be
+  /// scoped to one account. A transaction counts toward the account of its
+  /// source wallet ([transactions.walletId]).
+  void _scopeToAccount(
+      JoinedSelectStatement<$TransactionsTable, dynamic> q, int? accountId) {
+    if (accountId != null) {
+      q.join([innerJoin(wallets, wallets.id.equalsExp(transactions.walletId))]);
+      q.where(wallets.accountId.equals(accountId));
+    }
+  }
+
   Stream<List<Wallet>> watchWallets({int? accountId}) {
     final q = select(wallets);
     if (accountId != null) q.where((w) => w.accountId.equals(accountId));
@@ -443,8 +459,10 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<Category>> watchSubcategories(int parentId) =>
       (select(categories)..where((c) => c.parentId.equals(parentId))).watch();
 
-  Stream<List<TransactionWithDetails>> watchTransactions({int? limit}) {
+  Stream<List<TransactionWithDetails>> watchTransactions(
+      {int? limit, int? accountId}) {
     final q = _joinedTransactions();
+    if (accountId != null) q.where(wallets.accountId.equals(accountId));
     if (limit != null) q.limit(limit);
     return q.watch().map(_toDetails);
   }
@@ -496,10 +514,13 @@ class AppDatabase extends _$AppDatabase {
   /// Per-category expense totals inside [from, to], largest first.
   /// The database aggregates; the UI only receives one row per category.
   Stream<List<CategoryTotal>> watchCategoryExpenseTotals(
-      DateTime from, DateTime to) {
+      DateTime from, DateTime to,
+      {int? accountId}) {
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
-      ..addColumns([transactions.categoryId, total])
+      ..addColumns([transactions.categoryId, total]);
+    _scopeToAccount(q, accountId);
+    q
       ..where(transactions.kind.equals('expense') &
           transactions.date.isBetweenValues(from, to))
       ..groupBy([transactions.categoryId])
@@ -515,11 +536,14 @@ class AppDatabase extends _$AppDatabase {
   /// Per-category total + transaction count for a kind in a date range,
   /// sorted by total descending. Backs the Structure detail screen.
   Stream<List<CategoryStat>> watchCategoryKindStats(
-      String kind, DateTime from, DateTime to) {
+      String kind, DateTime from, DateTime to,
+      {int? accountId}) {
     final total = transactions.amount.sum();
     final count = transactions.id.count();
     final q = selectOnly(transactions)
-      ..addColumns([transactions.categoryId, total, count])
+      ..addColumns([transactions.categoryId, total, count]);
+    _scopeToAccount(q, accountId);
+    q
       ..where(transactions.kind.equals(kind) &
           transactions.date.isBetweenValues(from, to))
       ..groupBy([transactions.categoryId])
@@ -535,10 +559,12 @@ class AppDatabase extends _$AppDatabase {
 
   /// Per-kind totals inside [from, to]: one row per kind present.
   /// Backs range summaries like the home balance card.
-  Stream<List<KindTotal>> watchKindTotals(DateTime from, DateTime to) {
+  Stream<List<KindTotal>> watchKindTotals(DateTime from, DateTime to,
+      {int? accountId}) {
     final total = transactions.amount.sum();
-    final q = selectOnly(transactions)
-      ..addColumns([transactions.kind, total])
+    final q = selectOnly(transactions)..addColumns([transactions.kind, total]);
+    _scopeToAccount(q, accountId);
+    q
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([transactions.kind]);
     return q.watch().map((rows) => rows
@@ -552,12 +578,15 @@ class AppDatabase extends _$AppDatabase {
   /// Per-day, per-kind totals inside [from, to], oldest day first.
   /// [day] is 'yyyy-MM-dd'. Backs the 7-day sparklines.
   Stream<List<DailyTotal>> watchDailyKindTotals(
-      DateTime from, DateTime to) {
+      DateTime from, DateTime to,
+      {int? accountId}) {
     final dayExpr = CustomExpression<String>(
         "strftime('%Y-%m-%d', transactions.date, 'unixepoch', 'localtime')");
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
-      ..addColumns([dayExpr, transactions.kind, total])
+      ..addColumns([dayExpr, transactions.kind, total]);
+    _scopeToAccount(q, accountId);
+    q
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([dayExpr, transactions.kind])
       ..orderBy([OrderingTerm.asc(dayExpr)]);
@@ -573,12 +602,15 @@ class AppDatabase extends _$AppDatabase {
   /// Per-hour, per-kind totals inside [from, to], oldest hour first.
   /// [hour] is 'HH' (00-23 local). Backs the day-range sparkline.
   Stream<List<HourlyTotal>> watchHourlyKindTotals(
-      DateTime from, DateTime to) {
+      DateTime from, DateTime to,
+      {int? accountId}) {
     final hourExpr = CustomExpression<String>(
         "strftime('%H', transactions.date, 'unixepoch', 'localtime')");
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
-      ..addColumns([hourExpr, transactions.kind, total])
+      ..addColumns([hourExpr, transactions.kind, total]);
+    _scopeToAccount(q, accountId);
+    q
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([hourExpr, transactions.kind])
       ..orderBy([OrderingTerm.asc(hourExpr)]);
@@ -594,12 +626,15 @@ class AppDatabase extends _$AppDatabase {
   /// Per-month income/expense totals inside [from, to], oldest month first.
   /// Backs the 6-month bar chart and the net-savings trend.
   Stream<List<MonthlyTotal>> watchMonthlyKindTotals(
-      DateTime from, DateTime to) {
+      DateTime from, DateTime to,
+      {int? accountId}) {
     final monthExpr = CustomExpression<String>(
         "strftime('%Y-%m', transactions.date, 'unixepoch', 'localtime')");
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
-      ..addColumns([monthExpr, transactions.kind, total])
+      ..addColumns([monthExpr, transactions.kind, total]);
+    _scopeToAccount(q, accountId);
+    q
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([monthExpr, transactions.kind])
       ..orderBy([OrderingTerm.asc(monthExpr)]);
@@ -891,6 +926,27 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> addAccount(AccountsCompanion entry) =>
       into(accounts).insert(entry);
+
+  Future<void> renameAccount(int id, String name) =>
+      (update(accounts)..where((a) => a.id.equals(id)))
+          .write(AccountsCompanion(name: Value(name)));
+
+  Future<void> setAccountColor(int id, String colorHex) =>
+      (update(accounts)..where((a) => a.id.equals(id)))
+          .write(AccountsCompanion(colorHex: Value(colorHex)));
+
+  /// Moves [walletIds] into [accountId].
+  Future<void> moveWalletsToAccount(List<int> walletIds, int accountId) =>
+      (update(wallets)..where((w) => w.id.isIn(walletIds)))
+          .write(WalletsCompanion(accountId: Value(accountId)));
+
+  /// Deletes an account after reassigning its wallets to [moveWalletsToId].
+  /// Wallets are never orphaned; callers must refuse the last account.
+  Future<void> deleteAccount(int id, int moveWalletsToId) => transaction(() async {
+        await (update(wallets)..where((w) => w.accountId.equals(id)))
+            .write(WalletsCompanion(accountId: Value(moveWalletsToId)));
+        await (delete(accounts)..where((a) => a.id.equals(id))).go();
+      });
 
   Future<int> addCategory(CategoriesCompanion entry) => into(categories).insert(entry);
 
@@ -1254,9 +1310,11 @@ class AppDatabase extends _$AppDatabase {
   /// Live version of [getTransactionsInRange]: joined transaction rows
   /// inside [from, to], newest first. Powers the month-grouped history.
   Stream<List<TransactionWithDetails>> watchTransactionsInRange(
-      DateTime from, DateTime to) {
+      DateTime from, DateTime to,
+      {int? accountId}) {
     final q = _joinedTransactions()
       ..where(transactions.date.isBetweenValues(from, to));
+    if (accountId != null) q.where(wallets.accountId.equals(accountId));
     return q.watch().map(_toDetails);
   }
 

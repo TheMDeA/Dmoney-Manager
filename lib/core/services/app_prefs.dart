@@ -28,6 +28,11 @@ class AppPrefs {
   static Future<void> setLockEnabled(bool v) =>
       _p.setBool('lockEnabled', v);
 
+  // ------------------------------- haptics --------------------------------
+  static bool get hapticsEnabled => _p.getBool('hapticsEnabled') ?? true;
+  static Future<void> setHapticsEnabled(bool v) =>
+      _p.setBool('hapticsEnabled', v);
+
   static String _hashPin(String pin) =>
       sha256.convert(utf8.encode('dmoney::$pin')).toString();
 
@@ -46,6 +51,13 @@ class AppPrefs {
   static String get currencyCode => _p.getString('currencyCode') ?? 'IDR';
   static Future<void> setCurrencyCode(String v) =>
       _p.setString('currencyCode', v);
+
+  // ------------------------------- accounts --------------------------------
+  /// Global account scope: null means "All accounts".
+  static int? get selectedAccountId => _p.getInt('selectedAccountId');
+  static Future<void> setSelectedAccountId(int? v) => v == null
+      ? _p.remove('selectedAccountId')
+      : _p.setInt('selectedAccountId', v);
 
   // ----------------------------- notifications ----------------------------
   static bool get budgetAlerts => _p.getBool('notifBudgetAlerts') ?? true;

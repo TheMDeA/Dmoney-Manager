@@ -22,6 +22,11 @@
 ### Fixed
 - Theme accents are now uniform: the color scheme's secondary colors are derived from the chosen theme color instead of a hardcoded violet, so Material components (e.g. the System/Light/Dark segmented control's selected segment) follow the accent — no more stray purple when Lime is selected. An explicit `SegmentedButtonTheme` guarantees the selected segment is a solid accent fill.
 
+### Added
+- Haptic feedback toggle in Settings (More → Appearance): vibrations on taps and actions can now be turned off; all `Haptics` call sites respect it. Turning it back on plays a confirming buzz.
+- Home income/expense cards are now tappable: they drill into the Stats structure screen on the matching INCOME/EXPENSE tab for the current month.
+- Full account feature: the home avatar opens an account switcher — All accounts plus per-account balances and wallet counts, new accounts (name + color), and long-press to rename, recolor, move wallets between accounts, or delete (wallets are reassigned, never orphaned; the last account can't be deleted). The selection is a persisted global scope: home balance, income/expense cards, insights, stats, budgets, history, calendar and search all follow it, with a color ring on the avatar and a name chip in the header while scoped. New wallets default to the active account and the add-transaction wallet picker follows the scope (transfers stay unscoped so money can move between accounts). (DB v9: `accounts.colorHex`.)
+
 ## [2.0.0] - 2026-10-04
 
 ### Added

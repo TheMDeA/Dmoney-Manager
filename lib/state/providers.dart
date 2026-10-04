@@ -37,8 +37,11 @@ final accentProvider =
 /// Currently selected account filter on the Wallets screen (null = all).
 class SelectedAccountNotifier extends Notifier<int?> {
   @override
-  int? build() => null;
-  void select(int? id) => state = id;
+  int? build() => AppPrefs.selectedAccountId;
+  Future<void> select(int? id) async {
+    await AppPrefs.setSelectedAccountId(id);
+    state = id;
+  }
 }
 
 final selectedAccountProvider =
@@ -75,6 +78,19 @@ class LockEnabledNotifier extends Notifier<bool> {
 
 final lockEnabledProvider =
     NotifierProvider<LockEnabledNotifier, bool>(LockEnabledNotifier.new);
+
+class HapticsEnabledNotifier extends Notifier<bool> {
+  @override
+  bool build() => AppPrefs.hapticsEnabled;
+  Future<void> set(bool value) async {
+    await AppPrefs.setHapticsEnabled(value);
+    state = value;
+  }
+}
+
+final hapticsEnabledProvider =
+    NotifierProvider<HapticsEnabledNotifier, bool>(
+        HapticsEnabledNotifier.new);
 
 class LockedNotifier extends Notifier<bool> {
   @override
