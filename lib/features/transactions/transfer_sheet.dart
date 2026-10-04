@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/amount_field.dart';
@@ -22,8 +23,19 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   final _noteCtrl = TextEditingController();
   int? _fromId;
   int? _toId;
+  int _swaps = 0; // drives the swap button's rotation animation
   bool _saving = false;
   bool _success = false;
+
+  void _swapWallets() {
+    if (_fromId == null || _toId == null) return;
+    setState(() {
+      final t = _fromId;
+      _fromId = _toId;
+      _toId = t;
+      _swaps++;
+    });
+  }
 
   @override
   void dispose() {
@@ -87,6 +99,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                     return Column(
                       children: [
                         DropdownButtonFormField<int>(
+                          key: ValueKey('from-$_fromId'),
                           initialValue: _fromId,
                           decoration: const InputDecoration(labelText: 'From'),
                           items: [
@@ -107,8 +120,30 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                             }
                           }),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 4),
+                        Center(
+                          child: Material(
+                            shape: const CircleBorder(),
+                            color: context.raised,
+                            child: AnimatedRotation(
+                              turns: _swaps * 0.5,
+                              duration:
+                                  const Duration(milliseconds: 320),
+                              curve: Curves.easeOutCubic,
+                              child: IconButton(
+                                tooltip: 'Swap wallets',
+                                icon: const Icon(Icons.swap_vert),
+                                color: context.accent,
+                                onPressed: (_fromId == null || _toId == null)
+                                    ? null
+                                    : _swapWallets,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
                         DropdownButtonFormField<int>(
+                          key: ValueKey('to-$_toId'),
                           initialValue: _toId,
                           decoration: const InputDecoration(labelText: 'To'),
                           items: [

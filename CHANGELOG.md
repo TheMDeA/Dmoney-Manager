@@ -4,8 +4,13 @@ All notable changes to Dmoney Manager will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.1.5] - 2026-10-04
 
+### Added
+- Transfer sheet: swap button between From/To wallets with a flip rotation animation.
+- Amount fields: built-in calculator keypad — type expressions like `12000+3500` with a live result preview, `=` writes the result back.
+- Transaction delete: 5-second Undo snackbar restores the record with its wallet balances and receipt photos.
+- Stats: Insights card comparing the selected month vs the previous one — biggest category, largest movers, and daily spending pace.
 ## [1.1.4] - 2026-10-04
 
 ### Added
