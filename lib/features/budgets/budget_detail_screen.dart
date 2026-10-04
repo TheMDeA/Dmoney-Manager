@@ -425,8 +425,14 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
       onTap: () => Navigator.push(
         context,
         AppPageRoute(
-          builder: (_) =>
-              TransactionDetailScreen(transactionId: d.transaction.id),
+          builder: (_) => TransactionDetailScreen(
+            transactionId: d.transaction.id,
+            iconKey: d.category.iconKey,
+            colorHex: d.category.colorHex,
+            title: d.transaction.note.isNotEmpty
+                ? d.transaction.note
+                : d.category.name,
+          ),
         ),
       ),
       borderRadius: BorderRadius.circular(12),
@@ -434,15 +440,18 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: catColor.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(14),
+            Hero(
+              tag: 'tx-icon-${d.transaction.id}',
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: catColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(iconForKey(d.category.iconKey),
+                    color: catColor, size: 22),
               ),
-              child: Icon(iconForKey(d.category.iconKey),
-                  color: catColor, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(

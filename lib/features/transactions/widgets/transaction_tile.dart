@@ -67,26 +67,34 @@ class TransactionTile extends ConsumerWidget {
         return false; // reveal actions only; never dismiss the row
       },
       child: InkWell(
-      onTap: () => Navigator.of(context).push(
-        AppPageRoute(
-          builder: (_) => isDebtLinked
-              ? DebtDetailScreen(debtId: t.debtId!)
-              : TransactionDetailScreen(transactionId: t.id),
+        onTap: () => Navigator.of(context).push(
+          AppPageRoute(
+            builder: (_) => isDebtLinked
+                ? DebtDetailScreen(debtId: t.debtId!)
+                : TransactionDetailScreen(
+                    transactionId: t.id,
+                    iconKey: c.iconKey,
+                    colorHex: c.colorHex,
+                    title: t.note.isEmpty ? c.name : t.note,
+                  ),
+          ),
         ),
-      ),
       child: Padding(
         padding:
             const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         child: Row(
           children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.16),
+            Hero(
+              tag: 'tx-icon-${t.id}',
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.16),
+                ),
+                child: Icon(iconForKey(c.iconKey), color: color, size: 22),
               ),
-              child: Icon(iconForKey(c.iconKey), color: color, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(

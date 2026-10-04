@@ -17,10 +17,23 @@ import 'transaction_actions.dart';
 
 /// Record detail screen with duplicate / edit / delete actions
 /// and attachable receipt photos ("Save Photos").
+///
+/// [iconKey]/[colorHex]/[title] describe the header and are passed in so it
+/// — including the hero icon shared with the transaction row — renders
+/// synchronously without waiting for the record to load.
 class TransactionDetailScreen extends ConsumerStatefulWidget {
-  const TransactionDetailScreen({super.key, required this.transactionId});
+  const TransactionDetailScreen({
+    super.key,
+    required this.transactionId,
+    required this.iconKey,
+    required this.colorHex,
+    required this.title,
+  });
 
   final int transactionId;
+  final String iconKey;
+  final String colorHex;
+  final String title;
 
   @override
   ConsumerState<TransactionDetailScreen> createState() =>
@@ -30,6 +43,9 @@ class TransactionDetailScreen extends ConsumerStatefulWidget {
 class _TransactionDetailScreenState
     extends ConsumerState<TransactionDetailScreen> {
   late Future<TransactionWithDetails?> _future;
+  late String _iconKey = widget.iconKey;
+  late String _colorHex = widget.colorHex;
+  late String _title = widget.title;
 
   @override
   void initState() {
@@ -37,8 +53,21 @@ class _TransactionDetailScreenState
     _future = _load(ref.read(databaseProvider));
   }
 
-  void _refresh() =>
-      setState(() => _future = _load(ref.read(databaseProvider)));
+  Future<void> _refresh() async {
+    final d = await _load(ref.read(databaseProvider));
+    if (!mounted) return;
+    setState(() {
+      _future = Future.value(d);
+      // Keep the hoisted header in sync after edits.
+      if (d != null) {
+        _iconKey = d.category.iconKey;
+        _colorHex = d.category.colorHex;
+        _title = d.transaction.note.isEmpty
+            ? d.category.name
+            : d.transaction.note;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,9 +102,43 @@ class _TransactionDetailScreenState
           ),
         ],
       ),
-      body: FutureBuilder<TransactionWithDetails?>(
-        future: _future,
-        builder: (context, snap) {
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Synchronous header (hero icon + title) so the shared-element
+          // transition has its destination on the first frame.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Row(
+              children: [
+                Hero(
+                  tag: 'tx-icon-${widget.transactionId}',
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color:
+                          colorFromHex(_colorHex).withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(iconForKey(_iconKey),
+                        color: colorFromHex(_colorHex), size: 30),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    _title,
+                    style: AppTextStyles.displaySection,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<TransactionWithDetails?>(
+              future: _future,
+              builder: (context, snap) {
           final d = snap.data;
           if (d == null) {
             return const Center(child: CircularProgressIndicator());
@@ -84,32 +147,11 @@ class _TransactionDetailScreenState
           final c = d.category;
           final isIncome = t.kind == 'income';
           final isTransfer = t.kind == 'transfer';
-          final color = colorFromHex(c.colorHex);
           return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(iconForKey(c.iconKey), color: color, size: 30),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        t.note.isEmpty ? c.name : t.note,
-                        style: AppTextStyles.displaySection,
-                      ),
-                    ),
-                  ],
-                ),
                 if (t.debtId != null) ...[
                   const SizedBox(height: 16),
                   Container(
@@ -163,7 +205,10 @@ class _TransactionDetailScreenState
               ],
             ),
           );
-        },
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

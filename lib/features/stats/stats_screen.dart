@@ -8,6 +8,7 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/widgets/count_up_money.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_header.dart';
@@ -233,13 +234,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                       child: GlassCard(
                         child: Column(
                           children: [
-                            _overviewRow(context, 'Income',
-                                formatMoney(income), AppColors.income),
-                            _overviewRow(context, 'Expense',
-                                '-${formatMoney(expense)}',
-                                AppColors.expense),
-                            _overviewRow(context, 'Total',
-                                formatMoney(income - expense), null),
+                            _overviewRow(context, 'Income', income,
+                                AppColors.income),
+                            _overviewRow(context, 'Expense', expense,
+                                AppColors.expense,
+                                format: (v) => '-${formatMoney(v)}'),
+                            _overviewRow(context, 'Total', income - expense,
+                                null),
                             Divider(height: 1, color: context.hairline),
                             InkWell(
                               onTap: () => StructureScreen.open(context,
@@ -294,24 +295,26 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       children: [
         Text(label, style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 4),
-        Text(
-          formatMoney(amount),
+        CountUpMoney(
+          amount: amount,
           style: AppTextStyles.amount(size: 17),
         ),
       ],
     );
   }
 
-  Widget _overviewRow(
-      BuildContext context, String label, String value, Color? valueColor) {
+  Widget _overviewRow(BuildContext context, String label, int amount,
+      Color? valueColor,
+      {String Function(int) format = formatMoney}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
           Text(label, style: const TextStyle(fontSize: 15)),
           const Spacer(),
-          Text(
-            value,
+          CountUpMoney(
+            amount: amount,
+            format: format,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -1006,8 +1009,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           const SizedBox(height: 4),
           Row(
             children: [
-              Text(
-                formatMoney(currentTotal),
+              CountUpMoney(
+                amount: currentTotal,
                 style: AppTextStyles.displayBalance
                     .copyWith(fontSize: 28, color: context.textPrimary),
               ),

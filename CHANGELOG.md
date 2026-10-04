@@ -14,11 +14,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Haptic feedback: light/medium vibrations on save, delete/undo, swipe actions, balance toggle, tab switches, and the Day/Week/Month switcher.
 - Empty states with guidance and action buttons (add transaction / wallet / budget) across history, wallets, budgets, and debts.
 - Hero transitions on drill-downs: the wallet color bar morphs into the detail header, and the category icon flies into the category screen's app bar.
+- Transaction detail: the category icon now flies in from the tapped row (hero transition); the header renders instantly and stays in sync after edits.
+- Wallet detail: new "Adjust balance" action (tune icon) — enter the true balance and either record an adjustment transaction for the difference (hidden "Adjustment" category, deletable with undo) or shift the wallet's initial amount; live difference preview, DONE disabled on no change.
 
 ### Changed
 - One motion spec (`AppMotion`): fast/normal/slow durations and enter/exit curves now shared by every animation in the app.
 - Tabular figures applied theme-wide so amounts never jitter when digits change.
 - Total balance counts up/down to its new value instead of jumping.
+- Stats: income/expense/total, opening/ending balances, and total net worth now count up/down when the month or range changes.
 - Transaction lists animate insertions (slide + fade) and removals (collapse); the grouped list is now one shared stateful widget.
 
 ## [1.1.7] - 2026-10-04
