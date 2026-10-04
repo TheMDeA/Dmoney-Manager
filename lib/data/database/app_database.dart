@@ -211,6 +211,12 @@ typedef HourlyTotal = ({String hour, String kind, int total});
   RecurringTransactions,
   TransactionTemplates,
 ])
+typedef CategoryStat = ({
+  int categoryId,
+  int total,
+  int count,
+});
+
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -437,6 +443,27 @@ class AppDatabase extends _$AppDatabase {
         .map((row) => (
               categoryId: row.read(transactions.categoryId)!,
               total: row.read(total) ?? 0,
+            ))
+        .toList());
+  }
+
+  /// Per-category total + transaction count for a kind in a date range,
+  /// sorted by total descending. Backs the Structure detail screen.
+  Stream<List<CategoryStat>> watchCategoryKindStats(
+      String kind, DateTime from, DateTime to) {
+    final total = transactions.amount.sum();
+    final count = transactions.id.count();
+    final q = selectOnly(transactions)
+      ..addColumns([transactions.categoryId, total, count])
+      ..where(transactions.kind.equals(kind) &
+          transactions.date.isBetweenValues(from, to))
+      ..groupBy([transactions.categoryId])
+      ..orderBy([OrderingTerm.desc(total)]);
+    return q.watch().map((rows) => rows
+        .map((row) => (
+              categoryId: row.read(transactions.categoryId)!,
+              total: row.read(total) ?? 0,
+              count: row.read(count) ?? 0,
             ))
         .toList());
   }

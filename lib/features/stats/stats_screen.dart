@@ -12,6 +12,7 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'structure_screen.dart';
 
 /// Reports: expense donut, 6-month income/expense bars, net-savings trend.
 /// All charts are live (driven by the transaction stream), tappable, and
@@ -80,12 +81,21 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               CrossAxisAlignment.start,
                           children: [
                             _monthSelector(context),
+                            _overviewSection(
+                                context, db, monthStart, monthEnd),
                             const SectionHeader(
                                 title: 'Insights'),
                             _insightsCard(
                                 context, donutTotals, prevTotals, cats),
-                            const SectionHeader(
-                                title: 'Spending by category'),
+                            SectionHeader(
+                              title: 'Spending by category',
+                              action: TextButton(
+                                onPressed: () =>
+                                    StructureScreen.open(context,
+                                        month: _month),
+                                child: const Text('Show more'),
+                              ),
+                            ),
                             _donut(context, donutTotals, cats),
                             const SectionHeader(title: 'Last 6 months'),
                             _bars(context, monthlyTotals),
@@ -137,6 +147,160 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           icon: const Icon(Icons.chevron_right),
         ),
       ],
+    );
+  }
+
+  /// Overview: opening/ending balance plus the month's income/expense/total,
+  /// with a "Show more" drill-down into the Structure screen.
+  /// Opening/ending are derived from the current wallet total minus the
+  /// net of later transactions (balance adjustments fold into the nearest
+  /// month).
+  Widget _overviewSection(BuildContext context, AppDatabase db,
+      DateTime monthStart, DateTime monthEnd) {
+    final afterStart = monthEnd.add(const Duration(seconds: 1));
+    final now = DateTime.now();
+    return StreamBuilder<List<Wallet>>(
+      stream: db.watchWallets(),
+      builder: (context, wSnap) {
+        final current = (wSnap.data ?? const <Wallet>[])
+            .fold<int>(0, (s, w) => s + w.balance);
+        return StreamBuilder<List<KindTotal>>(
+          stream: db.watchKindTotals(monthStart, monthEnd),
+          builder: (context, mSnap) {
+            final kinds = {
+              for (final k in (mSnap.data ?? const <KindTotal>[]))
+                k.kind: k.total,
+            };
+            final income = kinds['income'] ?? 0;
+            final expense = kinds['expense'] ?? 0;
+            final monthNet = income - expense;
+            return StreamBuilder<List<KindTotal>>(
+              stream: db.watchKindTotals(afterStart, now),
+              builder: (context, aSnap) {
+                final afterNet = _netOf(aSnap.data);
+                final opening = current - monthNet - afterNet;
+                final ending = current - afterNet;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SectionHeader(title: 'Balance'),
+                    Entrance(
+                      child: GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _balanceCell(
+                                    context, 'Opening balance', opening),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 44,
+                                color: context.hairline,
+                              ),
+                              Expanded(
+                                child: _balanceCell(
+                                    context, 'Ending balance', ending),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SectionHeader(title: 'Overview'),
+                    Entrance(
+                      delay: const Duration(milliseconds: 80),
+                      child: GlassCard(
+                        child: Column(
+                          children: [
+                            _overviewRow(context, 'Income',
+                                formatMoney(income), AppColors.income),
+                            _overviewRow(context, 'Expense',
+                                '-${formatMoney(expense)}',
+                                AppColors.expense),
+                            _overviewRow(context, 'Total',
+                                formatMoney(income - expense), null),
+                            Divider(height: 1, color: context.hairline),
+                            InkWell(
+                              onTap: () => StructureScreen.open(context,
+                                  month: _month),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      'Show more',
+                                      style: TextStyle(
+                                          color: context.textMuted),
+                                    ),
+                                    const Spacer(),
+                                    Icon(
+                                      Icons.chevron_right,
+                                      color: context.textMuted,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  int _netOf(List<KindTotal>? rows) {
+    var income = 0;
+    var expense = 0;
+    for (final r in rows ?? const <KindTotal>[]) {
+      if (r.kind == 'income') income = r.total;
+      if (r.kind == 'expense') expense = r.total;
+    }
+    return income - expense;
+  }
+
+  Widget _balanceCell(BuildContext context, String label, int amount) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: context.textMuted, fontSize: 12)),
+        const SizedBox(height: 4),
+        Text(
+          formatMoney(amount),
+          style: AppTextStyles.amount(size: 17),
+        ),
+      ],
+    );
+  }
+
+  Widget _overviewRow(
+      BuildContext context, String label, String value, Color? valueColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(fontSize: 15)),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

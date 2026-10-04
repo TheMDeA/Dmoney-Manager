@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [1.1.6] - 2026-10-04
 
 ### Added
+- Stats: new Overview section — Balance card (opening/ending balance) plus an income/expense/total summary, with a "Show more" drill-down into the new Structure screen.
+- Stats: new Structure screen — income and expense by category for the month, with INCOME/EXPENSE tabs, a large donut with percentage callouts, and per-category rows showing share, amount and transaction count.
 - Add-transaction sheet: attach a receipt photo (camera or gallery) with a thumbnail preview — tap for full-screen, X to remove. The scan flow now shows the captured photo as a preview in the sheet before saving.
 - Wallet transactions screen now mirrors the main history: month pager with a month/year picker, income/expense/total overview, and date groups with daily totals. The month selector, overview, date headers, and grouped list are shared widgets so both screens stay consistent.
 - Sparkline graphs animate (700ms eased tween) when switching ranges or when new transactions arrive.
