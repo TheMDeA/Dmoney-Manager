@@ -1,7 +1,16 @@
-## [Unreleased]
+## [2.1.1] - 2026-10-04
 
 ### Added
+- Haptic tick when typing the passcode: each digit and backspace on the lock and passcode-setup keypads now plays a light vibration (respects the haptic feedback toggle).
+- The Add savings goal dialog now has an optional goal date picker, so a deadline no longer requires going through Edit Goal.
 - Transaction history now has a Month / All view toggle. The All view shows the full transaction list with a fast date scrubber — a drag strip on the right edge that proportionally scrolls the list with a floating date bubble and haptic ticks. The scrubber no longer appears in the Month view, where the month pager already handles navigation.
+
+### Changed
+- The home Savings goal spotlight now shows only goals that haven't been reached yet — completed goals stay in Budgets but no longer take the spotlight.
+- Home income/expense cards are folded into the balance card: each column now pairs its amount with a small sparkline graph on the right. Tapping a column still drills into the Stats structure screen on the matching tab, with the same smooth line animations.
+- The Stats Overview "Show more" now opens the transaction history for the selected month instead of the structure breakdown.
+- Unified add/edit form design: Add wallet, Add budget, Add savings goal, the transaction sheet and the transfer sheet now share one bottom-sheet language — grabber, bold title, section labels, large amount entry, date pills, color dots, chip-based choices, and a pinned full-width primary action that follows the theme accent. Category picking follows the classic Select Category screen (INCOME/EXPENSE tabs, search, manage shortcut, radio rows) with a compact in-sheet list plus "View all categories". All existing behaviors are preserved: one-tap transaction templates, receipt photos, wallet/account scoping, optional goal dates, and the save success animations.
+- Wallets and savings goals now have color pickers in their add/edit sheets (wallets previously always used the default lime).
 
 ## [2.1.0] - 2026-10-04
 
