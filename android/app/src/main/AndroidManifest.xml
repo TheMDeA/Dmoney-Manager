@@ -9,10 +9,8 @@
         android:maxSdkVersion="32" />
     <application
         android:label="Dmoney Manager"
-        android:name="${applicationName}">
-        <!-- Launcher icon intentionally omitted: the mipmap/ic_launcher PNGs
-             are not in the repo (binary). Re-add android:icon when custom
-             icons are generated via flutter_launcher_icons. -->
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"
