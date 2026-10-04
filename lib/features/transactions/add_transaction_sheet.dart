@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/services/budget_alerts.dart';
 import '../../core/theme/app_accents.dart';
@@ -15,7 +18,8 @@ import '../../state/providers.dart';
 
 /// Bottom sheet for fast expense/income recording — the app's core loop.
 /// Also used for editing: pass [existing] to prefill and update instead of
-/// inserting. [attachedPhotoPath] attaches a receipt photo right after saving.
+/// inserting. [attachedPhotoPath] pre-attaches a receipt photo (e.g. from
+/// the scan flow); the sheet also lets the user attach one manually.
 class AddTransactionSheet extends ConsumerStatefulWidget {
   const AddTransactionSheet({
     super.key,
@@ -43,6 +47,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   int? _walletId;
   DateTime _date = DateTime.now();
   TimeOfDay _time = TimeOfDay.now();
+  String? _photoPath;
   bool _saving = false;
   bool _success = false;
 
@@ -54,6 +59,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   @override
   void initState() {
     super.initState();
+    _photoPath = widget.attachedPhotoPath;
     final e = widget.existing;
     if (e != null) {
       _kind = e.transaction.kind;
@@ -228,6 +234,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     labelText: 'Note (optional)',
                   ),
                 ),
+                if (!_editing) ...[
+                  const SizedBox(height: 12),
+                  _receiptSection(),
+                ],
                 const SizedBox(height: 20),
                 FilledButton(
                   onPressed: _saving ? null : _save,
@@ -253,6 +263,139 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         ),
         if (_success) const _SuccessOverlay(),
       ],
+    );
+  }
+
+  /// Receipt photo attachment: camera/gallery picker, thumbnail preview
+  /// (tap for full-screen), and remove. The file is copied into the
+  /// receipts folder on save via [AppDatabase.addPhoto].
+  Widget _receiptSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Receipt',
+            style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 8),
+        if (_photoPath == null)
+          OutlinedButton.icon(
+            onPressed: _pickPhoto,
+            icon: const Icon(Icons.receipt_long_outlined, size: 18),
+            label: const Text('Attach receipt photo'),
+          )
+        else
+          Row(
+            children: [
+              GestureDetector(
+                onTap: _previewPhoto,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    File(_photoPath!),
+                    width: 96,
+                    height: 96,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                      width: 96,
+                      height: 96,
+                      color: context.raised,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.broken_image_outlined,
+                          color: context.textMuted),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Receipt attached',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text('Tap to preview',
+                        style: TextStyle(
+                            color: context.textMuted, fontSize: 12)),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Remove photo',
+                icon: const Icon(Icons.close),
+                onPressed: () => setState(() => _photoPath = null),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Future<void> _pickPhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final picked = await ImagePicker()
+          .pickImage(source: source, imageQuality: 85);
+      if (picked != null && mounted) {
+        setState(() => _photoPath = picked.path);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not pick photo: $e')),
+        );
+      }
+    }
+  }
+
+  void _previewPhoto() {
+    final path = _photoPath;
+    if (path == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.file(File(path), fit: BoxFit.contain),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                tooltip: 'Close',
+                icon: const Icon(Icons.close),
+                color: Colors.white,
+                style: IconButton.styleFrom(
+                    backgroundColor: Colors.black54),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -459,8 +602,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             date: _dateTime,
           ),
         );
-        if (widget.attachedPhotoPath != null) {
-          await db.addPhoto(id, widget.attachedPhotoPath!);
+        if (_photoPath != null) {
+          await db.addPhoto(id, _photoPath!);
         }
       }
       await checkBudgetAlerts(ref);
