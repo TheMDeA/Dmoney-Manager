@@ -21,6 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   name), long-press to delete. Most-used templates sort first.
 - Net worth chart in Stats: total balance over time with 3M/6M/12M
   ranges, headline total, and period gain/loss pill.
+
+## [1.1.3] - 2026-10-04
+
+### Added
 - Animations across the app: swipe left/right between the 5 main tabs
   (`PageView` with eased transitions; tapping a nav item or jumping
   from a quick action animates the same way), active nav icons pop
@@ -35,16 +39,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   also loads its saved time.
 
 ### Fixed
-- Picking a date in the add-transaction sheet silently reset the time
-  to midnight; the chosen time is now preserved.
-
-## [1.1.3] - 2026-10-04
-
-### Fixed
 - Receipt photo viewer opened and instantly closed itself ("nothing
   happens" on tap): the body treated the stream's initial no-data
   state as "all photos deleted" and popped the route. It now shows a
   loading indicator until the photo list actually arrives.
+- Picking a date in the add-transaction sheet silently reset the time
+  to midnight; the chosen time is now preserved.
 
 ## [1.1.2] - 2026-10-04
 
