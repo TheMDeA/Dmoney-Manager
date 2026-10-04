@@ -15,6 +15,7 @@ import '../transactions/add_transaction_sheet.dart';
 import '../transactions/widgets/grouped_transaction_list.dart';
 import '../transactions/widgets/month_overview.dart';
 import '../transactions/widgets/month_selector.dart';
+import 'wallet_category_screen.dart';
 
 /// Detail view for one wallet: balance, adjust-balance, per-kind stats,
 /// and its transactions grouped by category.
@@ -263,8 +264,15 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     final total = _groupTotal(ds);
     final isIncome = d.transaction.kind == 'income';
     return InkWell(
-      onTap: () => _openTransactions(context, null, d.transaction.kind,
-          categoryId: d.transaction.categoryId, walletId: d.transaction.walletId),
+      onTap: () => Navigator.push(
+        context,
+        AppPageRoute(
+          builder: (_) => WalletCategoryScreen(
+            walletId: d.transaction.walletId,
+            categoryId: d.transaction.categoryId,
+          ),
+        ),
+      ),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),

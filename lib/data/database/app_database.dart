@@ -414,6 +414,17 @@ class AppDatabase extends _$AppDatabase {
     return q.watch().map(_toDetails);
   }
 
+  /// Transactions for one wallet + one category, newest first.
+  /// Powers the wallet category detail screen.
+  Stream<List<TransactionWithDetails>> watchTransactionsForWalletAndCategory(
+      int walletId, int categoryId) {
+    final q = _joinedTransactions()
+      ..where((transactions.walletId.equals(walletId) |
+              transactions.toWalletId.equals(walletId)) &
+          transactions.categoryId.equals(categoryId));
+    return q.watch().map(_toDetails);
+  }
+
   /// Transactions of one category inside [from, to]. Powers the budget
   /// detail screen (pass the month's first/last instant).
   Stream<List<TransactionWithDetails>> watchTransactionsForCategory(
