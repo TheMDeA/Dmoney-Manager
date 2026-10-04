@@ -1,4 +1,4 @@
-## [Unreleased]
+## [2.2.0] - 2026-10-05
 
 ### Added
 - Subscription detector: the Recurring screen has a "Detect subscriptions" action that mines the history for repeating charges (same note, stable amount, regular weekly/monthly/yearly cadence, 3+ occurrences) and offers to turn each into a recurring rule with one tap. Dismissed detections never resurface.
