@@ -55,7 +55,10 @@ class Transactions extends Table {
   IntColumn get categoryId => integer().references(Categories, #id)();
   TextColumn get kind => text()(); // income | expense | transfer
   IntColumn get amount => integer()(); // whole IDR, always positive
+  /// Mandatory description of the transaction (the primary text field).
   TextColumn get note => text().withDefault(const Constant(''))();
+  /// Optional freeform memo.
+  TextColumn get memo => text().withDefault(const Constant(''))();
   DateTimeColumn get date => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   /// For transfers: the destination wallet. Null for income/expense.
@@ -235,7 +238,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -315,6 +318,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 10) {
             await m.createTable(categoryKeywords);
+          }
+          if (from < 11) {
+            await m.addColumn(transactions, transactions.memo);
           }
         },
       );
@@ -798,6 +804,7 @@ class AppDatabase extends _$AppDatabase {
     required String kind,
     required int amount,
     required String note,
+    String memo = '',
     required DateTime date,
   }) {
     return transaction(() async {
@@ -812,6 +819,7 @@ class AppDatabase extends _$AppDatabase {
           kind: Value(kind),
           amount: Value(amount),
           note: Value(note),
+          memo: Value(memo),
           date: Value(date),
         ),
       );

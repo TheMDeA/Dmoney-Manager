@@ -44,7 +44,8 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountCtrl = TextEditingController();
-  final _noteCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _memoCtrl = TextEditingController();
   late String _kind;
   int? _categoryId;
   int? _walletId;
@@ -53,6 +54,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   String? _photoPath;
   bool _saving = false;
   bool _success = false;
+  String? _descError;
 
   /// Smart suggestion state: the recommended category (badged in the grid)
   /// plus debounce/sequencing for the note listener.
@@ -73,7 +75,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     if (e != null) {
       _kind = e.transaction.kind;
       _amountCtrl.text = formatAmountInput(e.transaction.amount);
-      _noteCtrl.text = e.transaction.note;
+      _descCtrl.text = e.transaction.note;
+      _memoCtrl.text = e.transaction.memo;
       _categoryId = e.transaction.categoryId;
       _walletId = e.transaction.walletId;
       _date = e.transaction.date;
@@ -82,9 +85,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _kind = widget.initialKind;
       _walletId = widget.initialWalletId;
     }
-    _noteCtrl.addListener(_onNoteChanged);
-    // Suggest for a prefilled note (edit mode) once the sheet settles.
-    if (_noteCtrl.text.trim().isNotEmpty && AppPrefs.smartSuggestions) {
+    _descCtrl.addListener(_onDescChanged);
+    // Suggest for a prefilled description (edit mode) once the sheet settles.
+    if (_descCtrl.text.trim().isNotEmpty && AppPrefs.smartSuggestions) {
       Future.microtask(_runSuggestion);
     }
   }
@@ -92,17 +95,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   @override
   void dispose() {
     _suggestTimer?.cancel();
-    _noteCtrl.removeListener(_onNoteChanged);
+    _descCtrl.removeListener(_onDescChanged);
     _amountCtrl.dispose();
-    _noteCtrl.dispose();
+    _descCtrl.dispose();
+    _memoCtrl.dispose();
     super.dispose();
   }
 
-  /// Debounced smart suggestion: as the note is typed, recommend the
-  /// category the user usually picks for these keywords.
-  void _onNoteChanged() {
+  /// Debounced smart suggestion: as the description is typed, recommend
+  /// the category the user usually picks for these keywords.
+  void _onDescChanged() {
     _suggestTimer?.cancel();
-    if (!AppPrefs.smartSuggestions || _noteCtrl.text.trim().isEmpty) {
+    if (_descError != null) setState(() => _descError = null);
+    if (!AppPrefs.smartSuggestions || _descCtrl.text.trim().isEmpty) {
       if (_suggestedId != null) setState(() => _suggestedId = null);
       return;
     }
@@ -112,7 +117,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   Future<void> _runSuggestion() async {
     final seq = ++_suggestSeq;
-    final note = _noteCtrl.text.trim();
+    final note = _descCtrl.text.trim();
     if (note.isEmpty || !AppPrefs.smartSuggestions) return;
     final suggester = CategorySuggester(ref.read(databaseProvider));
     await suggester.ensureBackfilled();
@@ -154,7 +159,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   _categoryId = null;
                   _suggestedId = null;
                 });
-                // The note didn't change, but the kind did: re-suggest.
+                // The description didn't change, but the kind did: re-suggest.
                 _runSuggestion();
               },
             ),
@@ -162,6 +167,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             _templateRow(context, db),
             const SizedBox(height: 16),
             FormAmountEntry(controller: _amountCtrl),
+            const SizedBox(height: 16),
+            const FormSectionLabel('Description *'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _descCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                hintText: 'What was this for?',
+                errorText: _descError,
+              ),
+            ),
             const SizedBox(height: 16),
             CategoryPickerSection(
               kind: _kind,
@@ -248,10 +264,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ],
             ),
             const SizedBox(height: 16),
+            const FormSectionLabel('Memo (optional)'),
+            const SizedBox(height: 8),
             TextField(
-              controller: _noteCtrl,
+              controller: _memoCtrl,
+              textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
-                labelText: 'Note (optional)',
+                hintText: 'Extra details…',
               ),
             ),
             if (!_editing) ...[
@@ -445,7 +464,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _categoryId = t.categoryId;
       _walletId = t.walletId;
       _amountCtrl.text = formatAmountInput(t.amount);
-      _noteCtrl.text = t.note;
+      _descCtrl.text = t.note;
     });
     db.bumpTemplateUse(t.id);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -464,9 +483,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       return;
     }
     final nameCtrl = TextEditingController(
-        text: _noteCtrl.text.trim().isEmpty
+        text: _descCtrl.text.trim().isEmpty
             ? formatMoney(amount)
-            : _noteCtrl.text.trim());
+            : _descCtrl.text.trim());
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -499,7 +518,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         categoryId: _categoryId!,
         kind: _kind,
         amount: amount,
-        note: Value(_noteCtrl.text.trim()),
+        note: Value(_descCtrl.text.trim()),
       ),
     );
     if (mounted) {
@@ -538,9 +557,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   Future<void> _save() async {
     final amount = parseAmountInput(_amountCtrl.text);
-    if (amount <= 0 || _categoryId == null || _walletId == null) {
+    final desc = _descCtrl.text.trim();
+    final memo = _memoCtrl.text.trim();
+    if (desc.isEmpty) {
+      setState(() => _descError = 'Please describe this transaction');
+    }
+    if (amount <= 0 ||
+        _categoryId == null ||
+        _walletId == null ||
+        desc.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter an amount, category and wallet')),
+        const SnackBar(
+            content: Text(
+                'Enter a description, amount, category and wallet')),
       );
       return;
     }
@@ -555,7 +584,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           categoryId: _categoryId!,
           kind: _kind,
           amount: amount,
-          note: _noteCtrl.text.trim(),
+          note: desc,
+          memo: memo,
           date: _dateTime,
         );
       } else {
@@ -565,7 +595,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             categoryId: _categoryId!,
             kind: _kind,
             amount: amount,
-            note: Value(_noteCtrl.text.trim()),
+            note: Value(desc),
+            memo: Value(memo),
             date: _dateTime,
           ),
         );
@@ -580,7 +611,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     // Feed the smart suggester: corrections self-correct future picks.
     if (AppPrefs.smartSuggestions && _categoryId != null) {
       final suggester = CategorySuggester(db);
-      final newNote = _noteCtrl.text.trim();
+      final newNote = desc;
       if (_editing) {
         final e = widget.existing!.transaction;
         if (e.note != newNote || e.categoryId != _categoryId) {
