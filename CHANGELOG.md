@@ -21,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   name), long-press to delete. Most-used templates sort first.
 - Net worth chart in Stats: total balance over time with 3M/6M/12M
   ranges, headline total, and period gain/loss pill.
+- Custom launcher icon: the lime-green D + gold coin mark, with full
+  adaptive-icon support (background/foreground/monochrome layers, so
+  it also follows Android 13+ themed icons).
 
 ### Fixed
 - Transaction detail screen no longer scans the entire transaction table (3-table join over all history) just to load one record — new `getTransactionDetailById` DAO used by open, duplicate, and delete.
