@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/amount_text.dart';
 
@@ -33,20 +34,16 @@ class MonthOverview extends StatelessWidget {
             context,
             'Income',
             Text(formatMoney(income),
-                style: TextStyle(
-                    color: AppColors.income,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15)),
+                style: AppTextStyles.amount(size: 15)
+                    .copyWith(color: AppColors.income)),
           ),
           const SizedBox(height: 6),
           _row(
             context,
             'Expense',
             Text('-${formatMoney(expense)}',
-                style: TextStyle(
-                    color: AppColors.expense,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15)),
+                style: AppTextStyles.amount(size: 15)
+                    .copyWith(color: AppColors.expense)),
           ),
           const SizedBox(height: 6),
           _row(
@@ -54,10 +51,8 @@ class MonthOverview extends StatelessWidget {
             'Total',
             total == 0
                 ? Text(formatMoney(0),
-                    style: TextStyle(
-                        color: context.textMuted,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15))
+                    style: AppTextStyles.amount(size: 15)
+                        .copyWith(color: context.textMuted))
                 : AmountText(total.abs(),
                     isIncome: total > 0, size: 15),
           ),
