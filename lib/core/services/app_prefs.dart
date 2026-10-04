@@ -33,6 +33,17 @@ class AppPrefs {
   static Future<void> setHapticsEnabled(bool v) =>
       _p.setBool('hapticsEnabled', v);
 
+  // ------------------------- smart suggestions ----------------------------
+  static bool get smartSuggestions =>
+      _p.getBool('smartSuggestions') ?? true;
+  static Future<void> setSmartSuggestions(bool v) =>
+      _p.setBool('smartSuggestions', v);
+
+  static bool get keywordBackfillDone =>
+      _p.getBool('keywordBackfillDone') ?? false;
+  static Future<void> setKeywordBackfillDone(bool v) =>
+      _p.setBool('keywordBackfillDone', v);
+
   static String _hashPin(String pin) =>
       sha256.convert(utf8.encode('dmoney::$pin')).toString();
 
@@ -67,6 +78,14 @@ class AppPrefs {
   static bool get debtReminders => _p.getBool('notifDebtReminders') ?? true;
   static Future<void> setDebtReminders(bool v) =>
       _p.setBool('notifDebtReminders', v);
+
+  /// Fingerprints of subscription detections the user dismissed or
+  /// already converted into rules, so the scanner doesn't resurface them.
+  static List<String> get dismissedDetections =>
+      _p.getStringList('dismissedDetections') ?? const [];
+  static Future<void> dismissDetection(String fingerprint) => _p.setStringList(
+      'dismissedDetections',
+      [...dismissedDetections, fingerprint]);
 
   /// Tracks which (budget, month, level) alerts already fired.
   static bool budgetLevelNotified(int budgetId, String month, int level) =>

@@ -17,6 +17,9 @@ import 'select_category_screen.dart';
 /// that opens the full-screen [SelectCategoryScreen]. Selecting there also
 /// reports the category's kind, so sheets like the transaction form can
 /// follow it.
+///
+/// When [suggestedId] is set (smart category suggestions), that category
+/// moves to the front of the grid and gets a sparkle badge.
 class CategoryPickerSection extends ConsumerWidget {
   const CategoryPickerSection({
     super.key,
@@ -26,6 +29,7 @@ class CategoryPickerSection extends ConsumerWidget {
     this.label = 'Category',
     this.quickPickCount = 3,
     this.lockKind = false,
+    this.suggestedId,
   });
 
   final String kind;
@@ -37,6 +41,10 @@ class CategoryPickerSection extends ConsumerWidget {
   /// two columns; the last cell is the "All" shortcut.
   final int quickPickCount;
   final bool lockKind;
+
+  /// Category id the smart suggester currently recommends, if any. It is
+  /// moved to the front of the grid and badged.
+  final int? suggestedId;
 
   Future<void> _openFullList(BuildContext context) async {
     final picked = await Navigator.of(context).push<Category>(
@@ -61,7 +69,15 @@ class CategoryPickerSection extends ConsumerWidget {
         StreamBuilder<List<Category>>(
           stream: db.watchCategories(kind: kind, topLevelOnly: true),
           builder: (context, snap) {
-            final cats = snap.data ?? const <Category>[];
+            final cats = (snap.data ?? const <Category>[]).toList();
+            // Suggested category jumps to the front so it's always visible.
+            if (suggestedId != null) {
+              final i = cats.indexWhere((c) => c.id == suggestedId);
+              if (i > 0) {
+                final s = cats.removeAt(i);
+                cats.insert(0, s);
+              }
+            }
             final picks = cats.take(quickPickCount).toList();
             return GridView.count(
               crossAxisCount: 2,
@@ -83,6 +99,7 @@ class CategoryPickerSection extends ConsumerWidget {
 
   Widget _categoryTile(BuildContext context, Category c) {
     final selected = c.id == selectedId;
+    final suggested = c.id == suggestedId && !selected;
     final color = colorFromHex(c.colorHex);
     final accent = context.accent;
     return InkWell(
@@ -130,8 +147,13 @@ class CategoryPickerSection extends ConsumerWidget {
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle,
-                  size: 18, color: accent),
+              Icon(Icons.check_circle, size: 18, color: accent)
+            else if (suggested)
+              Tooltip(
+                message: 'Suggested based on your history',
+                child: Icon(Icons.auto_awesome,
+                    size: 18, color: accent),
+              ),
           ],
         ),
       ),
@@ -179,8 +201,7 @@ class CategoryPickerSection extends ConsumerWidget {
                 ),
               ),
             ),
-            Icon(Icons.chevron_right,
-                size: 18, color: accent),
+            Icon(Icons.chevron_right, size: 18, color: accent),
           ],
         ),
       ),
