@@ -579,6 +579,37 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Re-inserts a previously deleted transaction with its original id,
+  /// re-applying its wallet balance effect and photo attachments.
+  /// Backs the "Undo" action offered right after a delete. The receipt
+  /// files themselves are left on disk by [deleteTransaction], so the
+  /// restored photo rows point at valid files again.
+  Future<void> restoreTransaction(
+      Transaction t, List<TransactionPhoto> photos) {
+    return transaction(() async {
+      await into(transactions).insert(t.toCompanion(false));
+      switch (t.kind) {
+        case 'income':
+          await adjustWalletBalance(t.walletId, t.amount);
+        case 'expense':
+          await adjustWalletBalance(t.walletId, -t.amount);
+        case 'transfer':
+          if (t.toWalletId != null) {
+            await adjustWalletBalance(t.walletId, -t.amount);
+            await adjustWalletBalance(t.toWalletId!, t.amount);
+          }
+      }
+      for (final p in photos) {
+        await into(transactionPhotos).insert(
+          TransactionPhotosCompanion.insert(
+            transactionId: t.id,
+            path: p.path,
+          ),
+        );
+      }
+    });
+  }
+
   /// Updates an income/expense record, keeping the wallet balance correct.
   Future<void> updateTransaction({
     required int id,

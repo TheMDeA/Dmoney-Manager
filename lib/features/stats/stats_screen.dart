@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/widgets/entrance.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
@@ -43,6 +45,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       now.year,
       now.month + 1,
     ).subtract(const Duration(seconds: 1));
+    final prevStart = DateTime(_month.year, _month.month - 1);
+    final prevEnd = monthStart.subtract(const Duration(seconds: 1));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Stats')),
@@ -62,26 +66,42 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     for (final c in (catSnap.data ?? const <Category>[]))
                       c.id: c,
                   };
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _monthSelector(context),
-                        const SectionHeader(title: 'Spending by category'),
-                        _donut(context, donutTotals, cats),
-                        const SectionHeader(title: 'Last 6 months'),
-                        _bars(context, monthlyTotals),
-                        SectionHeader(title: 'Net savings trend'),
-                        _trendLine(context, monthlyTotals),
-                        SectionHeader(
-                          title: 'Net worth',
-                          action: _netWorthRangeChips(),
+                  return StreamBuilder<List<CategoryTotal>>(
+                    stream: db.watchCategoryExpenseTotals(
+                        prevStart, prevEnd),
+                    builder: (context, prevSnap) {
+                      final prevTotals =
+                          prevSnap.data ?? const <CategoryTotal>[];
+                      return SingleChildScrollView(
+                        padding:
+                            const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            _monthSelector(context),
+                            const SectionHeader(
+                                title: 'Insights'),
+                            _insightsCard(
+                                context, donutTotals, prevTotals, cats),
+                            const SectionHeader(
+                                title: 'Spending by category'),
+                            _donut(context, donutTotals, cats),
+                            const SectionHeader(title: 'Last 6 months'),
+                            _bars(context, monthlyTotals),
+                            SectionHeader(
+                                title: 'Net savings trend'),
+                            _trendLine(context, monthlyTotals),
+                            SectionHeader(
+                              title: 'Net worth',
+                              action: _netWorthRangeChips(),
+                            ),
+                            _netWorthCard(context, db),
+                            SizedBox(height: 8),
+                          ],
                         ),
-                        _netWorthCard(context, db),
-                        SizedBox(height: 8),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               );
@@ -117,6 +137,219 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           icon: const Icon(Icons.chevron_right),
         ),
       ],
+    );
+  }
+
+  String _prevMonthLabel() {
+    const names = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final p = DateTime(_month.year, _month.month - 1);
+    return '${names[p.month - 1]} ${p.year}';
+  }
+
+  // -------------------------------- insights --------------------------------
+
+  /// Smart takeaways comparing the selected month against the previous
+  /// one: biggest category, largest movers, and daily spending pace.
+  /// Noise guards: a category must represent at least 3% of the month's
+  /// spending, and movers need a >= 15% swing to be worth mentioning.
+  List<({IconData icon, Color color, String title, String subtitle})>
+      _buildInsights(
+    BuildContext context,
+    List<CategoryTotal> cur,
+    List<CategoryTotal> prev,
+    Map<int, Category> cats,
+  ) {
+    final insights = <({IconData icon, Color color, String title, String subtitle})>[];
+    final curTotal = cur.fold<int>(0, (s, e) => s + e.total);
+    if (curTotal == 0) return insights;
+    final prevTotal = prev.fold<int>(0, (s, e) => s + e.total);
+    final prevLabel = _prevMonthLabel();
+    final curMap = {for (final e in cur) e.categoryId: e.total};
+    final prevMap = {for (final e in prev) e.categoryId: e.total};
+    String nameOf(int id) => cats[id]?.name ?? 'Other';
+    (IconData, Color) badgeOf(int id) {
+      final c = cats[id];
+      return (
+        c == null ? Icons.category_outlined : iconForKey(c.iconKey),
+        c == null ? context.accent : colorFromHex(c.colorHex),
+      );
+    }
+
+    // 1. Biggest category.
+    final top = cur.first; // already sorted largest-first by the DB
+    final share = (top.total / curTotal * 100).round();
+    final (topIcon, topColor) = badgeOf(top.categoryId);
+    insights.add((
+      icon: topIcon,
+      color: topColor,
+      title: '${nameOf(top.categoryId)} leads your spending',
+      subtitle: '${formatMoney(top.total)} · $share% of this month',
+    ));
+
+    // 2-3. Biggest riser and faller vs last month.
+    final threshold = (curTotal * 0.03).ceil().clamp(1, 1 << 62);
+    var riserId = -1;
+    var riserPct = 0.0;
+    var newId = -1;
+    var newAmount = 0;
+    var fallerId = -1;
+    var fallerPct = 0.0;
+    var goneId = -1;
+    var goneAmount = 0;
+    for (final id in {...curMap.keys, ...prevMap.keys}) {
+      final c = curMap[id] ?? 0;
+      final p = prevMap[id] ?? 0;
+      if ((c > p ? c : p) < threshold) continue;
+      if (p == 0) {
+        if (c > newAmount) {
+          newId = id;
+          newAmount = c;
+        }
+      } else if (c == 0) {
+        if (p > goneAmount) {
+          goneId = id;
+          goneAmount = p;
+        }
+      } else {
+        final pct = (c - p) / p;
+        if (pct >= 0.15 && pct > riserPct) {
+          riserId = id;
+          riserPct = pct;
+        } else if (pct <= -0.15 && pct < fallerPct) {
+          fallerId = id;
+          fallerPct = pct;
+        }
+      }
+    }
+    if (riserId != -1) {
+      final pct = (riserPct * 100).round();
+      insights.add((
+        icon: Icons.trending_up,
+        color: AppColors.expense,
+        title: '${nameOf(riserId)} up $pct%',
+        subtitle:
+            '${formatMoney(prevMap[riserId]!)} → ${formatMoney(curMap[riserId]!)} vs $prevLabel',
+      ));
+    } else if (newId != -1) {
+      final badgeColor = badgeOf(newId).$2;
+      insights.add((
+        icon: Icons.fiber_new_outlined,
+        color: badgeColor,
+        title: 'New spending on ${nameOf(newId)}',
+        subtitle: '${formatMoney(newAmount)} this month',
+      ));
+    }
+    if (fallerId != -1) {
+      final pct = (-fallerPct * 100).round();
+      insights.add((
+        icon: Icons.trending_down,
+        color: AppColors.income,
+        title: '${nameOf(fallerId)} down $pct%',
+        subtitle:
+            'Saved ${formatMoney(prevMap[fallerId]! - curMap[fallerId]!)} vs $prevLabel',
+      ));
+    } else if (goneId != -1) {
+      insights.add((
+        icon: Icons.check_circle_outline,
+        color: AppColors.income,
+        title: 'No ${nameOf(goneId)} spending',
+        subtitle: 'Was ${formatMoney(goneAmount)} in $prevLabel',
+      ));
+    }
+
+    // 4. Daily pace.
+    final now = DateTime.now();
+    final isCurrent =
+        _month.year == now.year && _month.month == now.month;
+    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+    final elapsed = isCurrent ? now.day : daysInMonth;
+    final prevDays = DateTime(_month.year, _month.month, 0).day;
+    if (elapsed >= 3 && prevTotal > 0) {
+      final paceCur = (curTotal / elapsed).round();
+      final pacePrev = (prevTotal / prevDays).round();
+      final up = paceCur > pacePrev;
+      insights.add((
+        icon: Icons.speed_outlined,
+        color: up ? AppColors.expense : AppColors.income,
+        title: 'Daily pace ${formatMoney(paceCur)}',
+        subtitle:
+            '${up ? 'Above' : 'Below'} ${formatMoney(pacePrev)}/day in $prevLabel',
+      ));
+    }
+    return insights;
+  }
+
+  Widget _insightsCard(
+    BuildContext context,
+    List<CategoryTotal> cur,
+    List<CategoryTotal> prev,
+    Map<int, Category> cats,
+  ) {
+    final insights = _buildInsights(context, cur, prev, cats);
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: insights.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Insights will appear here once you start tracking spending.',
+                style: TextStyle(
+                    color: context.textMuted, fontSize: 13),
+              ),
+            )
+          : Column(
+              children: [
+                for (var i = 0; i < insights.length; i++)
+                  Entrance(
+                    delay: Duration(milliseconds: 60 * i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: insights[i]
+                                  .color
+                                  .withValues(alpha: 0.14),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(insights[i].icon,
+                                size: 20,
+                                color: insights[i].color),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  insights[i].title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  insights[i].subtitle,
+                                  style: TextStyle(
+                                      color: context.textMuted,
+                                      fontSize: 12.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 

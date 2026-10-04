@@ -385,7 +385,7 @@ class _TransactionDetailScreenState
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete record?'),
-        content: const Text('This cannot be undone.'),
+        content: const Text('You can undo this right after deleting.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -397,8 +397,35 @@ class _TransactionDetailScreenState
       ),
     );
     if (confirmed == true) {
-      await ref.read(databaseProvider).deleteTransaction(widget.transactionId);
+      if (!context.mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      // Snapshot everything needed to restore, before the delete.
+      final snapshot = current?.transaction;
+      final photos = snapshot == null
+          ? const <TransactionPhoto>[]
+          : await db.watchPhotos(snapshot.id).first;
+      await db.deleteTransaction(widget.transactionId);
       if (context.mounted) Navigator.of(context).pop();
+      if (snapshot != null) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Text('Record deleted'),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () async {
+                await db.restoreTransaction(snapshot, photos);
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Record restored'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
     }
   }
 }
