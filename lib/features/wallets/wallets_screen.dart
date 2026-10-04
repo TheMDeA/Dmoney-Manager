@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
@@ -51,8 +53,14 @@ class WalletsScreen extends ConsumerWidget {
                     lastByWallet.putIfAbsent(
                         d.transaction.walletId, () => d);
                   }
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      Haptics.light();
+                      await Future.delayed(
+                          const Duration(milliseconds: 450));
+                    },
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                     children: [
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
@@ -102,7 +110,8 @@ class WalletsScreen extends ConsumerWidget {
                                 lastByWallet[wallets[i].id]),
                           ),
                     ],
-                  );
+                  ),
+                );
                 },
               );
             },
@@ -141,6 +150,8 @@ class WalletsScreen extends ConsumerWidget {
             builder: (_) => WalletDetailScreen(walletId: w.id),
           ),
         ),
+        // Long-press peeks at the wallet's key figures without opening it.
+        onLongPress: () => _peekWallet(context, w, last),
         child: GlassCard(
           padding: const EdgeInsets.all(18),
         child: Row(
@@ -198,6 +209,13 @@ class WalletsScreen extends ConsumerWidget {
         'ewallet' => 'E-wallet',
         'credit' => 'Credit card',
         _ => kind,
+      };
+
+  String _walletIconKey(String kind) => switch (kind) {
+        'bank' => 'account_balance',
+        'ewallet' => 'smartphone',
+        'credit' => 'credit_card',
+        _ => 'wallet',
       };
 
   Future<void> _addWalletDialog(BuildContext context, WidgetRef ref) async {
@@ -265,5 +283,108 @@ class WalletsScreen extends ConsumerWidget {
             initialAmount: parseAmountInput(initialCtrl.text),
           );
     }
+  }
+
+  /// Long-press peek: a compact sheet with the wallet's key figures,
+  /// popping in with a springy scale. Dismiss by tapping outside.
+  Future<void> _peekWallet(
+      BuildContext context, Wallet w, TransactionWithDetails? last) {
+    Haptics.medium();
+    final color = colorFromHex(w.colorHex);
+    return showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.85, end: 1.0),
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutBack,
+          builder: (context, scale, child) =>
+              Transform.scale(scale: scale, child: child),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(iconForKey(_walletIconKey(w.kind)),
+                          color: onAccent(color), size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(w.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 16)),
+                          Text(_kindLabel(w.kind),
+                              style: TextStyle(
+                                  color: context.textMuted, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Balance',
+                    style:
+                        TextStyle(color: context.textMuted, fontSize: 12)),
+                const SizedBox(height: 2),
+                Text(
+                  formatMoney(w.balance),
+                  style: AppTextStyles.displayBalance.copyWith(
+                    fontSize: 30,
+                    color: w.balance < 0
+                        ? AppColors.expense
+                        : context.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _peekRow('Initial amount', formatMoney(w.initialAmount)),
+                if (last != null)
+                  _peekRow(
+                    'Last transaction',
+                    '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _peekRow(String label, String value) {
+    return Builder(
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: TextStyle(color: context.textMuted, fontSize: 13)),
+            Flexible(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

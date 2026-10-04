@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/month_scrubber.dart';
 import '../../core/widgets/skeleton.dart';
+import '../../core/utils/haptics.dart';
 import 'add_transaction_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -89,7 +91,20 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                                   const AddTransactionSheet(),
                             ),
                           )
-                        : GroupedTransactionList(items: items),
+                        : MonthScrubber(
+                            month: _month,
+                            onShift: _shift,
+                            child: RefreshIndicator(
+                              onRefresh: () async {
+                                Haptics.light();
+                                // Local-first data: the streams are already live.
+                                // The gesture still gets its satisfying snap.
+                                await Future.delayed(
+                                    const Duration(milliseconds: 450));
+                              },
+                              child: GroupedTransactionList(items: items),
+                            ),
+                          ),
               ),
             ],
           );

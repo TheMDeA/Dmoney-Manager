@@ -630,8 +630,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 }
 
-/// Brief success state: lime checkmark with a springy scale-in,
-/// shown inside the sheet before it closes.
+/// Brief success state: lime checkmark with a springy scale-in plus an
+/// expanding ripple ring, shown inside the sheet before it closes.
 class _SuccessOverlay extends StatelessWidget {
   const _SuccessOverlay();
 
@@ -643,21 +643,52 @@ class _SuccessOverlay extends StatelessWidget {
           context,
         ).scaffoldBackgroundColor.withValues(alpha: 0.85),
         alignment: Alignment.center,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.4, end: 1.0),
-          duration: AppMotion.normal,
-          curve: Curves.elasticOut,
-          builder: (context, scale, child) =>
-              Transform.scale(scale: scale, child: child),
-          child: Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: context.accent,
-              shape: BoxShape.circle,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Ripple ring: expands and fades once.
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.5, end: 1.6),
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
+              builder: (context, scale, child) => Transform.scale(
+                scale: scale,
+                child: Opacity(
+                  opacity: (1.6 - scale) / 1.1,
+                  child: child,
+                ),
+              ),
+              child: Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: context.accent.withValues(alpha: 0.6),
+                    width: 3,
+                  ),
+                ),
+              ),
             ),
-            child: Icon(Icons.check, color: onAccent(context.accent), size: 44),
-          ),
+            // Checkmark: pops in with an overshoot bounce.
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.3, end: 1.0),
+              duration: AppMotion.normal,
+              curve: Curves.elasticOut,
+              builder: (context, scale, child) =>
+                  Transform.scale(scale: scale, child: child),
+              child: Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: context.accent,
+                  shape: BoxShape.circle,
+                ),
+                child:
+                    Icon(Icons.check, color: onAccent(context.accent), size: 44),
+              ),
+            ),
+          ],
         ),
       ),
     );

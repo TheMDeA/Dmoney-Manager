@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_sticky_header/flutter_sticky_header.dart';
 
 import '../../../core/theme/app_motion.dart';
 import '../../../core/widgets/entrance.dart';
@@ -6,8 +7,9 @@ import '../../../data/database/app_database.dart';
 import 'date_group_header.dart';
 import 'transaction_tile.dart';
 
-/// Slices newest-first [items] into per-day groups: a [DateGroupHeader]
-/// with the day's net total, then staggered [TransactionTile] rows.
+/// Slices newest-first [items] into per-day groups: a sticky
+/// [DateGroupHeader] with the day's net total that pins to the top while its
+/// day scrolls by, then staggered [TransactionTile] rows.
 /// Transfers stay neutral in the daily net. Shared by the transaction
 /// history, wallet transactions, and wallet category screens.
 ///
@@ -72,7 +74,7 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
 
   @override
   Widget build(BuildContext context) {
-    final children = <Widget>[];
+    final slivers = <Widget>[];
     var i = 0;
     while (i < _shown.length) {
       final d0 = _shown[i].transaction.date;
@@ -91,17 +93,17 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
             : (t.kind == 'expense' ? -t.amount : 0);
         j++;
       }
-      children.add(DateGroupHeader(day: day, net: net));
+      final tiles = <Widget>[];
       for (var k = i; k < j; k++) {
         final d = _shown[k];
         final tile = TransactionTile(details: d);
         if (_exiting.contains(d.transaction.id)) {
-          children.add(_CollapseOut(
+          tiles.add(_CollapseOut(
             key: ValueKey('exit-${d.transaction.id}'),
             child: tile,
           ));
         } else {
-          children.add(
+          tiles.add(
             Entrance(
               key: ValueKey('tx-${d.transaction.id}'),
               delay:
@@ -111,11 +113,25 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
           );
         }
       }
+      slivers.add(
+        SliverStickyHeader(
+          header: Container(
+            // Solid backdrop so rows slide under the pinned header.
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: DateGroupHeader(day: day, net: net),
+          ),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(tiles),
+          ),
+        ),
+      );
       i = j;
     }
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 96),
-      children: children,
+    return CustomScrollView(
+      slivers: [
+        ...slivers,
+        const SliverToBoxAdapter(child: SizedBox(height: 96)),
+      ],
     );
   }
 }

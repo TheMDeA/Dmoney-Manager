@@ -9,6 +9,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/month_scrubber.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -601,7 +602,11 @@ class _WalletTransactionsScreenState
                             message:
                                 'Nothing recorded in this wallet this month.',
                           )
-                        : GroupedTransactionList(items: list),
+                        : MonthScrubber(
+                            month: _month,
+                            onShift: _shift,
+                            child: GroupedTransactionList(items: list),
+                          ),
               ),
             ],
           );
