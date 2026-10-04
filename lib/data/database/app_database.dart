@@ -166,6 +166,18 @@ class TransactionTemplates extends Table {
   IntColumn get useCount => integer().withDefault(const Constant(0))();
 }
 
+/// Learned keyword → category associations backing smart category
+/// suggestions. [hits] counts how many saved transactions with [keyword]
+/// in their note used [categoryId]. All learning happens on-device.
+class CategoryKeywords extends Table {
+  TextColumn get keyword => text()();
+  IntColumn get categoryId => integer().references(Categories, #id)();
+  IntColumn get hits => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {keyword, categoryId};
+}
+
 // ---------------------------------------------------------------------------
 // Joined view model
 // ---------------------------------------------------------------------------
@@ -213,6 +225,7 @@ typedef HourlyTotal = ({String hour, String kind, int total});
   GoalDeposits,
   RecurringTransactions,
   TransactionTemplates,
+  CategoryKeywords,
 ])
 
 class AppDatabase extends _$AppDatabase {
@@ -222,7 +235,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -299,6 +312,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 9) {
             await m.addColumn(accounts, accounts.colorHex);
+          }
+          if (from < 10) {
+            await m.createTable(categoryKeywords);
           }
         },
       );
@@ -1430,6 +1446,94 @@ class AppDatabase extends _$AppDatabase {
     await (update(transactionTemplates)..where((t) => t.id.equals(id))).write(
         TransactionTemplatesCompanion(useCount: Value(row.useCount + 1)));
   }
+
+  // ------------------------- keyword learning -------------------------
+  // Smart category suggestions: all learning happens on-device in the
+  // category_keywords table. Callers tokenize the note themselves.
+
+  /// Records that [tokens] were saved with [categoryId].
+  Future<void> learnKeywords(Set<String> tokens, int categoryId) =>
+      _bumpKeywords(tokens, categoryId, 1);
+
+  /// Removes one learning record per token (floored at zero).
+  Future<void> unlearnKeywords(Set<String> tokens, int categoryId) =>
+      _bumpKeywords(tokens, categoryId, -1);
+
+  Future<void> _bumpKeywords(
+      Set<String> tokens, int categoryId, int by) async {
+    if (tokens.isEmpty) return;
+    await transaction(() async {
+      for (final token in tokens) {
+        await _bumpKeywordRaw(token, categoryId, by);
+      }
+    });
+  }
+
+  /// Bulk-learns accumulated keyword → category → count in one transaction
+  /// (used by the one-time history backfill).
+  Future<void> learnKeywordCounts(
+      Map<String, Map<int, int>> counts) async {
+    await transaction(() async {
+      for (final e in counts.entries) {
+        for (final ce in e.value.entries) {
+          await _bumpKeywordRaw(e.key, ce.key, ce.value);
+        }
+      }
+    });
+  }
+
+  /// Single UPDATE-or-INSERT; callers own the transaction.
+  Future<void> _bumpKeywordRaw(
+      String token, int categoryId, int by) async {
+    final changed = await customUpdate(
+      by >= 0
+          ? 'UPDATE category_keywords SET hits = hits + ? '
+              'WHERE keyword = ? AND category_id = ?'
+          : 'UPDATE category_keywords SET hits = MAX(hits + ?, 0) '
+              'WHERE keyword = ? AND category_id = ?',
+      variables: [
+        Variable.withInt(by),
+        Variable.withString(token),
+        Variable.withInt(categoryId),
+      ],
+      updates: {categoryKeywords},
+    );
+    if (changed == 0 && by > 0) {
+      await into(categoryKeywords).insert(
+        CategoryKeywordsCompanion.insert(
+          keyword: token,
+          categoryId: categoryId,
+          hits: Value(by),
+        ),
+      );
+    }
+  }
+
+  /// keyword → {categoryId → hits} for the given tokens.
+  Future<Map<String, Map<int, int>>> keywordHits(
+      Set<String> tokens) async {
+    final map = <String, Map<int, int>>{};
+    if (tokens.isEmpty) return map;
+    final rows = await (select(categoryKeywords)
+          ..where((k) => k.keyword.isIn(tokens)))
+        .get();
+    for (final r in rows) {
+      map.putIfAbsent(r.keyword, () => {})[r.categoryId] = r.hits;
+    }
+    return map;
+  }
+
+  /// Transactions eligible for learning: income/expense, excluding
+  /// transfers and debt-linked entries. (Empty notes are skipped by the
+  /// tokenizer during backfill.)
+  Future<List<Transaction>> learnableTransactions() =>
+      (select(transactions)
+            ..where((t) => t.kind.isIn(['income', 'expense']))
+            ..where((t) => t.debtId.isNull())
+            ..where((t) => t.debtPaymentId.isNull()))
+          .get();
+
+  Future<List<Category>> allCategories() => select(categories).get();
 
   // -------------------------------- internals ----------------------------
 
