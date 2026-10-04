@@ -4,6 +4,7 @@ import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
+import '../../core/services/update_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
@@ -15,6 +16,7 @@ import '../lock/pin_setup_screen.dart';
 import '../recurring/recurring_screen.dart';
 import 'currency_screen.dart';
 import 'notifications_screen.dart';
+import 'update_sheet.dart';
 
 /// "More" tab: settings, tools, and app info.
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -25,6 +27,44 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  String _version = '';
+  bool _checking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    installedVersion().then((v) {
+      if (mounted) setState(() => _version = v);
+    });
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_checking) return;
+    setState(() => _checking = true);
+    try {
+      final info = await checkForUpdate();
+      if (!mounted) return;
+      if (info == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  "You're on the latest version ($_version)")),
+        );
+      } else {
+        await showUpdateSheet(context, info);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                "Couldn't check for updates. Check your connection.")),
+      );
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final lockEnabled = ref.watch(lockEnabledProvider);
@@ -176,15 +216,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: 'Budget alerts & debt reminders',
               onTap: () => Navigator.of(context).push(AppPageRoute(
                   builder: (_) => const NotificationsScreen()))),
+          ListTile(
+            leading: const Icon(Icons.system_update_outlined),
+            title: const Text('Check for updates'),
+            subtitle: Text(
+                _version.isEmpty
+                    ? 'See if a newer version is available'
+                    : 'Installed version $_version',
+                style: TextStyle(
+                    color: context.textMuted, fontSize: 12)),
+            trailing: _checking
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child:
+                        CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            onTap: _checkForUpdates,
+          ),
           _tile(context,
               icon: Icons.info_outline,
               title: 'About',
-              subtitle: 'Dmoney Manager 2.1.1',
+              subtitle: _version.isEmpty
+                  ? 'Dmoney Manager'
+                  : 'Dmoney Manager $_version',
               onTap: () => showAboutDialog(
                     context: context,
                     applicationName: 'Dmoney Manager',
-                    applicationVersion: '2.1.1',
-                    applicationLegalese: 'A simple, modern money manager.',
+                    applicationVersion:
+                        _version.isEmpty ? '' : _version,
+                    applicationLegalese:
+                        'A simple, modern money manager.',
                   )),
         ],
       ),

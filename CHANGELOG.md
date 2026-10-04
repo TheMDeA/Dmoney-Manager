@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Fixed
+- The + FAB now opens the same modal bottom sheet as the Top up action: identical open animation and swipe-down-to-dismiss from every entry point. (The FAB's container-transform morph opened the sheet on a full-screen route, which broke swipe-to-dismiss and sized the new full-height form sheet incorrectly; the `animations` dependency is removed.)
+- Home income/expense amounts no longer wrap under the currency symbol: the value scales down to fit its column on one line now that the sparkline shares the space.
+
+### Changed
+- Category picking in the form sheets is now a compact two-column quick-pick grid (three categories + an All shortcut) instead of the tall radio list, saving significant vertical space. The full-screen Select Category page is one tap away.
+
+### Added
+- Check for updates: the More tab has a "Check for updates" entry (manual only). It compares the installed version against the latest GitHub release and, when a newer version exists, opens an update sheet with the release notes and a Download button. The APK downloads inside the app with a progress bar and hands off to Android's installer — no browser involved. First-time installs need the one-time system "allow installs from this app" approval. (New `package_info_plus` + `http` dependencies; `REQUEST_INSTALL_PACKAGES` permission and a FileProvider-backed install channel in `MainActivity`.)
+
 ## [2.1.1] - 2026-10-04
 
 ### Added
