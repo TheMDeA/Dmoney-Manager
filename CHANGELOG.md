@@ -6,11 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-10-04
+
+### Added
+- Calendar view (bottom-nav tab next to Wallets): month grid with per-day income/expense/net totals, income/expense/total summary, Sunday-first layout with dimmed adjacent-month days, today highlighted. Tapping a day opens its transactions in a bottom sheet.
+- Transaction history redesign: month pager with a month/year picker, an income/expense/total overview per month, and transactions grouped by date with daily totals. Rows now show a circular category icon with the entry time (HH.mm) under the amount.
+- Custom launcher icon: the lime-green D + gold coin mark, with full
+  adaptive-icon support (background/foreground/monochrome layers, so
+  it also follows Android 13+ themed icons).
+
+### Fixed
+- Goal detail screen showed a blank page when the goal had deposits: `DateFormat` with an explicit locale threw `LocaleDataException` because date symbols were never initialized. `main()` now calls `initializeDateFormatting()`. Added a regression widget test (`test/goal_detail_test.dart`) plus a `@visibleForTesting` database constructor to support it.
+- Status bar icons are now visible in light mode (dark icons on light backgrounds, light icons on dark) — applied per theme and on screens without an AppBar.
+- Transaction detail screen no longer scans the entire transaction table (3-table join over all history) just to load one record — new `getTransactionDetailById` DAO used by open, duplicate, and delete.
+- Receipt thumbnails now decode a 240px downscaled copy instead of the full multi-megapixel camera photo, cutting memory use in the photo grid.
+
 ## [1.1.4] - 2026-10-04
 
 ### Added
-- Transaction history redesign: month pager with a month/year picker, an income/expense/total overview per month, and transactions grouped by date with daily totals. Rows now show a circular category icon with the entry time (HH.mm) under the amount.
-- Calendar view (bottom-nav tab next to Wallets): month grid with per-day income/expense/net totals, income/expense/total summary, Sunday-first layout with dimmed adjacent-month days, today highlighted. Tapping a day opens its transactions in a bottom sheet.
 - Transfer sheet: swap button between From/To wallets with a flip rotation animation.
 - Amount fields: built-in calculator keypad — type expressions like `12000+3500` with a live result preview, `=` writes the result back.
 - Transaction delete: 5-second Undo snackbar restores the record with its wallet balances and receipt photos.
@@ -25,15 +38,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   name), long-press to delete. Most-used templates sort first.
 - Net worth chart in Stats: total balance over time with 3M/6M/12M
   ranges, headline total, and period gain/loss pill.
-- Custom launcher icon: the lime-green D + gold coin mark, with full
-  adaptive-icon support (background/foreground/monochrome layers, so
-  it also follows Android 13+ themed icons).
-
-### Fixed
-- Goal detail screen showed a blank page when the goal had deposits: `DateFormat` with an explicit locale threw `LocaleDataException` because date symbols were never initialized. `main()` now calls `initializeDateFormatting()`. Added a regression widget test (`test/goal_detail_test.dart`) plus a `@visibleForTesting` database constructor to support it.
-- Status bar icons are now visible in light mode (dark icons on light backgrounds, light icons on dark) — applied per theme and on screens without an AppBar.
-- Transaction detail screen no longer scans the entire transaction table (3-table join over all history) just to load one record — new `getTransactionDetailById` DAO used by open, duplicate, and delete.
-- Receipt thumbnails now decode a 240px downscaled copy instead of the full multi-megapixel camera photo, cutting memory use in the photo grid.
 
 ## [1.1.3] - 2026-10-04
 
