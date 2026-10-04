@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/haptics.dart';
 
 /// Set (or change) the 4-digit app passcode: enter once, then confirm.
 class PinSetupScreen extends ConsumerStatefulWidget {
@@ -23,6 +24,7 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
 
   void _press(String digit) {
     if (_pin.length >= 4) return;
+    Haptics.light();
     setState(() => _pin += digit);
     if (_pin.length == 4) {
       Future.delayed(const Duration(milliseconds: 250), () async {
@@ -49,9 +51,11 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
   }
 
   void _backspace() {
-    if (_pin.isNotEmpty) {
-      setState(() => _pin = _pin.substring(0, _pin.length - 1));
-    }
+    if (_pin.isEmpty) return;
+    Haptics.light();
+    setState(() {
+      _pin = _pin.substring(0, _pin.length - 1);
+    });
   }
 
   @override

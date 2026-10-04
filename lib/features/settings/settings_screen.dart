@@ -179,11 +179,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _tile(context,
               icon: Icons.info_outline,
               title: 'About',
-              subtitle: 'Dmoney Manager 2.1.0',
+              subtitle: 'Dmoney Manager 2.1.1',
               onTap: () => showAboutDialog(
                     context: context,
                     applicationName: 'Dmoney Manager',
-                    applicationVersion: '2.1.0',
+                    applicationVersion: '2.1.1',
                     applicationLegalese: 'A simple, modern money manager.',
                   )),
         ],

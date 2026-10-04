@@ -8,13 +8,16 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/count_up_money.dart';
 import '../../core/widgets/entrance.dart';
+import '../../core/widgets/app_page_route.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import '../transactions/transactions_screen.dart';
 import 'structure_screen.dart';
 
 /// Reports: expense donut, 6-month income/expense bars, net-savings trend.
@@ -176,7 +179,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   /// Overview: opening/ending balance plus the month's income/expense/total,
-  /// with a "Show more" drill-down into the Structure screen.
+  /// with a "Show more" link to the transaction history for the month.
   /// Opening/ending are derived from the current wallet total minus the
   /// net of later transactions (balance adjustments fold into the nearest
   /// month).
@@ -248,8 +251,15 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                 null),
                             Divider(height: 1, color: context.hairline),
                             InkWell(
-                              onTap: () => StructureScreen.open(context,
-                                  month: _month),
+                              onTap: () {
+                                Haptics.select();
+                                Navigator.of(context).push(
+                                  AppPageRoute(
+                                    builder: (_) => TransactionsScreen(
+                                        initialMonth: _month),
+                                  ),
+                                );
+                              },
                               borderRadius: BorderRadius.circular(8),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(

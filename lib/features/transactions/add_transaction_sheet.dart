@@ -9,13 +9,12 @@ import '../../core/services/budget_alerts.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_text_styles.dart';
-import '../../core/utils/category_icons.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/utils/formatters.dart';
-import '../../core/widgets/amount_field.dart';
+import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import '../categories/category_picker_section.dart';
 
 /// Bottom sheet for fast expense/income recording — the app's core loop.
 /// Also used for editing: pass [existing] to prefill and update instead of
@@ -88,186 +87,127 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final db = ref.watch(databaseProvider);
     return Stack(
       children: [
-        Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 12,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (_editing)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Edit record',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'expense', label: Text('Expense')),
-                    ButtonSegment(value: 'income', label: Text('Income')),
-                  ],
-                  selected: {_kind},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => setState(() {
-                    _kind = s.first;
-                    _categoryId = null;
-                  }),
-                ),
-                const SizedBox(height: 12),
-                _templateRow(context, db),
-                const SizedBox(height: 12),
-                AmountField(
-                  controller: _amountCtrl,
-                  style:
-                      AppTextStyles.displayBalance.copyWith(fontSize: 36),
-                ),
-                const SizedBox(height: 8),
-                Text('Category', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
-                StreamBuilder<List<Category>>(
-                  stream: db.watchCategories(kind: _kind, topLevelOnly: true),
-                  builder: (context, snap) {
-                    final cats = snap.data ?? const <Category>[];
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [for (final c in cats) _categoryChip(c)],
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                Text('Wallet', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
-                StreamBuilder<List<Wallet>>(
-                  // In edit mode the transaction's own wallet must stay
-                  // selectable even when it sits outside the active scope.
-                  stream: db.watchWallets(
-                      accountId:
-                          _editing ? null : ref.watch(selectedAccountProvider)),
-                  builder: (context, snap) {
-                    final wallets = snap.data ?? const <Wallet>[];
-                    if (_walletId == null ||
-                        wallets.every((w) => w.id != _walletId)) {
-                      _walletId = wallets.isNotEmpty ? wallets.first.id : null;
-                    }
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final w in wallets)
-                          ChoiceChip(
-                            label: Text(w.name),
-                            selected: _walletId == w.id,
-                            selectedColor: context.accent,
-                            labelStyle: TextStyle(
-                              color: _walletId == w.id
-                                  ? Colors.black
-                                  : Theme.of(context).colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            onSelected: (_) => setState(() => _walletId = w.id),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                Row(
+        FormSheet(
+          title: _editing
+              ? 'Edit record'
+              : (_kind == 'income' ? 'Add income' : 'Add expense'),
+          actionLabel: _editing ? 'Save changes' : 'Save',
+          onAction: _save,
+          busy: _saving,
+          children: [
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'expense', label: Text('Expense')),
+                ButtonSegment(value: 'income', label: Text('Income')),
+              ],
+              selected: {_kind},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) => setState(() {
+                _kind = s.first;
+                _categoryId = null;
+              }),
+            ),
+            const SizedBox(height: 16),
+            _templateRow(context, db),
+            const SizedBox(height: 16),
+            FormAmountEntry(controller: _amountCtrl),
+            const SizedBox(height: 16),
+            CategoryPickerSection(
+              kind: _kind,
+              selectedId: _categoryId,
+              onSelected: (c) => setState(() {
+                _kind = c.kind;
+                _categoryId = c.id;
+              }),
+            ),
+            const SizedBox(height: 16),
+            const FormSectionLabel('Wallet'),
+            StreamBuilder<List<Wallet>>(
+              // In edit mode the transaction's own wallet must stay
+              // selectable even when it sits outside the active scope.
+              stream: db.watchWallets(
+                  accountId:
+                      _editing ? null : ref.watch(selectedAccountProvider)),
+              builder: (context, snap) {
+                final wallets = snap.data ?? const <Wallet>[];
+                if (_walletId == null ||
+                    wallets.every((w) => w.id != _walletId)) {
+                  _walletId = wallets.isNotEmpty ? wallets.first.id : null;
+                }
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: _date,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now(),
-                          );
-                          if (picked != null) setState(() => _date = picked);
-                        },
-                        icon: const Icon(
-                          Icons.calendar_today_outlined,
-                          size: 18,
+                    for (final w in wallets)
+                      ChoiceChip(
+                        label: Text(w.name),
+                        selected: _walletId == w.id,
+                        selectedColor: context.accent,
+                        showCheckmark: false,
+                        labelStyle: TextStyle(
+                          color: _walletId == w.id
+                              ? onAccent(context.accent)
+                              : Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
                         ),
-                        label: Text(formatDate(_date)),
+                        onSelected: (_) =>
+                            setState(() => _walletId = w.id),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final picked = await showTimePicker(
-                            context: context,
-                            initialTime: _time,
-                          );
-                          if (picked != null) setState(() => _time = picked);
-                        },
-                        icon: const Icon(
-                          Icons.schedule_outlined,
-                          size: 18,
-                        ),
-                        label: Text(
-                          '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
-                        ),
-                      ),
-                    ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _noteCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Note (optional)',
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            const FormSectionLabel('Date & time'),
+            Row(
+              children: [
+                Expanded(
+                  child: FormDatePill(
+                    date: _date,
+                    placeholder: 'Pick a date',
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _date,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) setState(() => _date = picked);
+                    },
                   ),
                 ),
-                if (!_editing) ...[
-                  const SizedBox(height: 12),
-                  _receiptSection(),
-                ],
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _saving ? null : _save,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: context.accent,
-                    foregroundColor: Colors.black,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FormDatePill(
+                    date: _date,
+                    placeholder: '',
+                    icon: Icons.schedule_outlined,
+                    text:
+                        '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
+                    onTap: () async {
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: _time,
+                      );
+                      if (picked != null) setState(() => _time = picked);
+                    },
                   ),
-                  child: _saving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          _editing ? 'Save changes' : 'Save',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _noteCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Note (optional)',
+              ),
+            ),
+            if (!_editing) ...[
+              const SizedBox(height: 16),
+              _receiptSection(),
+            ],
+            const SizedBox(height: 8),
+          ],
         ),
         if (_success) const _SuccessOverlay(),
       ],
@@ -281,9 +221,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Receipt',
-            style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 8),
+        const FormSectionLabel('Receipt'),
         if (_photoPath == null)
           OutlinedButton.icon(
             onPressed: _pickPhoto,
@@ -417,16 +355,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(Icons.bolt_outlined,
-                    size: 15, color: context.textMuted),
-                const SizedBox(width: 4),
-                Text('Templates',
-                    style: Theme.of(context).textTheme.labelLarge),
-              ],
-            ),
-            const SizedBox(height: 8),
+            const FormSectionLabel('Templates'),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -553,28 +482,6 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     if (confirmed == true) {
       await db.deleteTransactionTemplate(t.id);
     }
-  }
-
-  Widget _categoryChip(Category c) {
-    final selected = _categoryId == c.id;
-    final color = colorFromHex(c.colorHex);
-    return ChoiceChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            iconForKey(c.iconKey),
-            size: 16,
-            color: selected ? Colors.black : color,
-          ),
-          const SizedBox(width: 6),
-          Text(c.name),
-        ],
-      ),
-      selected: selected,
-      selectedColor: context.accent,
-      onSelected: (_) => setState(() => _categoryId = c.id),
-    );
   }
 
   Future<void> _save() async {

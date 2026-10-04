@@ -3,11 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
-import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/utils/formatters.dart';
-import '../../core/widgets/amount_field.dart';
+import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -50,45 +49,18 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
     final db = ref.watch(databaseProvider);
     return Stack(
       children: [
-        Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 12,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Transfer',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                AmountField(
-                  controller: _amountCtrl,
-                  style:
-                      AppTextStyles.displayBalance.copyWith(fontSize: 36),
-                ),
-                const SizedBox(height: 8),
-                StreamBuilder<List<Wallet>>(
+        FormSheet(
+          title: 'Transfer',
+          subtitle: 'Move money between two wallets.',
+          actionLabel: 'Transfer',
+          onAction: _save,
+          busy: _saving,
+          children: [
+            const FormSectionLabel('Amount'),
+            FormAmountEntry(controller: _amountCtrl),
+            const SizedBox(height: 16),
+            const FormSectionLabel('Wallets'),
+            StreamBuilder<List<Wallet>>(
                   stream: db.watchWallets(),
                   builder: (context, snap) {
                     final wallets = snap.data ?? const <Wallet>[];
@@ -204,36 +176,16 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                     );
                   },
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 TextField(
                   controller: _noteCtrl,
                   decoration: const InputDecoration(
                     labelText: 'Note (optional)',
                   ),
                 ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _saving ? null : _save,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: context.accent,
-                    foregroundColor: Colors.black,
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text(
-                          'Transfer',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                ),
+                const SizedBox(height: 8),
               ],
             ),
-          ),
-        ),
         if (_success) const _TransferSuccessOverlay(),
       ],
     );

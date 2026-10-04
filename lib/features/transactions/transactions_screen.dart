@@ -18,7 +18,10 @@ import 'widgets/month_selector.dart';
 /// The fast date scrubber only appears in the All view — in the Month view
 /// the month pager already handles navigation.
 class TransactionsScreen extends ConsumerStatefulWidget {
-  const TransactionsScreen({super.key});
+  const TransactionsScreen({super.key, this.initialMonth});
+
+  /// Month the pager opens on. Defaults to the current month.
+  final DateTime? initialMonth;
 
   @override
   ConsumerState<TransactionsScreen> createState() =>
@@ -26,7 +29,7 @@ class TransactionsScreen extends ConsumerStatefulWidget {
 }
 
 class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
-  late DateTime _month =
+  late DateTime _month = widget.initialMonth ??
       DateTime(DateTime.now().year, DateTime.now().month);
   var _view = 'month'; // 'month' | 'all'
   final _scrollController = ScrollController();
