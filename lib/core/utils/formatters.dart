@@ -106,3 +106,6 @@ Color colorFromHex(String hex) {
 
 String formatDateTime(DateTime d) => DateFormat('dd MMM yyyy, HH:mm').format(d);
 String formatDate(DateTime d) => DateFormat('dd MMM yyyy').format(d);
+
+/// "19.42" — matches the app's HH.mm time convention.
+String formatTime(DateTime d) => DateFormat('HH.mm').format(d);

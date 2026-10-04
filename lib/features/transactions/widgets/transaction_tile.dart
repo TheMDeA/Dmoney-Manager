@@ -11,8 +11,9 @@ import '../../../state/providers.dart';
 import '../transaction_detail_screen.dart';
 import '../../debts/debt_detail_screen.dart';
 
-/// Single transaction row: category icon tile, note, wallet + date, amount.
-/// Transfers render with a swap icon and "From → To" subtitle.
+/// Single transaction row: circular category icon, note + wallet,
+/// and amount with the entry time (HH.mm).
+/// Transfers render with a "From → To" subtitle.
 /// Debt-linked entries show a debt badge and open the debt detail instead.
 class TransactionTile extends ConsumerWidget {
   const TransactionTile({super.key, required this.details});
@@ -29,7 +30,6 @@ class TransactionTile extends ConsumerWidget {
     final color = colorFromHex(c.colorHex);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
       onTap: () => Navigator.of(context).push(
         AppPageRoute(
           builder: (_) => isDebtLinked
@@ -38,15 +38,16 @@ class TransactionTile extends ConsumerWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        padding:
+            const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         child: Row(
           children: [
             Container(
               width: 46,
               height: 46,
               decoration: BoxDecoration(
+                shape: BoxShape.circle,
                 color: color.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(iconForKey(c.iconKey), color: color, size: 22),
             ),
@@ -67,7 +68,7 @@ class TransactionTile extends ConsumerWidget {
                     _transferSubtitle(context, ref, t)
                   else
                     Text(
-                      '${details.wallet.name} · ${formatDate(t.date)}',
+                      details.wallet.name,
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context)
@@ -75,6 +76,8 @@ class TransactionTile extends ConsumerWidget {
                             .onSurface
                             .withValues(alpha: 0.55),
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   if (isDebtLinked)
                     Padding(
@@ -107,10 +110,27 @@ class TransactionTile extends ConsumerWidget {
                 ],
               ),
             ),
-            if (isTransfer)
-              Text(formatMoney(t.amount), style: AppTextStyles.amount(size: 15))
-            else
-              AmountText(t.amount, isIncome: isIncome, size: 15),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (isTransfer)
+                  Text(formatMoney(t.amount),
+                      style: AppTextStyles.amount(size: 15))
+                else
+                  AmountText(t.amount, isIncome: isIncome, size: 15),
+                const SizedBox(height: 2),
+                Text(
+                  formatTime(t.date),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -123,7 +143,7 @@ class TransactionTile extends ConsumerWidget {
         .onSurface
         .withValues(alpha: 0.55);
     if (t.toWalletId == null) {
-      return Text('${details.wallet.name} · ${formatDate(t.date)}',
+      return Text(details.wallet.name,
           style: TextStyle(fontSize: 12, color: muted));
     }
     return FutureBuilder<Wallet?>(
@@ -132,7 +152,7 @@ class TransactionTile extends ConsumerWidget {
           .getWalletById(t.toWalletId!),
       builder: (context, snap) {
         final to = snap.data?.name ?? '…';
-        return Text('${details.wallet.name} → $to · ${formatDate(t.date)}',
+        return Text('${details.wallet.name} → $to',
             style: TextStyle(fontSize: 12, color: muted));
       },
     );

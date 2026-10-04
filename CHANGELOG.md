@@ -4,6 +4,11 @@ All notable changes to Dmoney Manager will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+- Transaction history redesign: month pager with a month/year picker, an income/expense/total overview per month, and transactions grouped by date with daily totals. Rows now show a circular category icon with the entry time (HH.mm) under the amount.
+
 ## [1.1.4] - 2026-10-04
 
 ### Added

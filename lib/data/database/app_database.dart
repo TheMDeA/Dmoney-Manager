@@ -1128,6 +1128,15 @@ class AppDatabase extends _$AppDatabase {
     return _toDetails(await q.get());
   }
 
+  /// Live version of [getTransactionsInRange]: joined transaction rows
+  /// inside [from, to], newest first. Powers the month-grouped history.
+  Stream<List<TransactionWithDetails>> watchTransactionsInRange(
+      DateTime from, DateTime to) {
+    final q = _joinedTransactions()
+      ..where(transactions.date.isBetweenValues(from, to));
+    return q.watch().map(_toDetails);
+  }
+
   /// One transaction with its category + wallet, or null when missing.
   /// Prefer this over scanning [getTransactionsInRange] when only a
   /// single row is needed (detail screen, duplicate, delete).
