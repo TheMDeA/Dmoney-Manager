@@ -1,14 +1,21 @@
 ## [Unreleased]
 
-### Fixed
-- The + FAB now opens the same modal bottom sheet as the Top up action: identical open animation and swipe-down-to-dismiss from every entry point. (The FAB's container-transform morph opened the sheet on a full-screen route, which broke swipe-to-dismiss and sized the new full-height form sheet incorrectly; the `animations` dependency is removed.)
-- Home income/expense amounts no longer wrap under the currency symbol: the value scales down to fit its column on one line now that the sparkline shares the space.
+### Added
+- Subscription detector: the Recurring screen has a "Detect subscriptions" action that mines the history for repeating charges (same note, stable amount, regular weekly/monthly/yearly cadence, 3+ occurrences) and offers to turn each into a recurring rule with one tap. Dismissed detections never resurface.
+- Launcher shortcuts + Quick Settings tile: long-pressing the app icon offers Add expense / Add income, and a QS tile jumps straight to the add-expense sheet. Both work from a cold start and wait for unlock when the app is locked. (Native: `shortcuts.xml`, `QuickAddTileService`, `dmoney/quickadd` channel in `MainActivity`.)
+- Press physics: tappable cards (wallets, budgets, savings goals, home goal spotlight) now scale down slightly on touch and spring back on release, via a reusable `Pressable` widget.
+- Smart category suggestions: as the note is typed in the add-transaction sheet, the app suggests the category those keywords usually map to — learned entirely on-device from saved transactions (new `category_keywords` table, DB v10, one-time backfill from history). 90%+ confidence auto-selects the category (your tap always wins), 60–90% highlights the tile with a sparkle badge instead. Corrections self-correct future picks; a Settings toggle disables it.
+- Check for updates: the More tab has a "Check for updates" entry (manual only). It compares the installed version against the latest GitHub release and, when a newer version exists, opens an update sheet with the release notes and a Download button. The APK downloads inside the app with a progress bar and hands off to Android's installer — no browser involved. First-time installs need the one-time system "allow installs from this app" approval. (New `package_info_plus` + `http` dependencies; `REQUEST_INSTALL_PACKAGES` permission and a FileProvider-backed install channel in `MainActivity`.)
 
 ### Changed
+- Settings ("More" tab) is now grouped into sections — Manage, Security, Appearance, Assistant, General, App — instead of one long list.
+- Chart craft: the net-worth line and sparklines now fade their area fill from accent to transparent (gradient instead of flat), and the income/expense bars graduate from solid to translucent with their rounded caps kept.
 - Category picking in the form sheets is now a compact two-column quick-pick grid (three categories + an All shortcut) instead of the tall radio list, saving significant vertical space. The full-screen Select Category page is one tap away.
 
-### Added
-- Check for updates: the More tab has a "Check for updates" entry (manual only). It compares the installed version against the latest GitHub release and, when a newer version exists, opens an update sheet with the release notes and a Download button. The APK downloads inside the app with a progress bar and hands off to Android's installer — no browser involved. First-time installs need the one-time system "allow installs from this app" approval. (New `package_info_plus` + `http` dependencies; `REQUEST_INSTALL_PACKAGES` permission and a FileProvider-backed install channel in `MainActivity`.)
+### Fixed
+- Motion duration audit: the five remaining hardcoded animation durations (tab icon pop, sheet ripple, wallet card entrance, net-worth line draw, goal celebration) now use the AppMotion spec. The two deliberate exceptions — the skeleton shimmer loop and the passcode shake — are documented as such.
+- The + FAB now opens the same modal bottom sheet as the Top up action: identical open animation and swipe-down-to-dismiss from every entry point. (The FAB's container-transform morph opened the sheet on a full-screen route, which broke swipe-to-dismiss and sized the new full-height form sheet incorrectly; the `animations` dependency is removed.)
+- Home income/expense amounts no longer wrap under the currency symbol: the value scales down to fit its column on one line now that the sparkline shares the space.
 
 ## [2.1.1] - 2026-10-04
 

@@ -100,12 +100,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 8),
+          _sectionHeader(context, 'Manage'),
           _tile(context,
               icon: Icons.category_outlined,
               title: 'Categories',
               subtitle: 'Create, edit, delete',
               onTap: () => Navigator.of(context).push(
                   AppPageRoute(builder: (_) => const CategoriesScreen()))),
+          _tile(context,
+              icon: Icons.repeat_outlined,
+              title: 'Recurring transactions',
+              subtitle: 'Subscriptions, salary, rent',
+              onTap: () => Navigator.of(context).push(
+                  AppPageRoute(builder: (_) => const RecurringScreen()))),
           _tile(context,
               icon: Icons.file_download_outlined,
               title: 'Export data',
@@ -118,12 +125,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: 'Full backup to a file',
               onTap: () => Navigator.of(context).push(
                   AppPageRoute(builder: (_) => BackupScreen()))),
-          _tile(context,
-              icon: Icons.repeat_outlined,
-              title: 'Recurring transactions',
-              subtitle: 'Subscriptions, salary, rent',
-              onTap: () => Navigator.of(context).push(
-                  AppPageRoute(builder: (_) => const RecurringScreen()))),
+          _sectionHeader(context, 'Security'),
           SwitchListTile(
             secondary: const Icon(Icons.lock_outline),
             title: const Text('Password protection'),
@@ -139,12 +141,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: 'Update your 4-digit PIN',
                 onTap: () => Navigator.of(context).push(AppPageRoute(
                     builder: (_) => const PinSetupScreen(isChange: true)))),
-          const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('Appearance',
-                style: Theme.of(context).textTheme.labelLarge),
-          ),
+          _sectionHeader(context, 'Appearance'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text('Theme color',
@@ -198,7 +195,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (v) HapticFeedback.mediumImpact();
             },
           ),
-          const Divider(),
+          _sectionHeader(context, 'Assistant'),
+          SwitchListTile(
+            secondary: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('Smart category suggestions'),
+            subtitle: Text('Learn from your history to suggest categories',
+                style: TextStyle(color: context.textMuted, fontSize: 12)),
+            value: AppPrefs.smartSuggestions,
+            onChanged: (v) async {
+              await AppPrefs.setSmartSuggestions(v);
+              setState(() {});
+            },
+          ),
+          _sectionHeader(context, 'General'),
           _tile(context,
               icon: Icons.attach_money,
               title: 'Currency',
@@ -216,6 +225,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               subtitle: 'Budget alerts & debt reminders',
               onTap: () => Navigator.of(context).push(AppPageRoute(
                   builder: (_) => const NotificationsScreen()))),
+          _sectionHeader(context, 'App'),
           ListTile(
             leading: const Icon(Icons.system_update_outlined),
             title: const Text('Check for updates'),
@@ -356,6 +366,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           style: TextStyle(color: context.textMuted, fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
+    );
+  }
+
+  /// Section header grouping related settings.
+  Widget _sectionHeader(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(title,
+          style: Theme.of(context)
+              .textTheme
+              .labelLarge
+              ?.copyWith(color: context.accent)),
     );
   }
 }

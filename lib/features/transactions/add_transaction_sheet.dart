@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -5,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/services/app_prefs.dart';
 import '../../core/services/budget_alerts.dart';
+import '../../core/services/category_suggester.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
@@ -51,6 +54,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   bool _saving = false;
   bool _success = false;
 
+  /// Smart suggestion state: the recommended category (badged in the grid)
+  /// plus debounce/sequencing for the note listener.
+  int? _suggestedId;
+  Timer? _suggestTimer;
+  int _suggestSeq = 0;
+
   bool get _editing => widget.existing != null;
 
   DateTime get _dateTime =>
@@ -73,13 +82,50 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _kind = widget.initialKind;
       _walletId = widget.initialWalletId;
     }
+    _noteCtrl.addListener(_onNoteChanged);
+    // Suggest for a prefilled note (edit mode) once the sheet settles.
+    if (_noteCtrl.text.trim().isNotEmpty && AppPrefs.smartSuggestions) {
+      Future.microtask(_runSuggestion);
+    }
   }
 
   @override
   void dispose() {
+    _suggestTimer?.cancel();
+    _noteCtrl.removeListener(_onNoteChanged);
     _amountCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
+  }
+
+  /// Debounced smart suggestion: as the note is typed, recommend the
+  /// category the user usually picks for these keywords.
+  void _onNoteChanged() {
+    _suggestTimer?.cancel();
+    if (!AppPrefs.smartSuggestions || _noteCtrl.text.trim().isEmpty) {
+      if (_suggestedId != null) setState(() => _suggestedId = null);
+      return;
+    }
+    _suggestTimer =
+        Timer(const Duration(milliseconds: 400), _runSuggestion);
+  }
+
+  Future<void> _runSuggestion() async {
+    final seq = ++_suggestSeq;
+    final note = _noteCtrl.text.trim();
+    if (note.isEmpty || !AppPrefs.smartSuggestions) return;
+    final suggester = CategorySuggester(ref.read(databaseProvider));
+    await suggester.ensureBackfilled();
+    final s = await suggester.suggest(note: note, kind: _kind);
+    if (!mounted || seq != _suggestSeq) return;
+    setState(() {
+      _suggestedId = s?.categoryId;
+      // High-confidence suggestions pre-select when nothing is chosen
+      // yet. The user's own tap always wins afterwards.
+      if (s != null && s.autoSelect && _categoryId == null) {
+        _categoryId = s.categoryId;
+      }
+    });
   }
 
   @override
@@ -102,10 +148,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ],
               selected: {_kind},
               showSelectedIcon: false,
-              onSelectionChanged: (s) => setState(() {
-                _kind = s.first;
-                _categoryId = null;
-              }),
+              onSelectionChanged: (s) {
+                setState(() {
+                  _kind = s.first;
+                  _categoryId = null;
+                  _suggestedId = null;
+                });
+                // The note didn't change, but the kind did: re-suggest.
+                _runSuggestion();
+              },
             ),
             const SizedBox(height: 16),
             _templateRow(context, db),
@@ -115,6 +166,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             CategoryPickerSection(
               kind: _kind,
               selectedId: _categoryId,
+              suggestedId: _suggestedId,
               onSelected: (c) => setState(() {
                 _kind = c.kind;
                 _categoryId = c.id;
@@ -525,6 +577,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+    // Feed the smart suggester: corrections self-correct future picks.
+    if (AppPrefs.smartSuggestions && _categoryId != null) {
+      final suggester = CategorySuggester(db);
+      final newNote = _noteCtrl.text.trim();
+      if (_editing) {
+        final e = widget.existing!.transaction;
+        if (e.note != newNote || e.categoryId != _categoryId) {
+          unawaited(
+              suggester.unlearn(note: e.note, categoryId: e.categoryId));
+          unawaited(
+              suggester.learn(note: newNote, categoryId: _categoryId!));
+        }
+      } else {
+        unawaited(
+            suggester.learn(note: newNote, categoryId: _categoryId!));
+      }
+    }
     if (!mounted) return;
     // Brief success state (checkmark + scale animation), then close.
     Haptics.medium();
@@ -563,7 +632,7 @@ class _SuccessOverlay extends StatelessWidget {
             // Ripple ring: expands and fades once.
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0.5, end: 1.6),
-              duration: const Duration(milliseconds: 500),
+              duration: AppMotion.slow,
               curve: Curves.easeOut,
               builder: (context, scale, child) => Transform.scale(
                 scale: scale,
