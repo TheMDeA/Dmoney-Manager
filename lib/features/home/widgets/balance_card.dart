@@ -62,6 +62,18 @@ class BalanceCard extends ConsumerWidget {
                     duration: const Duration(milliseconds: 350),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
+                    // Default Stack centers children, which made the text
+                    // jump to the middle mid-animation and snap back after.
+                    // Keep everything left-aligned instead.
+                    layoutBuilder: (currentChild, previousChildren) {
+                      final children = [...previousChildren];
+                      final current = currentChild;
+                      if (current != null) children.add(current);
+                      return Stack(
+                        alignment: Alignment.centerLeft,
+                        children: children,
+                      );
+                    },
                     transitionBuilder: (child, animation) =>
                         FadeTransition(
                       opacity: animation,

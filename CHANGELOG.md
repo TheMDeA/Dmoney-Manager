@@ -11,6 +11,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Wallet detail: tapping a category in the Transaction list now opens a dedicated category screen — an overview total plus that category's transactions grouped by date (same rows and animations as the history). "View all" still opens the full month-paged wallet transactions.
 
+### Fixed
+- Balance privacy toggle no longer jumps sideways: the hide/show animation keeps the amount left-aligned throughout instead of shifting to the center and snapping back.
+
 ## [1.1.6] - 2026-10-04
 
 ### Added
