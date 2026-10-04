@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/entrance.dart';
+import '../../core/widgets/skeleton.dart';
+import 'add_transaction_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
-import 'widgets/date_group_header.dart';
+import 'widgets/grouped_transaction_list.dart';
 import 'widgets/month_overview.dart';
 import 'widgets/month_selector.dart';
-import 'widgets/transaction_tile.dart';
 
 /// Transaction history: month pager, income/expense overview,
 /// and transactions grouped by date with daily totals.
@@ -73,59 +73,28 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               ),
               MonthOverview(income: income, expense: expense),
               Expanded(
-                child: items.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.receipt_long_outlined,
-                        message:
-                            'No transactions this month. Tap + to record one.',
-                      )
-                    : _groupedList(items),
+                child: !snap.hasData
+                    ? const SkeletonTransactionList()
+                    : items.isEmpty
+                        ? EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            title: 'No transactions',
+                            message:
+                                'Nothing recorded this month yet.',
+                            actionLabel: 'Add transaction',
+                            onAction: () => showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              builder: (_) =>
+                                  const AddTransactionSheet(),
+                            ),
+                          )
+                        : GroupedTransactionList(items: items),
               ),
             ],
           );
         },
       ),
-    );
-  }
-
-  // -------------------------------- groups --------------------------------
-
-  Widget _groupedList(List<TransactionWithDetails> items) {
-    // Items arrive newest-first; slice them into per-day groups.
-    final children = <Widget>[];
-    var i = 0;
-    while (i < items.length) {
-      final d0 = items[i].transaction.date;
-      final day = DateTime(d0.year, d0.month, d0.day);
-      var j = i;
-      var net = 0;
-      while (j < items.length) {
-        final t = items[j].transaction;
-        if (t.date.year != day.year ||
-            t.date.month != day.month ||
-            t.date.day != day.day) {
-          break;
-        }
-        net += t.kind == 'income'
-            ? t.amount
-            : (t.kind == 'expense' ? -t.amount : 0);
-        j++;
-      }
-      children.add(DateGroupHeader(day: day, net: net));
-      for (var k = i; k < j; k++) {
-        children.add(
-          Entrance(
-            key: ValueKey('tx-${items[k].transaction.id}'),
-            delay: Duration(milliseconds: (40 * (k - i)).clamp(0, 320)),
-            child: TransactionTile(details: items[k]),
-          ),
-        );
-      }
-      i = j;
-    }
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 96),
-      children: children,
     );
   }
 }

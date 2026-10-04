@@ -2,15 +2,16 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/services/budget_alerts.dart';
 import '../../core/theme/app_accents.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/amount_field.dart';
 import '../../data/database/app_database.dart';
@@ -612,7 +613,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
     if (!mounted) return;
     // Brief success state (checkmark + scale animation), then close.
-    HapticFeedback.mediumImpact();
+    Haptics.medium();
     setState(() => _success = true);
     await Future.delayed(const Duration(milliseconds: 750));
     if (!mounted) return;
@@ -644,7 +645,7 @@ class _SuccessOverlay extends StatelessWidget {
         alignment: Alignment.center,
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.4, end: 1.0),
-          duration: const Duration(milliseconds: 350),
+          duration: AppMotion.normal,
           curve: Curves.elasticOut,
           builder: (context, scale, child) =>
               Transform.scale(scale: scale, child: child),
