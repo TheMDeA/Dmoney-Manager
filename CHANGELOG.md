@@ -3,6 +3,9 @@
 ### Added
 - Double-press back to exit: pressing back on the Home tab shows a "Press back again to exit" snackbar, and only a second press within 2 seconds closes the app. Back on any other tab returns to Home first; pushed screens and sheets still dismiss normally.
 
+### Fixed
+- Check-for-updates always reported a connection error: the GitHub API rejects requests without a `User-Agent` header (403), and Dart's `http` client sends none by default. The update check (and APK download) now send one.
+
 ## [2.2.1] - 2026-10-05
 
 ### Added

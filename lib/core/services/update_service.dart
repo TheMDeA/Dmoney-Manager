@@ -75,7 +75,11 @@ Future<UpdateInfo?> checkForUpdate() async {
   final current = await installedVersion();
   final res = await http.get(
     Uri.parse(_releasesUrl),
-    headers: {'Accept': 'application/vnd.github+json'},
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      // GitHub rejects API requests without a User-Agent (403).
+      'User-Agent': 'Dmoney-Manager/$current',
+    },
   ).timeout(const Duration(seconds: 15));
   if (res.statusCode != 200) {
     throw HttpException(
@@ -121,6 +125,8 @@ Future<void> downloadAndInstall(
   final client = http.Client();
   try {
     final req = http.Request('GET', Uri.parse(apkUrl));
+    // Some hosts reject requests without a User-Agent; reuse the same one.
+    req.headers['User-Agent'] = 'Dmoney-Manager';
     final streamed =
         await client.send(req).timeout(const Duration(seconds: 30));
     if (streamed.statusCode != 200) {
