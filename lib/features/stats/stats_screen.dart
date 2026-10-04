@@ -1037,7 +1037,21 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           const SizedBox(height: 12),
           SizedBox(
             height: 180,
-            child: LineChart(
+            // Line-draw effect: the chart is revealed left-to-right, as if
+            // the line is being drawn. Replays when the range changes.
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(_netWorthRange),
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 900),
+              curve: AppMotion.enter,
+              builder: (context, progress, child) => ClipRect(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: progress.clamp(0.01, 1.0),
+                  child: child,
+                ),
+              ),
+              child: LineChart(
               LineChartData(
                 lineTouchData: LineTouchData(
                   enabled: true,
@@ -1080,6 +1094,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ),
               duration: _animDuration,
               curve: _animCurve,
+              ),
             ),
           ),
         ],

@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -122,9 +124,14 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
               child: Stack(
                 children: [
                   Container(color: context.raised),
-                  FractionallySizedBox(
-                    widthFactor: ratio.clamp(0.0, 1.0),
-                    child: Container(color: goalColor),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: ratio.clamp(0.0, 1.0)),
+                    duration: AppMotion.slow,
+                    curve: AppMotion.enter,
+                    builder: (context, v, _) => FractionallySizedBox(
+                      widthFactor: v,
+                      child: Container(color: goalColor),
+                    ),
                   ),
                   Center(
                     child: Text(
@@ -442,13 +449,24 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
     );
     final amount = parseAmountInput(amountCtrl.text);
     if (saved == true && amount > 0 && context.mounted) {
+      final wasComplete = goal.target > 0 && goal.saved >= goal.target;
       await db.recordGoalDeposit(
         goalId: goal.id,
         amount: isDeposit ? amount : -amount,
         date: DateTime.now(),
         note: noteCtrl.text.trim(),
       );
-      if (context.mounted) {
+      if (!context.mounted) return;
+      // Celebrate the moment a deposit pushes the goal to 100%.
+      final updated = await db.getGoalById(goal.id);
+      if (!context.mounted) return;
+      if (isDeposit &&
+          !wasComplete &&
+          updated != null &&
+          updated.target > 0 &&
+          updated.saved >= updated.target) {
+        await _celebrateGoal(context, updated);
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
@@ -456,6 +474,93 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
         );
       }
     }
+  }
+
+  /// Full-screen-ish celebration when a goal reaches 100%: the trophy pops
+  /// in with an elastic bounce, a ripple ring expands behind it, and the
+  /// phone buzzes. Shown once, at the moment of completion.
+  Future<void> _celebrateGoal(BuildContext context, Goal goal) {
+    Haptics.medium();
+    return showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.5, end: 1.8),
+                    duration: const Duration(milliseconds: 700),
+                    curve: Curves.easeOut,
+                    builder: (context, scale, child) => Transform.scale(
+                      scale: scale,
+                      child: Opacity(
+                        opacity: (1.8 - scale).clamp(0.0, 1.0),
+                        child: child,
+                      ),
+                    ),
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.income.withValues(alpha: 0.5),
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                  ),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.2, end: 1.0),
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.elasticOut,
+                    builder: (context, scale, child) =>
+                        Transform.scale(scale: scale, child: child),
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.income,
+                      ),
+                      child: const Icon(Icons.emoji_events_outlined,
+                          color: Colors.white, size: 48),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Goal complete!',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${goal.name} — ${formatMoney(goal.saved)} saved',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.textMuted, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Awesome'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _editGoal(BuildContext context, AppDatabase db) async {

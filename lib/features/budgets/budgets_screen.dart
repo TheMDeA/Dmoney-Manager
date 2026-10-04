@@ -9,6 +9,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/animated_progress_bar.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
@@ -65,12 +66,10 @@ class BudgetsScreen extends ConsumerWidget {
                               Text('Month progress',
                                   style: Theme.of(context).textTheme.titleSmall),
                               const SizedBox(height: 8),
-                              LinearProgressIndicator(
+                              AnimatedProgressBar(
                                 value: now.day / daysInMonth,
                                 backgroundColor: context.hairline,
                                 color: context.accent,
-                                borderRadius: BorderRadius.circular(4),
-                                minHeight: 8,
                               ),
                               const SizedBox(height: 8),
                               Text('${now.day} of $daysInMonth days',
@@ -203,12 +202,10 @@ class BudgetsScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: ratio.clamp(0.0, 1.0),
+            AnimatedProgressBar(
+              value: ratio,
               backgroundColor: context.hairline,
               color: color,
-              borderRadius: BorderRadius.circular(4),
-              minHeight: 8,
             ),
             const SizedBox(height: 6),
             Text(
@@ -270,14 +267,12 @@ class BudgetsScreen extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        LinearProgressIndicator(
+                        AnimatedProgressBar(
                           value: goals[i].target == 0
                               ? 0.0
-                              : (goals[i].saved / goals[i].target).clamp(0.0, 1.0),
+                              : goals[i].saved / goals[i].target,
                           backgroundColor: context.hairline,
                           color: colorFromHex(goals[i].colorHex),
-                          borderRadius: BorderRadius.circular(4),
-                          minHeight: 8,
                         ),
                         const SizedBox(height: 6),
                         Row(

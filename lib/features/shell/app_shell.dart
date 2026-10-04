@@ -1,3 +1,4 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -59,14 +60,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
-  void _openAddSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const AddTransactionSheet(),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // External tab jumps (quick actions, deep links) animate like taps.
@@ -78,9 +71,22 @@ class _AppShellState extends ConsumerState<AppShell> {
         onPageChanged: (i) => ref.read(tabIndexProvider.notifier).go(i),
         children: _screens,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddSheet,
-        child: const Icon(Icons.add, size: 28),
+      // The FAB morphs into the add-transaction sheet via a container
+      // transform: the circle blooms open and the sheet rises from it.
+      // Closing (save or scrim tap) reverses the morph back into the FAB.
+      floatingActionButton: OpenContainer(
+        transitionDuration: const Duration(milliseconds: 450),
+        transitionType: ContainerTransitionType.fadeThrough,
+        closedElevation: 6,
+        closedShape: const CircleBorder(),
+        closedColor: Theme.of(context).colorScheme.primary,
+        openColor: Theme.of(context).colorScheme.surface,
+        closedBuilder: (context, openContainer) => FloatingActionButton(
+          onPressed: openContainer,
+          child: const Icon(Icons.add, size: 28),
+        ),
+        openBuilder: (context, closeContainer) =>
+            _AddSheetPage(onScrimTap: closeContainer),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
@@ -138,6 +144,43 @@ class _AppShellState extends ConsumerState<AppShell> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Full-screen host for the FAB container transform: a dim scrim (tap to
+/// dismiss) with the add-transaction sheet bottom-aligned in a rounded
+/// container. Saving pops this route, reversing the morph into the FAB.
+class _AddSheetPage extends StatelessWidget {
+  const _AddSheetPage({required this.onScrimTap});
+
+  final VoidCallback onScrimTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          // Dim scrim fades in with the open; tap outside dismisses.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onScrimTap,
+            child: Container(color: Colors.black.withValues(alpha: 0.5)),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: const AddTransactionSheet(),
+            ),
+          ),
+        ],
       ),
     );
   }
