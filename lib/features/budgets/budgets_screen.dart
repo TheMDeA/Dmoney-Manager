@@ -16,7 +16,9 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../debts/debts_screen.dart';
 import 'budget_detail_screen.dart';
+import 'budget_form_sheet.dart';
 import 'goal_detail_screen.dart';
+import 'goal_form_sheet.dart';
 
 /// Budgets with threshold alerts, savings goals, and a debt preview.
 class BudgetsScreen extends ConsumerWidget {
@@ -109,7 +111,7 @@ class BudgetsScreen extends ConsumerWidget {
                         SectionHeader(
                           title: 'Budgets',
                           action: TextButton(
-                            onPressed: () => _addBudgetDialog(context, ref, cats.values.toList(), mk),
+                            onPressed: () => _addBudgetDialog(context, ref, mk),
                             child: const Text('Add'),
                           ),
                         ),
@@ -120,8 +122,8 @@ class BudgetsScreen extends ConsumerWidget {
                               message:
                                   'Set monthly limits per category to control spending.',
                               actionLabel: 'Add budget',
-                              onAction: () => _addBudgetDialog(context, ref,
-                                  cats.values.toList(), mk))
+                              onAction: () =>
+                                  _addBudgetDialog(context, ref, mk))
                         else
                           for (var i = 0; i < budgets.length; i++)
                             Entrance(
@@ -347,144 +349,10 @@ class BudgetsScreen extends ConsumerWidget {
   }
 
   Future<void> _addBudgetDialog(
-      BuildContext context, WidgetRef ref, List<Category> cats, String mk) async {
-    final expenseCats = cats.where((c) => c.kind == 'expense' && c.parentId == null).toList();
-    int? catId = expenseCats.isNotEmpty ? expenseCats.first.id : null;
-    final limitCtrl = TextEditingController();
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Add budget'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<int>(
-                initialValue: catId,
-                decoration: const InputDecoration(labelText: 'Category'),
-                items: [
-                  for (final c in expenseCats)
-                    DropdownMenuItem(value: c.id, child: Text(c.name)),
-                ],
-                onChanged: (v) => setState(() => catId = v),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: limitCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ThousandsSeparatorInputFormatter()],
-                decoration: InputDecoration(
-                    labelText: 'Monthly limit (${currentCurrency.code})'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add')),
-          ],
-        ),
-      ),
-    );
-    final limit = parseAmountInput(limitCtrl.text);
-    if (saved == true && catId != null && limit > 0) {
-      await ref.read(databaseProvider).addBudget(
-            BudgetsCompanion.insert(categoryId: catId!, month: mk, limit: limit),
-          );
-    }
-  }
+          BuildContext context, WidgetRef ref, String mk) =>
+      showBudgetFormSheet(context, ref, monthKey: mk);
 
-  Future<void> _addGoalDialog(BuildContext context, WidgetRef ref) async {
-    final nameCtrl = TextEditingController();
-    final targetCtrl = TextEditingController();
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add savings goal'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-            const SizedBox(height: 12),
-            TextField(
-              controller: targetCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ThousandsSeparatorInputFormatter()],
-              decoration: InputDecoration(
-                  labelText: 'Target (${currentCurrency.code})'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add')),
-        ],
-      ),
-    );
-    final target = parseAmountInput(targetCtrl.text);
-    if (saved == true && nameCtrl.text.trim().isNotEmpty && target > 0) {
-      await ref.read(databaseProvider).addGoal(
-            GoalsCompanion.insert(name: nameCtrl.text.trim(), target: target),
-          );
-    }
-  }
+  Future<void> _addGoalDialog(BuildContext context, WidgetRef ref) =>
+      showGoalFormSheet(context, ref);
 }
 
-/// Dialog to change a budget's monthly limit. Returns the new limit, or null
-/// when cancelled.
-class EditBudgetLimitDialog extends ConsumerStatefulWidget {
-  const EditBudgetLimitDialog({super.key, required this.budgetId});
-
-  final int budgetId;
-
-  @override
-  ConsumerState<EditBudgetLimitDialog> createState() =>
-      _EditBudgetLimitDialogState();
-}
-
-class _EditBudgetLimitDialogState
-    extends ConsumerState<EditBudgetLimitDialog> {
-  final _ctrl = TextEditingController();
-  bool _loaded = false;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final db = ref.watch(databaseProvider);
-    return FutureBuilder<Budget?>(
-      future: db.getBudgetById(widget.budgetId),
-      builder: (context, bSnap) {
-        final budget = bSnap.data;
-        if (budget != null && !_loaded) {
-          _ctrl.text = formatAmountInput(budget.limit);
-          _loaded = true;
-        }
-        return AlertDialog(
-          title: const Text('Edit budget limit'),
-          content: TextField(
-            controller: _ctrl,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [ThousandsSeparatorInputFormatter()],
-            decoration: InputDecoration(
-                labelText: 'Monthly limit (${currentCurrency.code})'),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.pop(context, parseAmountInput(_ctrl.text)),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}

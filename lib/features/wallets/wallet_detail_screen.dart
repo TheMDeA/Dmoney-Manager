@@ -19,6 +19,7 @@ import '../transactions/widgets/grouped_transaction_list.dart';
 import '../transactions/widgets/month_overview.dart';
 import '../transactions/widgets/month_selector.dart';
 import 'wallet_category_screen.dart';
+import 'wallet_form_sheet.dart';
 
 /// Detail view for one wallet: balance, adjust-balance, per-kind stats,
 /// and its transactions grouped by category.
@@ -405,52 +406,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
   Future<void> _editWallet(BuildContext context, AppDatabase db) async {
     final wallet = await db.getWalletById(_walletId);
     if (wallet == null || !context.mounted) return;
-    final nameCtrl = TextEditingController(text: wallet.name);
-    String kind = wallet.kind;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Edit wallet'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                  controller: nameCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: kind,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(
-                      value: 'bank', child: Text('Bank account')),
-                  DropdownMenuItem(
-                      value: 'ewallet', child: Text('E-wallet')),
-                  DropdownMenuItem(
-                      value: 'credit', child: Text('Credit card')),
-                ],
-                onChanged: (v) => setState(() => kind = v ?? 'cash'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Save')),
-          ],
-        ),
-      ),
-    );
-    if (saved == true && nameCtrl.text.trim().isNotEmpty) {
-      await db.updateWallet(
-          id: wallet.id, name: nameCtrl.text.trim(), kind: kind);
-    }
+    await showWalletFormSheet(context, ref, existing: wallet);
   }
 
   Future<void> _confirmDelete(BuildContext context, AppDatabase db) async {

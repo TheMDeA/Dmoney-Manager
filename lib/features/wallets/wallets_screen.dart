@@ -14,6 +14,7 @@ import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'wallet_detail_screen.dart';
+import 'wallet_form_sheet.dart';
 
 /// Wallets grouped under a Personal / Work / Family account switcher.
 class WalletsScreen extends ConsumerWidget {
@@ -218,76 +219,8 @@ class WalletsScreen extends ConsumerWidget {
         _ => 'wallet',
       };
 
-  Future<void> _addWalletDialog(BuildContext context, WidgetRef ref) async {
-    final nameCtrl = TextEditingController();
-    final initialCtrl = TextEditingController();
-    String kind = 'cash';
-    final accounts = await ref.read(databaseProvider).watchAccounts().first;
-    final selected = ref.read(selectedAccountProvider);
-    // New wallets default to the active account scope when it still exists.
-    int? accountId = selected != null && accounts.any((a) => a.id == selected)
-        ? selected
-        : (accounts.isNotEmpty ? accounts.first.id : null);
-
-    if (!context.mounted) return;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Add wallet'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: kind,
-                decoration: const InputDecoration(labelText: 'Type'),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(value: 'bank', child: Text('Bank account')),
-                  DropdownMenuItem(value: 'ewallet', child: Text('E-wallet')),
-                  DropdownMenuItem(value: 'credit', child: Text('Credit card')),
-                ],
-                onChanged: (v) => setState(() => kind = v ?? 'cash'),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                initialValue: accountId,
-                decoration: const InputDecoration(labelText: 'Account'),
-                items: [
-                  for (final a in accounts)
-                    DropdownMenuItem(value: a.id, child: Text(a.name)),
-                ],
-                onChanged: (v) => setState(() => accountId = v),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: initialCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [ThousandsSeparatorInputFormatter()],
-                decoration: InputDecoration(
-                    labelText:
-                        'Initial amount (${currentCurrency.code}, optional)'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add')),
-          ],
-        ),
-      ),
-    );
-    if (saved == true && nameCtrl.text.trim().isNotEmpty && accountId != null) {
-      await ref.read(databaseProvider).createWallet(
-            accountId: accountId!,
-            name: nameCtrl.text.trim(),
-            kind: kind,
-            initialAmount: parseAmountInput(initialCtrl.text),
-          );
-    }
-  }
+  Future<void> _addWalletDialog(BuildContext context, WidgetRef ref) =>
+      showWalletFormSheet(context, ref);
 
   /// Long-press peek: a compact sheet with the wallet's key figures,
   /// popping in with a springy scale. Dismiss by tapping outside.
