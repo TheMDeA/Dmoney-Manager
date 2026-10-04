@@ -1,5 +1,6 @@
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_accents.dart';
@@ -37,6 +38,14 @@ class MoneyManagerApp extends ConsumerWidget {
           theme: AppTheme.light(resolve(lightDynamic)),
           darkTheme: AppTheme.dark(resolve(darkDynamic)),
           themeMode: themeMode,
+          // Screens without an AppBar (e.g. Home) get their status-bar
+          // icon style from here; AppBar screens use the theme's
+          // AppBarTheme.systemOverlayStyle instead.
+          builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+            value:
+                AppTheme.overlayStyle(Theme.of(context).brightness),
+            child: child!,
+          ),
           home: accounts.when(
             // No accounts yet -> first-launch onboarding. Existing installs that
             // already have (seeded) accounts skip straight to the app.

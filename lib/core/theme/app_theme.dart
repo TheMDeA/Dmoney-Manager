@@ -1,10 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'app_accents.dart';
 import 'app_colors.dart';
 
 abstract final class AppTheme {
+  /// Status-bar icon style for a theme brightness: dark icons on light
+  /// backgrounds, light icons on dark backgrounds. Colors are left null
+  /// so the existing status-bar background is untouched.
+  static SystemUiOverlayStyle overlayStyle(Brightness brightness) =>
+      brightness == Brightness.dark
+          ? const SystemUiOverlayStyle(
+              statusBarIconBrightness: Brightness.light,
+              statusBarBrightness: Brightness.dark,
+            )
+          : const SystemUiOverlayStyle(
+              statusBarIconBrightness: Brightness.dark,
+              statusBarBrightness: Brightness.light,
+            );
   // google_fonts 9.x targets the standalone material_ui package, whose
   // TextTheme is a different class from Flutter material's — so we apply
   // the font family onto the material TextTheme instead of using the
@@ -28,10 +42,11 @@ abstract final class AppTheme {
         error: AppColors.expense,
       ),
       textTheme: base.textTheme.apply(fontFamily: _interFamily),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
+        systemOverlayStyle: overlayStyle(Brightness.dark),
       ),
       cardTheme: const CardThemeData(
         color: AppColors.bgSurface,
@@ -79,10 +94,11 @@ abstract final class AppTheme {
         error: AppColors.expense,
       ),
       textTheme: base.textTheme.apply(fontFamily: _interFamily),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
+        systemOverlayStyle: overlayStyle(Brightness.light),
       ),
       cardTheme: const CardThemeData(
         color: AppColors.lightSurface,

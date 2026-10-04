@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Status bar icons are now visible in light mode (dark icons on light backgrounds, light icons on dark) — applied per theme and on screens without an AppBar.
+
 ## [1.1.4] - 2026-10-04
 
 ### Added
