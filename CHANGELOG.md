@@ -6,6 +6,7 @@
 - The month/year picker gained a "Current month" shortcut for one-tap jumps back to today, and stepping through months now gives subtle haptic feedback.
 - Haptic feedback pass across the app: quick actions, the calculator keypad, photo handling, save buttons, and delete confirmations now respond with subtle taps.
 - Calculator polish: thousand separators now appear live in the expression as you type, long-press backspace clears everything, long-press 0 types "00", keys press with a subtle scale, and tapping = with nothing to calculate wiggles the display instead of silently doing nothing.
+- The home insight card now draws from 13 insight types (top merchant, spending vs last month, no-spend streaks, weekend habits, savings rate, and more), showing 3 fresh ones each session, refreshed periodically. The auto-cycle pauses while you read, and the dots are tappable.
 
 ### Fixed
 - The balance card sparkline no longer sits glued to the edge of its box when a flow has no data yet.
