@@ -10,6 +10,7 @@ import '../home/home_screen.dart';
 import '../settings/settings_screen.dart';
 import '../stats/stats_screen.dart';
 import '../transactions/add_transaction_sheet.dart';
+import '../tour/feature_tour_screen.dart';
 import '../wallets/wallets_screen.dart';
 import '../../state/providers.dart';
 
@@ -43,6 +44,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.initState();
     _pageController =
         PageController(initialPage: ref.read(tabIndexProvider));
+    // Fresh installs land here right after onboarding -> show the tour once.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (FeatureTourScreen.pendingFromOnboarding) {
+        FeatureTourScreen.pendingFromOnboarding = false;
+        if (mounted) FeatureTourScreen.show(context);
+      }
+    });
   }
 
   @override

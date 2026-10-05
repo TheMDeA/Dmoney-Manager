@@ -9,7 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/services/app_prefs.dart';
 import '../../core/services/backup_service.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_motion.dart';
+import '../tour/feature_tour_screen.dart';import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
@@ -167,6 +167,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ),
       builder: (context) => _RestoreSheet(
         onRestored: () {
+          // Returning user with their own data -> no tour needed.
+          AppPrefs.setHasSeenTour(true);
           // The accounts stream flips non-empty -> app.dart shows the shell.
           Navigator.pop(context);
         },
@@ -420,6 +422,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ));
       await AppPrefs.setCurrencyCode(_currency);
       await AppPrefs.setDisplayName(_nameController.text.trim());
+      // Fresh account -> show the feature tour once the shell appears.
+      FeatureTourScreen.pendingFromOnboarding = true;
       // The accounts stream flips non-empty -> app.dart shows the shell.
     } finally {
       if (mounted) setState(() => _finishing = false);

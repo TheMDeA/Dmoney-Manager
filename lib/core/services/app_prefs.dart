@@ -93,4 +93,10 @@ class AppPrefs {
   static Future<void> markBudgetLevelNotified(
           int budgetId, String month, int level) =>
       _p.setBool('budgetNotified_${budgetId}_${month}_$level', true);
+
+  /// Whether the feature tour has been shown (or skipped). Fresh installs
+  /// see it once right after onboarding; it stays replayable from Settings.
+  static bool get hasSeenTour => _p.getBool('hasSeenTour') ?? false;
+  static Future<void> setHasSeenTour(bool v) =>
+      _p.setBool('hasSeenTour', v);
 }

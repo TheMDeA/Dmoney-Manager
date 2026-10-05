@@ -14,6 +14,7 @@ import '../backup/backup_screen.dart';
 import '../export/export_screen.dart';
 import '../lock/pin_setup_screen.dart';
 import '../recurring/recurring_screen.dart';
+import '../tour/feature_tour_screen.dart';
 import 'currency_screen.dart';
 import 'notifications_screen.dart';
 import 'update_sheet.dart';
@@ -245,6 +246,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 : const Icon(Icons.chevron_right),
             onTap: _checkForUpdates,
           ),
+          _tile(context,
+              icon: Icons.explore_outlined,
+              title: 'Feature tour',
+              subtitle: 'See what Dmoney Manager can do',
+              onTap: () => FeatureTourScreen.show(context)),
           _tile(context,
               icon: Icons.info_outline,
               title: 'About',
