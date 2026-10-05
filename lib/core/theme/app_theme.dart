@@ -125,14 +125,18 @@ abstract final class AppTheme {
 
   static ThemeData light(Color accent) {
     final base = ThemeData(brightness: Brightness.light, useMaterial3: true);
+    // Bright accents wash out as text/icons on white — the light theme's
+    // primary roles use a darkened variant (M3-style). Solid fills that
+    // want the full-bright accent (FAB, selected segment) use it directly.
+    final primary = lightPrimary(accent);
     return base.copyWith(
       scaffoldBackgroundColor: AppColors.lightBg,
       colorScheme: ColorScheme.light(
-        primary: accent,
-        onPrimary: onAccent(accent),
+        primary: primary,
+        onPrimary: onAccent(primary),
         // Secondary follows the chosen accent too — see dark theme.
-        secondary: accent,
-        onSecondary: onAccent(accent),
+        secondary: primary,
+        onSecondary: onAccent(primary),
         secondaryContainer: accent,
         onSecondaryContainer: onAccent(accent),
         surface: AppColors.lightSurface,
