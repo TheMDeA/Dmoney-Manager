@@ -55,9 +55,14 @@ class FormSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: Column(
+    // Never cover the whole screen: cap the sheet at three-quarters
+    // of the display height.
+    final maxHeight = MediaQuery.of(context).size.height * 0.75;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -140,6 +145,7 @@ class FormSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }
