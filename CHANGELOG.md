@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Changed
+- Main tab headers redesigned: a bold title with a lime full stop, and a "Today" shortcut pill on the Calendar header.
+- Tapping the month label in the calendar now opens the month/year picker, like in the transaction history.
+
 ## [2.3.3] - 2026-10-05
 
 ### Fixed

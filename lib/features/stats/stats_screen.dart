@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ambient_glow.dart';
+import '../../core/widgets/screen_header.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -58,109 +59,122 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final prevEnd = monthStart.subtract(const Duration(seconds: 1));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Stats')),
       body: AmbientGlow(
-        child: StreamBuilder<List<CategoryTotal>>(
-          stream: db.watchCategoryExpenseTotals(
-            monthStart,
-            monthEnd,
-            accountId: accountId,
-          ),
-          builder: (context, donutSnap) {
-            if (!donutSnap.hasData) {
-              return const SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(16, 4, 16, 96),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonBox(width: 160, height: 20),
-                    SizedBox(height: 12),
-                    SkeletonBox(height: 110, radius: 20),
-                    SizedBox(height: 16),
-                    SkeletonBox(width: 120, height: 18),
-                    SizedBox(height: 12),
-                    SkeletonBox(height: 220, radius: 20),
-                  ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const ScreenHeader(title: 'Stats'),
+            Expanded(
+              child: StreamBuilder<List<CategoryTotal>>(
+                stream: db.watchCategoryExpenseTotals(
+                  monthStart,
+                  monthEnd,
+                  accountId: accountId,
                 ),
-              );
-            }
-            final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
-            return StreamBuilder<List<MonthlyTotal>>(
-              stream: db.watchMonthlyKindTotals(
-                sixMonthStart,
-                sixMonthEnd,
-                accountId: accountId,
-              ),
-              builder: (context, monthlySnap) {
-                final monthlyTotals =
-                    monthlySnap.data ?? const <MonthlyTotal>[];
-                return StreamBuilder<List<Category>>(
-                  stream: db.watchCategories(),
-                  builder: (context, catSnap) {
-                    final cats = {
-                      for (final c in (catSnap.data ?? const <Category>[]))
-                        c.id: c,
-                    };
-                    return StreamBuilder<List<CategoryTotal>>(
-                      stream: db.watchCategoryExpenseTotals(
-                        prevStart,
-                        prevEnd,
-                        accountId: accountId,
+                builder: (context, donutSnap) {
+                  if (!donutSnap.hasData) {
+                    return const SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(16, 4, 16, 96),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SkeletonBox(width: 160, height: 20),
+                          SizedBox(height: 12),
+                          SkeletonBox(height: 110, radius: 20),
+                          SizedBox(height: 16),
+                          SkeletonBox(width: 120, height: 18),
+                          SizedBox(height: 12),
+                          SkeletonBox(height: 220, radius: 20),
+                        ],
                       ),
-                      builder: (context, prevSnap) {
-                        final prevTotals =
-                            prevSnap.data ?? const <CategoryTotal>[];
-                        return SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _monthSelector(context),
-                              _overviewSection(
-                                context,
-                                db,
-                                monthStart,
-                                monthEnd,
-                                accountId,
-                              ),
-                              const SectionHeader(title: 'Insights'),
-                              _insightsCard(
-                                context,
-                                donutTotals,
-                                prevTotals,
-                                cats,
-                              ),
-                              SectionHeader(
-                                title: 'Spending by category',
-                                action: TextButton(
-                                  onPressed: () => StructureScreen.open(
-                                    context,
-                                    month: _month,
-                                  ),
-                                  child: const Text('Show more'),
-                                ),
-                              ),
-                              _donut(context, donutTotals, cats),
-                              const SectionHeader(title: 'Last 6 months'),
-                              _bars(context, monthlyTotals),
-                              SectionHeader(title: 'Net savings trend'),
-                              _trendLine(context, monthlyTotals),
-                              SectionHeader(
-                                title: 'Net worth',
-                                action: _netWorthRangeChips(),
-                              ),
-                              _netWorthCard(context, db, accountId),
-                              SizedBox(height: 8),
-                            ],
-                          ),
-                        );
-                      },
                     );
-                  },
-                );
-              },
-            );
-          },
+                  }
+                  final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
+                  return StreamBuilder<List<MonthlyTotal>>(
+                    stream: db.watchMonthlyKindTotals(
+                      sixMonthStart,
+                      sixMonthEnd,
+                      accountId: accountId,
+                    ),
+                    builder: (context, monthlySnap) {
+                      final monthlyTotals =
+                          monthlySnap.data ?? const <MonthlyTotal>[];
+                      return StreamBuilder<List<Category>>(
+                        stream: db.watchCategories(),
+                        builder: (context, catSnap) {
+                          final cats = {
+                            for (final c
+                                in (catSnap.data ?? const <Category>[]))
+                              c.id: c,
+                          };
+                          return StreamBuilder<List<CategoryTotal>>(
+                            stream: db.watchCategoryExpenseTotals(
+                              prevStart,
+                              prevEnd,
+                              accountId: accountId,
+                            ),
+                            builder: (context, prevSnap) {
+                              final prevTotals =
+                                  prevSnap.data ?? const <CategoryTotal>[];
+                              return SingleChildScrollView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  4,
+                                  16,
+                                  96,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _monthSelector(context),
+                                    _overviewSection(
+                                      context,
+                                      db,
+                                      monthStart,
+                                      monthEnd,
+                                      accountId,
+                                    ),
+                                    const SectionHeader(title: 'Insights'),
+                                    _insightsCard(
+                                      context,
+                                      donutTotals,
+                                      prevTotals,
+                                      cats,
+                                    ),
+                                    SectionHeader(
+                                      title: 'Spending by category',
+                                      action: TextButton(
+                                        onPressed: () => StructureScreen.open(
+                                          context,
+                                          month: _month,
+                                        ),
+                                        child: const Text('Show more'),
+                                      ),
+                                    ),
+                                    _donut(context, donutTotals, cats),
+                                    const SectionHeader(title: 'Last 6 months'),
+                                    _bars(context, monthlyTotals),
+                                    SectionHeader(title: 'Net savings trend'),
+                                    _trendLine(context, monthlyTotals),
+                                    SectionHeader(
+                                      title: 'Net worth',
+                                      action: _netWorthRangeChips(),
+                                    ),
+                                    _netWorthCard(context, db, accountId),
+                                    SizedBox(height: 8),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

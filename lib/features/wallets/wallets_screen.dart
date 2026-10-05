@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ambient_glow.dart';
+import '../../core/widgets/screen_header.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
@@ -30,127 +31,143 @@ class WalletsScreen extends ConsumerWidget {
     final selectedAccount = ref.watch(selectedAccountProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Wallets'),
-        actions: [
-          IconButton(
-            tooltip: 'Add wallet',
-            onPressed: () => _addWalletDialog(context, ref),
-            icon: const Icon(Icons.add),
-          ),
-        ],
-      ),
       body: AmbientGlow(
-        child: StreamBuilder<List<Account>>(
-          stream: db.watchAccounts(),
-          builder: (context, accSnap) {
-            final accounts = accSnap.data ?? const <Account>[];
-            return StreamBuilder<List<Wallet>>(
-              stream: db.watchWallets(accountId: selectedAccount),
-              builder: (context, walSnap) {
-                final wallets = walSnap.data ?? const <Wallet>[];
-                final total = wallets.fold<int>(0, (s, w) => s + w.balance);
-                return StreamBuilder<List<TransactionWithDetails>>(
-                  stream: db.watchTransactions(limit: 60),
-                  builder: (context, txSnap) {
-                    final recent =
-                        txSnap.data ?? const <TransactionWithDetails>[];
-                    final lastByWallet = <int, TransactionWithDetails>{};
-                    for (final d in recent) {
-                      lastByWallet.putIfAbsent(d.transaction.walletId, () => d);
-                    }
-                    return RefreshIndicator(
-                      onRefresh: () async {
-                        Haptics.light();
-                        await Future.delayed(const Duration(milliseconds: 450));
-                      },
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                        children: [
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ScreenHeader(
+              title: 'Wallets',
+              action: IconButton(
+                tooltip: 'Add wallet',
+                onPressed: () => _addWalletDialog(context, ref),
+                icon: const Icon(Icons.add),
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<List<Account>>(
+                stream: db.watchAccounts(),
+                builder: (context, accSnap) {
+                  final accounts = accSnap.data ?? const <Account>[];
+                  return StreamBuilder<List<Wallet>>(
+                    stream: db.watchWallets(accountId: selectedAccount),
+                    builder: (context, walSnap) {
+                      final wallets = walSnap.data ?? const <Wallet>[];
+                      final total = wallets.fold<int>(
+                        0,
+                        (s, w) => s + w.balance,
+                      );
+                      return StreamBuilder<List<TransactionWithDetails>>(
+                        stream: db.watchTransactions(limit: 60),
+                        builder: (context, txSnap) {
+                          final recent =
+                              txSnap.data ?? const <TransactionWithDetails>[];
+                          final lastByWallet = <int, TransactionWithDetails>{};
+                          for (final d in recent) {
+                            lastByWallet.putIfAbsent(
+                              d.transaction.walletId,
+                              () => d,
+                            );
+                          }
+                          return RefreshIndicator(
+                            onRefresh: () async {
+                              Haptics.light();
+                              await Future.delayed(
+                                const Duration(milliseconds: 450),
+                              );
+                            },
+                            child: ListView(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                               children: [
-                                _accountChip(
-                                  context,
-                                  ref,
-                                  null,
-                                  'All',
-                                  selectedAccount == null,
-                                ),
-                                for (final a in accounts)
-                                  _accountChip(
-                                    context,
-                                    ref,
-                                    a.id,
-                                    a.name,
-                                    selectedAccount == a.id,
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      _accountChip(
+                                        context,
+                                        ref,
+                                        null,
+                                        'All',
+                                        selectedAccount == null,
+                                      ),
+                                      for (final a in accounts)
+                                        _accountChip(
+                                          context,
+                                          ref,
+                                          a.id,
+                                          a.name,
+                                          selectedAccount == a.id,
+                                        ),
+                                    ],
                                   ),
+                                ),
+                                const SizedBox(height: 12),
+                                GlassCard(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Combined balance',
+                                        style: TextStyle(
+                                          color: context.textMuted,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      CountUpMoney(
+                                        amount: total,
+                                        style: AppTextStyles.displayBalance
+                                            .copyWith(
+                                              fontSize: 32,
+                                              color: context.textPrimary,
+                                            ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        '${wallets.length} wallets',
+                                        style: TextStyle(
+                                          color: context.textMuted,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                if (wallets.isEmpty)
+                                  EmptyState(
+                                    icon: Icons.wallet_outlined,
+                                    title: 'No wallets',
+                                    message:
+                                        'Add your first wallet to start tracking money.',
+                                    actionLabel: 'Add wallet',
+                                    onAction: () =>
+                                        _addWalletDialog(context, ref),
+                                  )
+                                else
+                                  for (var i = 0; i < wallets.length; i++)
+                                    Entrance(
+                                      key: ValueKey(wallets[i].id),
+                                      delay: Duration(
+                                        milliseconds: (i * 60).clamp(0, 300),
+                                      ),
+                                      child: _walletCard(
+                                        context,
+                                        wallets[i],
+                                        lastByWallet[wallets[i].id],
+                                      ),
+                                    ),
                               ],
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          GlassCard(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Combined balance',
-                                  style: TextStyle(
-                                    color: context.textMuted,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                CountUpMoney(
-                                  amount: total,
-                                  style: AppTextStyles.displayBalance.copyWith(
-                                    fontSize: 32,
-                                    color: context.textPrimary,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  '${wallets.length} wallets',
-                                  style: TextStyle(
-                                    color: context.textMuted,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          if (wallets.isEmpty)
-                            EmptyState(
-                              icon: Icons.wallet_outlined,
-                              title: 'No wallets',
-                              message:
-                                  'Add your first wallet to start tracking money.',
-                              actionLabel: 'Add wallet',
-                              onAction: () => _addWalletDialog(context, ref),
-                            )
-                          else
-                            for (var i = 0; i < wallets.length; i++)
-                              Entrance(
-                                key: ValueKey(wallets[i].id),
-                                delay: Duration(
-                                  milliseconds: (i * 60).clamp(0, 300),
-                                ),
-                                child: _walletCard(
-                                  context,
-                                  wallets[i],
-                                  lastByWallet[wallets[i].id],
-                                ),
-                              ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            );
-          },
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

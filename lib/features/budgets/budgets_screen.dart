@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ambient_glow.dart';
+import '../../core/widgets/screen_header.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
@@ -36,157 +37,171 @@ class BudgetsScreen extends ConsumerWidget {
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Budgets')),
       body: AmbientGlow(
-        child: StreamBuilder<List<Budget>>(
-          stream: db.watchBudgets(mk),
-          builder: (context, bSnap) {
-            final budgets = bSnap.data ?? const <Budget>[];
-            final monthStart = DateTime(now.year, now.month);
-            final monthEnd = DateTime(
-              now.year,
-              now.month + 1,
-            ).subtract(const Duration(seconds: 1));
-            return StreamBuilder<List<CategoryTotal>>(
-              stream: db.watchCategoryExpenseTotals(
-                monthStart,
-                monthEnd,
-                accountId: accountId,
-              ),
-              builder: (context, totalsSnap) {
-                final spentByCat = {
-                  for (final t in (totalsSnap.data ?? const <CategoryTotal>[]))
-                    t.categoryId: t.total,
-                };
-                return StreamBuilder<List<Category>>(
-                  stream: db.watchCategories(),
-                  builder: (context, catSnap) {
-                    final cats = {
-                      for (final c in (catSnap.data ?? const <Category>[]))
-                        c.id: c,
-                    };
-                    final overBudget = budgets.where(
-                      (b) => (spentByCat[b.categoryId] ?? 0) >= b.limit,
-                    );
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const ScreenHeader(title: 'Budgets'),
+            Expanded(
+              child: StreamBuilder<List<Budget>>(
+                stream: db.watchBudgets(mk),
+                builder: (context, bSnap) {
+                  final budgets = bSnap.data ?? const <Budget>[];
+                  final monthStart = DateTime(now.year, now.month);
+                  final monthEnd = DateTime(
+                    now.year,
+                    now.month + 1,
+                  ).subtract(const Duration(seconds: 1));
+                  return StreamBuilder<List<CategoryTotal>>(
+                    stream: db.watchCategoryExpenseTotals(
+                      monthStart,
+                      monthEnd,
+                      accountId: accountId,
+                    ),
+                    builder: (context, totalsSnap) {
+                      final spentByCat = {
+                        for (final t
+                            in (totalsSnap.data ?? const <CategoryTotal>[]))
+                          t.categoryId: t.total,
+                      };
+                      return StreamBuilder<List<Category>>(
+                        stream: db.watchCategories(),
+                        builder: (context, catSnap) {
+                          final cats = {
+                            for (final c
+                                in (catSnap.data ?? const <Category>[]))
+                              c.id: c,
+                          };
+                          final overBudget = budgets.where(
+                            (b) => (spentByCat[b.categoryId] ?? 0) >= b.limit,
+                          );
 
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          GlassCard(
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Month progress',
-                                  style: Theme.of(context).textTheme.titleSmall,
-                                ),
-                                const SizedBox(height: 8),
-                                AnimatedProgressBar(
-                                  value: now.day / daysInMonth,
-                                  backgroundColor: context.hairline,
-                                  color: context.accent,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${now.day} of $daysInMonth days',
-                                  style: TextStyle(
-                                    color: context.textMuted,
-                                    fontSize: 12,
+                                GlassCard(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Month progress',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleSmall,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      AnimatedProgressBar(
+                                        value: now.day / daysInMonth,
+                                        backgroundColor: context.hairline,
+                                        color: context.accent,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        '${now.day} of $daysInMonth days',
+                                        style: TextStyle(
+                                          color: context.textMuted,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                          if (overBudget.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.expense.withValues(
-                                    alpha: 0.12,
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: AppColors.expense.withValues(
-                                      alpha: 0.35,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.warning_amber_rounded,
-                                      color: AppColors.expense,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        '${overBudget.map((b) => cats[b.categoryId]?.name ?? 'Budget').join(', ')} ${overBudget.length == 1 ? 'has' : 'have'} reached the limit.',
-                                        style: const TextStyle(fontSize: 13),
+                                if (overBudget.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.expense.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: AppColors.expense.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.warning_amber_rounded,
+                                            color: AppColors.expense,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              '${overBudget.map((b) => cats[b.categoryId]?.name ?? 'Budget').join(', ')} ${overBudget.length == 1 ? 'has' : 'have'} reached the limit.',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
+                                  ),
+                                SectionHeader(
+                                  title: 'Budgets',
+                                  action: TextButton(
+                                    onPressed: () =>
+                                        _addBudgetDialog(context, ref, mk),
+                                    child: const Text('Add'),
+                                  ),
                                 ),
-                              ),
+                                if (budgets.isEmpty)
+                                  EmptyState(
+                                    icon: Icons.savings_outlined,
+                                    title: 'No budgets',
+                                    message:
+                                        'Set monthly limits per category to control spending.',
+                                    actionLabel: 'Add budget',
+                                    onAction: () =>
+                                        _addBudgetDialog(context, ref, mk),
+                                  )
+                                else
+                                  for (var i = 0; i < budgets.length; i++)
+                                    Entrance(
+                                      key: ValueKey(budgets[i].id),
+                                      delay: Duration(
+                                        milliseconds: (i * 60).clamp(0, 300),
+                                      ),
+                                      child: _budgetRow(
+                                        context,
+                                        budgets[i],
+                                        cats[budgets[i].categoryId],
+                                        spentByCat[budgets[i].categoryId] ?? 0,
+                                        mk,
+                                      ),
+                                    ),
+                                const SectionHeader(title: 'Savings goals'),
+                                _goalsSection(context, ref),
+                                SectionHeader(
+                                  title: 'Debts',
+                                  action: TextButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      AppPageRoute(
+                                        builder: (_) => const DebtsScreen(),
+                                      ),
+                                    ),
+                                    child: const Text('View all'),
+                                  ),
+                                ),
+                                _debtsPreview(context, ref),
+                              ],
                             ),
-                          SectionHeader(
-                            title: 'Budgets',
-                            action: TextButton(
-                              onPressed: () =>
-                                  _addBudgetDialog(context, ref, mk),
-                              child: const Text('Add'),
-                            ),
-                          ),
-                          if (budgets.isEmpty)
-                            EmptyState(
-                              icon: Icons.savings_outlined,
-                              title: 'No budgets',
-                              message:
-                                  'Set monthly limits per category to control spending.',
-                              actionLabel: 'Add budget',
-                              onAction: () =>
-                                  _addBudgetDialog(context, ref, mk),
-                            )
-                          else
-                            for (var i = 0; i < budgets.length; i++)
-                              Entrance(
-                                key: ValueKey(budgets[i].id),
-                                delay: Duration(
-                                  milliseconds: (i * 60).clamp(0, 300),
-                                ),
-                                child: _budgetRow(
-                                  context,
-                                  budgets[i],
-                                  cats[budgets[i].categoryId],
-                                  spentByCat[budgets[i].categoryId] ?? 0,
-                                  mk,
-                                ),
-                              ),
-                          const SectionHeader(title: 'Savings goals'),
-                          _goalsSection(context, ref),
-                          SectionHeader(
-                            title: 'Debts',
-                            action: TextButton(
-                              onPressed: () => Navigator.of(context).push(
-                                AppPageRoute(
-                                  builder: (_) => const DebtsScreen(),
-                                ),
-                              ),
-                              child: const Text('View all'),
-                            ),
-                          ),
-                          _debtsPreview(context, ref),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            );
-          },
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

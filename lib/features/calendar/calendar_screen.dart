@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ambient_glow.dart';
+import '../../core/widgets/screen_header.dart';
+import '../transactions/widgets/month_selector.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
@@ -41,6 +43,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     _month = DateTime(_month.year, _month.month + delta);
   });
 
+  void _goToToday() {
+    final now = DateTime.now();
+    final current = DateTime(now.year, now.month);
+    if (current == _month) return;
+    setState(() {
+      _slideDir = current.isAfter(_month) ? 1 : -1;
+      _month = current;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
@@ -55,87 +67,108 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final todayKey = DateTime(today.year, today.month, today.day);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calendar')),
       body: AmbientGlow(
-        child: StreamBuilder<List<TransactionWithDetails>>(
-          stream: db.watchTransactionsInRange(
-            gridStart,
-            gridEnd,
-            accountId: accountId,
-          ),
-          builder: (context, snap) {
-            final items = snap.data ?? const <TransactionWithDetails>[];
-            final totals = <DateTime, _DayTotal>{};
-            for (final d in items) {
-              final t = d.transaction;
-              final key = DateTime(t.date.year, t.date.month, t.date.day);
-              final day = totals.putIfAbsent(key, _DayTotal.new);
-              day.items.add(d);
-              if (t.kind == 'income') {
-                day.income += t.amount;
-              } else if (t.kind == 'expense') {
-                day.expense += t.amount;
-              }
-            }
-            var monthIncome = 0;
-            var monthExpense = 0;
-            for (final d in items) {
-              final t = d.transaction;
-              if (t.date.year != _month.year || t.date.month != _month.month) {
-                continue;
-              }
-              if (t.kind == 'income') {
-                monthIncome += t.amount;
-              } else if (t.kind == 'expense') {
-                monthExpense += t.amount;
-              }
-            }
-            return Column(
-              children: [
-                _monthSelector(),
-                _summary(monthIncome, monthExpense),
-                _weekdayHeader(),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: AppMotion.normal,
-                    layoutBuilder: (currentChild, previousChildren) =>
-                        Stack(children: [...previousChildren, ?currentChild]),
-                    transitionBuilder: (child, animation) {
-                      // Direction-aware slide: the incoming month enters
-                      // from the tapped side, the outgoing exits opposite.
-                      final monthKey = (child.key! as ValueKey<DateTime>).value;
-                      final incoming = monthKey == _month;
-                      final begin = incoming
-                          ? Offset(0.3 * _slideDir, 0)
-                          : Offset(-0.3 * _slideDir, 0);
-                      final position =
-                          Tween<Offset>(begin: begin, end: Offset.zero).animate(
-                            CurvedAnimation(
-                              parent: animation,
-                              curve: incoming
-                                  ? AppMotion.enter
-                                  : AppMotion.exit,
-                            ),
-                          );
-                      return ClipRect(
-                        child: FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: position,
-                            child: child,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ScreenHeader(
+              title: 'Calendar',
+              action: HeaderPillButton(label: 'Today', onTap: _goToToday),
+            ),
+            Expanded(
+              child: StreamBuilder<List<TransactionWithDetails>>(
+                stream: db.watchTransactionsInRange(
+                  gridStart,
+                  gridEnd,
+                  accountId: accountId,
+                ),
+                builder: (context, snap) {
+                  final items = snap.data ?? const <TransactionWithDetails>[];
+                  final totals = <DateTime, _DayTotal>{};
+                  for (final d in items) {
+                    final t = d.transaction;
+                    final key = DateTime(t.date.year, t.date.month, t.date.day);
+                    final day = totals.putIfAbsent(key, _DayTotal.new);
+                    day.items.add(d);
+                    if (t.kind == 'income') {
+                      day.income += t.amount;
+                    } else if (t.kind == 'expense') {
+                      day.expense += t.amount;
+                    }
+                  }
+                  var monthIncome = 0;
+                  var monthExpense = 0;
+                  for (final d in items) {
+                    final t = d.transaction;
+                    if (t.date.year != _month.year ||
+                        t.date.month != _month.month) {
+                      continue;
+                    }
+                    if (t.kind == 'income') {
+                      monthIncome += t.amount;
+                    } else if (t.kind == 'expense') {
+                      monthExpense += t.amount;
+                    }
+                  }
+                  return Column(
+                    children: [
+                      MonthSelector(
+                  month: _month,
+                  onShift: _shift,
+                  onPick: _pickMonth,
+                ),
+                      _summary(monthIncome, monthExpense),
+                      _weekdayHeader(),
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: AppMotion.normal,
+                          layoutBuilder: (currentChild, previousChildren) =>
+                              Stack(
+                                children: [...previousChildren, ?currentChild],
+                              ),
+                          transitionBuilder: (child, animation) {
+                            // Direction-aware slide: the incoming month enters
+                            // from the tapped side, the outgoing exits opposite.
+                            final monthKey =
+                                (child.key! as ValueKey<DateTime>).value;
+                            final incoming = monthKey == _month;
+                            final begin = incoming
+                                ? Offset(0.3 * _slideDir, 0)
+                                : Offset(-0.3 * _slideDir, 0);
+                            final position =
+                                Tween<Offset>(
+                                  begin: begin,
+                                  end: Offset.zero,
+                                ).animate(
+                                  CurvedAnimation(
+                                    parent: animation,
+                                    curve: incoming
+                                        ? AppMotion.enter
+                                        : AppMotion.exit,
+                                  ),
+                                );
+                            return ClipRect(
+                              child: FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: position,
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                          child: KeyedSubtree(
+                            key: ValueKey(_month),
+                            child: _grid(gridStart, totals, todayKey),
                           ),
                         ),
-                      );
-                    },
-                    child: KeyedSubtree(
-                      key: ValueKey(_month),
-                      child: _grid(gridStart, totals, todayKey),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -143,24 +176,15 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   // -------------------------------- header --------------------------------
 
-  Widget _monthSelector() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: () => _shift(-1),
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text(
-          DateFormat('MMM yyyy').format(_month),
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-        ),
-        IconButton(
-          onPressed: () => _shift(1),
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
-    );
+  Future<void> _pickMonth() async {
+    final picked = await showMonthYearPicker(context, _month);
+    if (picked == null || !mounted) return;
+    final target = DateTime(picked.year, picked.month);
+    if (target == _month) return;
+    setState(() {
+      _slideDir = target.isAfter(_month) ? 1 : -1;
+      _month = target;
+    });
   }
 
   Widget _summary(int income, int expense) {
