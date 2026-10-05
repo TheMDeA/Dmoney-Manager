@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network access for the in-app update check. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Camera for the "Scan receipt" quick action. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Gallery photo picking on older Android versions. API 33+ uses the
