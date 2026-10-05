@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/month_scrubber.dart';
 import '../../core/widgets/skeleton.dart';
@@ -50,12 +51,18 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           IconButton(
             tooltip: 'Edit wallet',
             icon: const Icon(Icons.edit_outlined),
-            onPressed: () => _editWallet(context, db),
+            onPressed: () {
+              Haptics.select();
+              _editWallet(context, db);
+            },
           ),
           IconButton(
             tooltip: 'Delete wallet',
             icon: const Icon(Icons.delete_outline),
-            onPressed: () => _confirmDelete(context, db),
+            onPressed: () {
+              Haptics.select();
+              _confirmDelete(context, db);
+            },
           ),
         ],
       ),
@@ -153,7 +160,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           const SizedBox(height: 12),
           InkWell(
             borderRadius: BorderRadius.circular(12),
-            onTap: () => _switchWallet(context, allWallets),
+            onTap: () {
+              Haptics.select();
+              _switchWallet(context, allWallets);
+            },
             child: Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -187,7 +197,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () => AdjustBalanceDialog.show(context, wallet),
+              onPressed: () {
+                Haptics.select();
+                AdjustBalanceDialog.show(context, wallet);
+              },
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brandBlue,
                 foregroundColor: Colors.white,
@@ -231,7 +244,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                 ),
               ),
               TextButton(
-                onPressed: () => _openTransactions(context, wallet, null),
+                onPressed: () {
+                  Haptics.select();
+                  _openTransactions(context, wallet, null);
+                },
                 child: Text('View all'),
               ),
             ],
@@ -286,18 +302,21 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     final total = _groupTotal(ds);
     final isIncome = d.transaction.kind == 'income';
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        AppPageRoute(
-          builder: (_) => WalletCategoryScreen(
+      onTap: () {
+        Haptics.select();
+        Navigator.push(
+          context,
+          AppPageRoute(
+            builder: (_) => WalletCategoryScreen(
             walletId: d.transaction.walletId,
             categoryId: d.transaction.categoryId,
             categoryName: d.category.name,
             iconKey: d.category.iconKey,
             colorHex: d.category.colorHex,
           ),
-        ),
-      ),
+          ),
+        );
+      },
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -391,7 +410,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                 trailing: Text(formatMoney(w.balance),
                     style: AppTextStyles.amount(size: 14)),
                 selected: w.id == _walletId,
-                onTap: () => Navigator.pop(context, w.id),
+                onTap: () {
+                  Haptics.select();
+                  Navigator.pop(context, w.id);
+                },
               ),
             const SizedBox(height: 8),
           ],
@@ -421,7 +443,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
             child: const Text('Delete'),

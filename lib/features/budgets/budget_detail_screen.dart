@@ -12,6 +12,7 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import '../../core/utils/haptics.dart';
 import '../transactions/transaction_detail_screen.dart';
 import 'budget_form_sheet.dart';
 
@@ -42,12 +43,18 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           IconButton(
             tooltip: 'Edit limit',
             icon: const Icon(Icons.edit_outlined),
-            onPressed: () => _editLimit(context, db),
+            onPressed: () {
+              Haptics.select();
+              _editLimit(context, db);
+            },
           ),
           IconButton(
             tooltip: 'Delete budget',
             icon: const Icon(Icons.delete_outline),
-            onPressed: () => _confirmDelete(context, db),
+            onPressed: () {
+              Haptics.select();
+              _confirmDelete(context, db);
+            },
           ),
         ],
       ),
@@ -512,7 +519,10 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
             child: const Text('Delete'),

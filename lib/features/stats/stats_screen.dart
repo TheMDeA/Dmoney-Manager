@@ -144,10 +144,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                     SectionHeader(
                                       title: 'Spending by category',
                                       action: TextButton(
-                                        onPressed: () => StructureScreen.open(
-                                          context,
-                                          month: _month,
-                                        ),
+                                        onPressed: () {
+                                          Haptics.select();
+                                          StructureScreen.open(
+                                            context,
+                                            month: _month,
+                                          );
+                                        },
                                         child: const Text('Show more'),
                                       ),
                                     ),
@@ -203,7 +206,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          onPressed: () => shift(-1),
+          onPressed: () {
+            Haptics.select();
+            shift(-1);
+          },
           icon: const Icon(Icons.chevron_left),
         ),
         Text(
@@ -211,7 +217,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         IconButton(
-          onPressed: () => shift(1),
+          onPressed: () {
+            Haptics.select();
+            shift(1);
+          },
           icon: const Icon(Icons.chevron_right),
         ),
       ],
@@ -760,9 +769,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               amount: slices[i].amount,
               total: total,
               selected: _touchedDonutIndex == i,
-              onTap: () => setState(() {
-                _touchedDonutIndex = _touchedDonutIndex == i ? -1 : i;
-              }),
+              onTap: () {
+                Haptics.select();
+                setState(() {
+                  _touchedDonutIndex = _touchedDonutIndex == i ? -1 : i;
+                });
+              },
             ),
         ],
       ),

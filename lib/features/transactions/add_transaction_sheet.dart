@@ -277,6 +277,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     date: _date,
                     placeholder: 'Pick a date',
                     onTap: () async {
+                      Haptics.select();
                       final picked = await showDatePicker(
                         context: context,
                         initialDate: _date,
@@ -296,6 +297,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     text:
                         '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
                     onTap: () async {
+                      Haptics.select();
                       final picked = await showTimePicker(
                         context: context,
                         initialTime: _time,
@@ -382,7 +384,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               IconButton(
                 tooltip: 'Remove photo',
                 icon: const Icon(Icons.close),
-                onPressed: () => setState(() => _photoPath = null),
+                onPressed: () {
+                  Haptics.light();
+                  setState(() => _photoPath = null);
+                },
               ),
             ],
           ),
@@ -391,6 +396,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _pickPhoto() async {
+    Haptics.select();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (context) => SafeArea(
@@ -400,12 +406,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
               title: const Text('Take photo'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
+              onTap: () {
+                Haptics.select();
+                Navigator.pop(context, ImageSource.camera);
+              },
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('Choose from gallery'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
+              onTap: () {
+                Haptics.select();
+                Navigator.pop(context, ImageSource.gallery);
+              },
             ),
             const SizedBox(height: 8),
           ],
@@ -436,6 +448,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   void _previewPhoto() {
     final path = _photoPath;
     if (path == null) return;
+    Haptics.select();
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -525,6 +538,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _snack('Fill in amount, category and wallet first');
       return;
     }
+    Haptics.medium();
     final nameCtrl = TextEditingController(
         text: _descCtrl.text.trim().isEmpty
             ? formatMoney(amount)
@@ -619,6 +633,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         walletError != null) {
       return;
     }
+    Haptics.medium();
     setState(() => _saving = true);
     final db = ref.read(databaseProvider);
     try {
