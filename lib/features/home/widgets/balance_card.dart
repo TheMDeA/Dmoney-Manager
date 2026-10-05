@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
@@ -18,7 +19,11 @@ import '../../stats/structure_screen.dart';
 /// tapping a column drills into the Stats structure screen on the matching
 /// tab, like the old standalone sparkline cards did.
 class BalanceCard extends ConsumerWidget {
-  const BalanceCard({super.key, required this.balanceHidden, required this.onToggleHidden});
+  const BalanceCard({
+    super.key,
+    required this.balanceHidden,
+    required this.onToggleHidden,
+  });
 
   final bool balanceHidden;
   final VoidCallback onToggleHidden;
@@ -32,6 +37,7 @@ class BalanceCard extends ConsumerWidget {
     final drillMonth = DateTime(now.year, now.month);
 
     return GlassCard(
+      glowColor: context.accent,
       child: StreamBuilder<List<Wallet>>(
         stream: db.watchWallets(accountId: accountId),
         builder: (context, walletsSnap) {
@@ -50,20 +56,20 @@ class BalanceCard extends ConsumerWidget {
 
               return StreamBuilder<List<HourlyTotal>>(
                 stream: range == 'day'
-                    ? db.watchHourlyKindTotals(from, to,
-                        accountId: accountId)
+                    ? db.watchHourlyKindTotals(from, to, accountId: accountId)
                     : const Stream.empty(),
                 builder: (context, hourlySnap) {
-                  final hourly =
-                      hourlySnap.data ?? const <HourlyTotal>[];
+                  final hourly = hourlySnap.data ?? const <HourlyTotal>[];
                   return StreamBuilder<List<DailyTotal>>(
                     stream: range == 'day'
                         ? const Stream.empty()
-                        : db.watchDailyKindTotals(from, to,
-                            accountId: accountId),
+                        : db.watchDailyKindTotals(
+                            from,
+                            to,
+                            accountId: accountId,
+                          ),
                     builder: (context, dailySnap) {
-                      final daily =
-                          dailySnap.data ?? const <DailyTotal>[];
+                      final daily = dailySnap.data ?? const <DailyTotal>[];
                       List<double> buckets(String kind) =>
                           _buckets(kind, range, hourly, daily, from, to);
 
@@ -71,15 +77,13 @@ class BalanceCard extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Total balance',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                          color: context.textMuted)),
+                              Text(
+                                'Total balance',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: context.textMuted),
+                              ),
                               IconButton(
                                 onPressed: onToggleHidden,
                                 icon: Icon(
@@ -98,16 +102,15 @@ class BalanceCard extends ConsumerWidget {
                           InkWell(
                             onTap: () {
                               Haptics.select();
-                              ref
-                                  .read(tabIndexProvider.notifier)
-                                  .go(3);
+                              ref.read(tabIndexProvider.notifier).go(3);
                             },
                             borderRadius: BorderRadius.circular(12),
                             child: CountUpBalance(
                               amount: total,
                               hidden: balanceHidden,
-                              style: AppTextStyles.displayBalance
-                                  .copyWith(color: context.textPrimary),
+                              style: AppTextStyles.displayBalance.copyWith(
+                                color: context.textPrimary,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -128,9 +131,10 @@ class BalanceCard extends ConsumerWidget {
                                 ),
                               ),
                               Container(
-                                  width: 1,
-                                  height: 48,
-                                  color: context.hairline),
+                                width: 1,
+                                height: 48,
+                                color: context.hairline,
+                              ),
                               Expanded(
                                 child: _flowCell(
                                   context,
@@ -188,16 +192,18 @@ class BalanceCard extends ConsumerWidget {
                   Row(
                     children: [
                       Icon(
-                        isIncome
-                            ? Icons.arrow_downward
-                            : Icons.arrow_upward,
+                        isIncome ? Icons.arrow_downward : Icons.arrow_upward,
                         size: 14,
                         color: color,
                       ),
                       const SizedBox(width: 4),
-                      Text(label,
-                          style: TextStyle(
-                              color: context.textMuted, fontSize: 12)),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -211,8 +217,9 @@ class BalanceCard extends ConsumerWidget {
                       formatSignedMoney(amount, isIncome: isIncome),
                       maxLines: 1,
                       softWrap: false,
-                      style: AppTextStyles.amount(size: 16)
-                          .copyWith(color: color),
+                      style: AppTextStyles.amount(
+                        size: 16,
+                      ).copyWith(color: color),
                     ),
                   ),
                 ],
@@ -256,10 +263,12 @@ class BalanceCard extends ConsumerWidget {
     return [
       for (final d in days)
         daily
-            .where((t) =>
-                t.day ==
-                    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}' &&
-                t.kind == kind)
+            .where(
+              (t) =>
+                  t.day ==
+                      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}' &&
+                  t.kind == kind,
+            )
             .fold<double>(0, (s, t) => s + t.total),
     ];
   }

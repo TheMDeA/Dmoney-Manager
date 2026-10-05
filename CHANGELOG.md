@@ -1,7 +1,10 @@
 ## [Unreleased]
 
 ### Fixed
-- Validation messages in the add, transfer, wallet, budget, and savings goal sheets now appear inside the sheet itself — they used to render behind it and only became visible after closing the sheet.
+- Bottom nav icons now track the page continuously while swiping or switching tabs, instead of popping with a delayed bounce after the page settled.
+
+### Changed
+- Home screen polish: a soft accent glow behind the content and on the balance card, calmer sparklines that stay readable when one day spikes, and the insight card now follows your theme color.
 
 ## [2.3.2] - 2026-10-05
 

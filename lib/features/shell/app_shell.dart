@@ -39,11 +39,17 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   late final PageController _pageController;
 
+  /// Continuous page position, driving the nav icon animations so they
+  /// track the page (tap or swipe) instead of popping after it settles.
+  double _page = 0;
+
   @override
   void initState() {
     super.initState();
     _pageController =
         PageController(initialPage: ref.read(tabIndexProvider));
+    _page = _pageController.initialPage.toDouble();
+    _pageController.addListener(_onPageScroll);
     // Fresh installs land here right after onboarding -> show the tour once.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (FeatureTourScreen.pendingFromOnboarding) {
@@ -53,8 +59,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
   }
 
+  void _onPageScroll() {
+    final p = _pageController.page;
+    if (p != null && (p - _page).abs() > 0.0001) {
+      setState(() => _page = p);
+    }
+  }
+
   @override
   void dispose() {
+    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     super.dispose();
   }
@@ -144,10 +158,14 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Widget _navItem(int index, IconData icon, IconData activeIcon, String label) {
-    final active = ref.watch(tabIndexProvider) == index;
-    final color = active
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
+    // 1 when this tab is the current page, fading to 0 one page away.
+    final t = (1 - (_page - index).abs()).clamp(0.0, 1.0);
+    final scheme = Theme.of(context).colorScheme;
+    final color = Color.lerp(
+      scheme.onSurface.withValues(alpha: 0.5),
+      scheme.primary,
+      t,
+    )!;
     return Expanded(
       child: InkWell(
         onTap: () {
@@ -159,21 +177,35 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedScale(
-                scale: active ? 1.18 : 1.0,
-                duration: AppMotion.fast,
-                curve: Curves.easeOutBack,
-                child: Icon(active ? activeIcon : icon, color: color, size: 24),
+              Transform.scale(
+                scale: 1 + 0.15 * t,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Stack(
+                    children: [
+                      Opacity(
+                        opacity: 1 - t,
+                        child: Icon(icon, color: color, size: 24),
+                      ),
+                      Opacity(
+                        opacity: t,
+                        child:
+                            Icon(activeIcon, color: color, size: 24),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 2),
-              AnimatedDefaultTextStyle(
-                duration: AppMotion.fast,
+              Text(
+                label,
                 style: TextStyle(
                   fontSize: 11,
                   color: color,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                  fontWeight:
+                      t >= 0.5 ? FontWeight.w700 : FontWeight.w400,
                 ),
-                child: Text(label),
               ),
             ],
           ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/utils/formatters.dart';
@@ -58,10 +59,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
           padding: const EdgeInsets.only(bottom: 16),
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.violet.withValues(alpha: 0.10),
+              color: context.accent.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(20),
-              border:
-                  Border.all(color: AppColors.violet.withValues(alpha: 0.25)),
+              border: Border.all(color: context.accent.withValues(alpha: 0.25)),
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
@@ -73,8 +73,11 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.auto_awesome_outlined,
-                            size: 18, color: AppColors.violet),
+                        Icon(
+                          Icons.auto_awesome_outlined,
+                          size: 18,
+                          color: context.accent,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: AnimatedSwitcher(
@@ -83,24 +86,26 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                             switchOutCurve: AppMotion.exit,
                             transitionBuilder: (child, animation) =>
                                 FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position: animation.drive(
-                                  Tween(
-                                          begin: const Offset(0, 0.35),
-                                          end: Offset.zero)
-                                      .chain(CurveTween(
-                                          curve: AppMotion.enter)),
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: animation.drive(
+                                      Tween(
+                                        begin: const Offset(0, 0.35),
+                                        end: Offset.zero,
+                                      ).chain(
+                                        CurveTween(curve: AppMotion.enter),
+                                      ),
+                                    ),
+                                    child: child,
+                                  ),
                                 ),
-                                child: child,
-                              ),
-                            ),
                             child: Text(
                               insight.$1,
                               key: ValueKey(insight.$1),
                               style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ),
@@ -119,9 +124,10 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                           insight.$2,
                           key: ValueKey(insight.$2),
                           style: TextStyle(
-                              fontSize: 13,
-                              color: context.textMuted,
-                              height: 1.5),
+                            fontSize: 13,
+                            color: context.textMuted,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ],
@@ -133,16 +139,14 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
                           for (var i = 0; i < insights.length; i++)
                             AnimatedContainer(
                               duration: AppMotion.fast,
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 3),
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
                               width: i == _index % insights.length ? 16 : 6,
                               height: 6,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(3),
                                 color: i == _index % insights.length
-                                    ? AppColors.violet
-                                    : AppColors.violet
-                                        .withValues(alpha: 0.3),
+                                    ? context.accent
+                                    : context.accent.withValues(alpha: 0.3),
                               ),
                             ),
                         ],
@@ -192,8 +196,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     double topRise = 0;
     for (final e in thisWeek.entries) {
       final prev = lastWeek[e.key] ?? 0;
-      final rise =
-          prev == 0 ? (e.value > 0 ? 1.0 : 0.0) : (e.value - prev) / prev;
+      final rise = prev == 0
+          ? (e.value > 0 ? 1.0 : 0.0)
+          : (e.value - prev) / prev;
       if (rise > topRise && e.value >= 50000) {
         topRise = rise;
         topCatId = e.key;
@@ -202,9 +207,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     if (topCatId != null) {
       final topCat = names[topCatId] ?? 'Unknown';
       final pct = (topRise * 100).toStringAsFixed(0);
-      final spent = formatMoney(thisWeek.entries
-          .firstWhere((e) => names[e.key] == topCat)
-          .value);
+      final spent = formatMoney(
+        thisWeek.entries.firstWhere((e) => names[e.key] == topCat).value,
+      );
       // Debt repayments aren't "spending" — phrase them correctly.
       if (debtCats.contains(topCatId)) {
         out.add((
@@ -221,8 +226,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
 
     // 2. Biggest category this month.
     if (thisMonth.isNotEmpty) {
-      final biggest =
-          thisMonth.entries.reduce((a, b) => a.value >= b.value ? a : b);
+      final biggest = thisMonth.entries.reduce(
+        (a, b) => a.value >= b.value ? a : b,
+      );
       final name = names[biggest.key] ?? 'Unknown';
       out.add((
         '$name leads your spending this month.',

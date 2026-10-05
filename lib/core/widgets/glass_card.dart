@@ -10,6 +10,7 @@ class GlassCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(20),
     this.borderRadius = 24,
     this.onTap,
+    this.glowColor,
   });
 
   final Widget child;
@@ -17,9 +18,16 @@ class GlassCard extends StatelessWidget {
   final double borderRadius;
   final VoidCallback? onTap;
 
+  /// Optional accent glow washed from the top of the card, e.g. the
+  /// home balance hero. Null keeps the plain frosted look.
+  final Color? glowColor;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.white.withValues(alpha: 0.65);
     final card = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
@@ -27,14 +35,21 @@ class GlassCard extends StatelessWidget {
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.white.withValues(alpha: 0.65),
+            gradient: glowColor == null
+                ? null
+                : RadialGradient(
+                    center: const Alignment(0, -0.7),
+                    radius: 1.6,
+                    colors: [glowColor!.withValues(alpha: 0.16), base],
+                  ),
+            color: glowColor == null ? base : null,
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.09)
-                  : Colors.black.withValues(alpha: 0.06),
+              color:
+                  glowColor?.withValues(alpha: 0.28) ??
+                  (isDark
+                      ? Colors.white.withValues(alpha: 0.09)
+                      : Colors.black.withValues(alpha: 0.06)),
             ),
           ),
           child: child,

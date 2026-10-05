@@ -42,88 +42,112 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final accountId = ref.watch(selectedAccountProvider);
 
     return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(context),
-              const SizedBox(height: 12),
-              BalanceCard(
-                balanceHidden: _balanceHidden,
-                onToggleHidden: () {
-                  Haptics.light();
-                  setState(() => _balanceHidden = !_balanceHidden);
-                },
-              ),
-              const SizedBox(height: 12),
-              _rangeSwitcher(context, range),
-              const SizedBox(height: 16),
-              QuickActions(
-                onTransfer: () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => const TransferSheet(),
-                ),
-                onTopUp: () => showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) =>
-                      const AddTransactionSheet(initialKind: 'income'),
-                ),
-                onScan: _scanReceipt,
-                onDebt: () => Navigator.of(context).push(
-                  AppPageRoute(
-                    builder: (_) => const AddDebtScreen(),
-                  ),
+      // Soft accent wash behind the content so the backdrop isn't flat.
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -1.1),
+                  radius: 1.4,
+                  colors: [
+                    context.accent.withValues(alpha: 0.12),
+                    context.accent.withValues(alpha: 0.0),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              const GoalSpotlightCard(),
-              const AiInsightCard(),
-              SectionHeader(
-                title: 'Recent transactions',
-                action: TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    AppPageRoute(builder: (_) => const TransactionsScreen()),
-                  ),
-                  child: const Text('View all'),
-                ),
-              ),
-              StreamBuilder<List<TransactionWithDetails>>(
-                stream: db.watchTransactions(limit: 8, accountId: accountId),
-                builder: (context, snap) {
-                  final items = snap.data ?? const <TransactionWithDetails>[];
-                  if (items.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: Text('No transactions yet')),
-                    );
-                  }
-                  return Column(
-                    children: [
-                      for (var i = 0; i < items.length; i++)
-                        Entrance(
-                          key: ValueKey(items[i].transaction.id),
-                          delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
-                          child: TransactionTile(details: items[i]),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
+            ),
           ),
-        ),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _header(context),
+                  const SizedBox(height: 12),
+                  BalanceCard(
+                    balanceHidden: _balanceHidden,
+                    onToggleHidden: () {
+                      Haptics.light();
+                      setState(() => _balanceHidden = !_balanceHidden);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _rangeSwitcher(context, range),
+                  const SizedBox(height: 16),
+                  QuickActions(
+                    onTransfer: () => showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => const TransferSheet(),
+                    ),
+                    onTopUp: () => showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) =>
+                          const AddTransactionSheet(initialKind: 'income'),
+                    ),
+                    onScan: _scanReceipt,
+                    onDebt: () => Navigator.of(
+                      context,
+                    ).push(AppPageRoute(builder: (_) => const AddDebtScreen())),
+                  ),
+                  const SizedBox(height: 16),
+                  const GoalSpotlightCard(),
+                  const AiInsightCard(),
+                  SectionHeader(
+                    title: 'Recent transactions',
+                    action: TextButton(
+                      onPressed: () => Navigator.of(context).push(
+                        AppPageRoute(
+                          builder: (_) => const TransactionsScreen(),
+                        ),
+                      ),
+                      child: const Text('View all'),
+                    ),
+                  ),
+                  StreamBuilder<List<TransactionWithDetails>>(
+                    stream: db.watchTransactions(
+                      limit: 8,
+                      accountId: accountId,
+                    ),
+                    builder: (context, snap) {
+                      final items =
+                          snap.data ?? const <TransactionWithDetails>[];
+                      if (items.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: Text('No transactions yet')),
+                        );
+                      }
+                      return Column(
+                        children: [
+                          for (var i = 0; i < items.length; i++)
+                            Entrance(
+                              key: ValueKey(items[i].transaction.id),
+                              delay: Duration(
+                                milliseconds: (i * 60).clamp(0, 300),
+                              ),
+                              child: TransactionTile(details: items[i]),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Future<void> _scanReceipt() async {
     try {
-      final picked =
-          await ImagePicker().pickImage(source: ImageSource.camera);
+      final picked = await ImagePicker().pickImage(source: ImageSource.camera);
       if (picked == null || !mounted) return;
       await showModalBottomSheet(
         context: context,
@@ -132,9 +156,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open camera: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open camera: $e')));
       }
     }
   }
@@ -179,8 +203,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ? null
                       : Border.all(color: ringColor, width: 3),
                 ),
-                child:
-                    const Icon(Icons.person, color: Colors.black),
+                child: const Icon(Icons.person, color: Colors.black),
               ),
             );
           },
@@ -190,25 +213,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_greeting(),
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: context.textMuted)),
+              Text(
+                _greeting(),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: context.textMuted),
+              ),
               Row(
                 children: [
                   Flexible(
-                    child: Text(ref.watch(displayNameProvider),
-                        style: AppTextStyles.displaySection
-                            .copyWith(fontSize: 18)),
+                    child: Text(
+                      ref.watch(displayNameProvider),
+                      style: AppTextStyles.displaySection.copyWith(
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
                   if (selectedAccountId != null)
                     StreamBuilder<List<Account>>(
                       stream: db.watchAccounts(),
                       builder: (context, snap) {
                         final accounts = snap.data ?? const <Account>[];
-                        final selected =
-                            _accountById(accounts, selectedAccountId);
+                        final selected = _accountById(
+                          accounts,
+                          selectedAccountId,
+                        );
                         if (selected == null) {
                           return const SizedBox.shrink();
                         }
@@ -217,19 +246,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           padding: const EdgeInsets.only(left: 8),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                  color: color.withValues(alpha: 0.5)),
+                                color: color.withValues(alpha: 0.5),
+                              ),
                             ),
                             child: Text(
                               selected.name,
                               style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: color),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                              ),
                             ),
                           ),
                         );
@@ -241,9 +274,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         IconButton(
-          onPressed: () => Navigator.of(context).push(
-            AppPageRoute(builder: (_) => const SearchScreen()),
-          ),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(AppPageRoute(builder: (_) => const SearchScreen())),
           icon: const Icon(Icons.search),
         ),
         IconButton(
@@ -251,12 +284,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             if (ref.read(lockEnabledProvider)) {
               ref.read(lockedProvider.notifier).lock();
             } else {
-              Navigator.of(context).push(
-                AppPageRoute(builder: (_) => const SettingsScreen()),
-              );
+              Navigator.of(
+                context,
+              ).push(AppPageRoute(builder: (_) => const SettingsScreen()));
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                    content: Text('Enable Password protection in More to use the lock')),
+                  content: Text(
+                    'Enable Password protection in More to use the lock',
+                  ),
+                ),
               );
             }
           },
@@ -288,9 +324,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.read(dateRangeProvider.notifier).set(s.first);
         },
         showSelectedIcon: false,
-        style: SegmentedButton.styleFrom(
-          visualDensity: VisualDensity.compact,
-        ),
+        style: SegmentedButton.styleFrom(visualDensity: VisualDensity.compact),
       ),
     );
   }
