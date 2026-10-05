@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -122,10 +123,80 @@ Future<bool> isApkCached(String version) async =>
 /// Streams the APK into the cache. Writes to a `.part` file first and
 /// renames on completion, so a partial download is never mistaken for a
 /// finished one. Stale cached versions are removed.
+///
+/// Interrupted downloads are resumed with an HTTP Range request instead of
+/// restarted: if the sheet was dismissed (or the app killed) mid-download,
+/// the next attempt continues from the partial file. If the server won't
+/// honor ranges, it falls back to a fresh download.
+///
+/// Only one download runs per version: a second request while one is in
+/// flight attaches to it (receiving its progress) instead of starting a
+/// competing writer on the same `.part` file.
 Future<void> downloadApk(
   String apkUrl,
   String version, {
-  required void Function(double progress) onProgress,
+  required void Function(DownloadProgress progress) onProgress,
+  // Test-only: inject a fake HTTP client. When omitted, a real client is
+  // created (and closed) for the download.
+  http.Client? client,
+}) async {
+  final running = _runningDownloads[version];
+  if (running != null) {
+    await _attachToRunning(version, running, onProgress);
+    return;
+  }
+  final future = _downloadResumable(apkUrl, version, onProgress,
+      client: client);
+  _runningDownloads[version] = future;
+  try {
+    await future;
+  } finally {
+    _runningDownloads.remove(version);
+    _runningProgress.remove(version);
+  }
+}
+
+/// Versions with a download currently in flight.
+final _runningDownloads = <String, Future<void>>{};
+
+/// Latest progress of in-flight downloads, so a sheet opened mid-download
+/// can report progress while it waits.
+final _runningProgress = <String, DownloadProgress>{};
+
+/// Waits for an in-flight download, forwarding its progress to [onProgress].
+Future<void> _attachToRunning(
+  String version,
+  Future<void> running,
+  void Function(DownloadProgress progress) onProgress,
+) async {
+  final timer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    final p = _runningProgress[version];
+    if (p != null) onProgress(p);
+  });
+  try {
+    await running;
+  } finally {
+    timer.cancel();
+  }
+}
+
+Future<http.StreamedResponse> _sendDownloadRequest(
+  http.Client client,
+  String apkUrl,
+  int startByte,
+) async {
+  final req = http.Request('GET', Uri.parse(apkUrl));
+  // Some hosts reject requests without a User-Agent; reuse the same one.
+  req.headers['User-Agent'] = 'Dmoney-Manager';
+  if (startByte > 0) req.headers['Range'] = 'bytes=$startByte-';
+  return client.send(req).timeout(const Duration(seconds: 30));
+}
+
+Future<void> _downloadResumable(
+  String apkUrl,
+  String version,
+  void Function(DownloadProgress progress) onProgress, {
+  http.Client? client,
 }) async {
   if (apkUrl.isEmpty) {
     throw StateError('This release has no APK attached.');
@@ -145,33 +216,80 @@ Future<void> downloadApk(
   }
 
   final part = File('${file.path}.part');
-  if (await part.exists()) await part.delete();
+  var startByte = await part.exists() ? await part.length() : 0;
 
-  final client = http.Client();
+  final http.Client effectiveClient = client ?? http.Client();
   try {
-    final req = http.Request('GET', Uri.parse(apkUrl));
-    // Some hosts reject requests without a User-Agent; reuse the same one.
-    req.headers['User-Agent'] = 'Dmoney-Manager';
-    final streamed =
-        await client.send(req).timeout(const Duration(seconds: 30));
-    if (streamed.statusCode != 200) {
+    late final http.StreamedResponse streamed;
+    if (startByte > 0) {
+      final res =
+          await _sendDownloadRequest(effectiveClient, apkUrl, startByte);
+      if (res.statusCode == 206) {
+        streamed = res; // Server honors resume.
+      } else {
+        // 416 (nothing left) or the server ignored the Range header:
+        // discard the partial file and fall back to a fresh download.
+        await res.stream.drain<void>();
+        await part.delete();
+        startByte = 0;
+        streamed = await _sendDownloadRequest(effectiveClient, apkUrl, 0);
+      }
+    } else {
+      streamed = await _sendDownloadRequest(effectiveClient, apkUrl, 0);
+    }
+    if (streamed.statusCode != 200 && streamed.statusCode != 206) {
       throw HttpException('Download failed (${streamed.statusCode})',
           uri: Uri.parse(apkUrl));
     }
-    final total = streamed.contentLength ?? -1;
-    var received = 0;
-    final sink = part.openWrite();
+    final resumed = startByte > 0 && streamed.statusCode == 206;
+    final remaining = streamed.contentLength ?? -1;
+    final total = remaining > 0 ? startByte + remaining : -1;
+
+    var received = startByte;
+    // Rolling speedometer: recomputed from the bytes landed in the last
+    // ~0.5 s window, so the displayed speed stays stable instead of
+    // jumping with every chunk.
+    var windowStart = DateTime.now();
+    var windowBytes = startByte;
+    var speedBps = 0.0;
+    void report() {
+      final elapsed =
+          DateTime.now().difference(windowStart).inMilliseconds / 1000.0;
+      if (elapsed >= 0.5 && received > windowBytes) {
+        speedBps = (received - windowBytes) / elapsed;
+        windowBytes = received;
+        windowStart = DateTime.now();
+      }
+      final progress = DownloadProgress(
+        fraction: total > 0 ? received / total : -1.0,
+        bytesPerSecond: speedBps,
+      );
+      _runningProgress[version] = progress;
+      onProgress(progress);
+    }
+
+    report();
+    // Time-driven reports on top of the per-chunk ones: chunks can arrive
+    // in bursts (or stall), and a sheet attached mid-download polls this
+    // state — so keep it fresh on a steady cadence regardless.
+    final reporter =
+        Timer.periodic(const Duration(milliseconds: 500), (_) => report());
+    final sink =
+        part.openWrite(mode: resumed ? FileMode.append : FileMode.write);
     try {
       await for (final chunk in streamed.stream) {
         received += chunk.length;
         sink.add(chunk);
-        onProgress(total > 0 ? received / total : -1);
+        report();
       }
     } finally {
+      reporter.cancel();
       await sink.close();
     }
   } finally {
-    client.close();
+    // Only close the client we created; an injected test client is owned
+    // by the caller.
+    if (client == null) effectiveClient.close();
   }
   await part.rename(file.path);
 }
@@ -190,14 +308,41 @@ Future<void> installApk(File file) async {
   }
 }
 
+/// Progress of an in-flight APK download.
+class DownloadProgress {
+  const DownloadProgress({
+    required this.fraction,
+    required this.bytesPerSecond,
+  });
+
+  /// 0.0–1.0, or -1 when the total size is unknown.
+  final double fraction;
+
+  /// Rolling download speed in bytes per second (0 until measured).
+  final double bytesPerSecond;
+}
+
+/// Formats a bytes-per-second speed as "850 B/s", "1.5 KB/s" or "2.4 MB/s".
+String formatSpeed(double bytesPerSecond) {
+  const kb = 1024.0;
+  const mb = 1024.0 * 1024.0;
+  if (bytesPerSecond >= mb) {
+    return '${(bytesPerSecond / mb).toStringAsFixed(1)} MB/s';
+  }
+  if (bytesPerSecond >= kb) {
+    return '${(bytesPerSecond / kb).toStringAsFixed(1)} KB/s';
+  }
+  return '${bytesPerSecond.toStringAsFixed(0)} B/s';
+}
+
 /// Downloads the APK to the app cache (reusing it when already cached for
 /// [version]) and fires Android's installer.
-/// [onProgress] receives 0.0–1.0 (-1 when the size is unknown).
-/// Throws on download or install errors.
+/// [onProgress] receives the fraction (0.0–1.0, -1 when unknown) and the
+/// rolling download speed. Throws on download or install errors.
 Future<void> downloadAndInstall(
   String apkUrl, {
   required String version,
-  required void Function(double progress) onProgress,
+  required void Function(DownloadProgress progress) onProgress,
 }) async {
   if (!await isApkCached(version)) {
     await downloadApk(apkUrl, version, onProgress: onProgress);

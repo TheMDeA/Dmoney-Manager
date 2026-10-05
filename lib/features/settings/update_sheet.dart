@@ -29,6 +29,7 @@ class _UpdateSheet extends ConsumerStatefulWidget {
 class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
   _Phase _phase = _Phase.idle;
   double _progress = 0;
+  double _speedBps = 0;
   String? _currentVersion;
   bool _cached = false;
 
@@ -61,7 +62,11 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
         widget.info.apkUrl,
         version: widget.info.version,
         onProgress: (p) {
-          if (mounted && p >= 0) setState(() => _progress = p);
+          if (!mounted) return;
+          setState(() {
+            if (p.fraction >= 0) _progress = p.fraction;
+            _speedBps = p.bytesPerSecond;
+          });
         },
       );
       if (!mounted) return;
@@ -92,8 +97,9 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
       title: 'Update available',
       actionLabel: switch (_phase) {
         _Phase.idle => _cached ? 'Install update' : 'Download update',
-        _Phase.downloading =>
-          'Downloading… ${(_progress * 100).toStringAsFixed(0)}%',
+        _Phase.downloading => _speedBps > 0
+            ? 'Downloading… ${(_progress * 100).toStringAsFixed(0)}% • ${formatSpeed(_speedBps)}'
+            : 'Downloading… ${(_progress * 100).toStringAsFixed(0)}%',
         _Phase.installing => 'Opening installer…',
       },
       onAction: _phase == _Phase.idle ? _download : null,
