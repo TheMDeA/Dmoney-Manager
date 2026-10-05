@@ -53,6 +53,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     });
   }
 
+  /// The Today pill is redundant while already viewing the current month.
+  bool get _isCurrentMonth {
+    final now = DateTime.now();
+    return _month.year == now.year && _month.month == now.month;
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
@@ -74,7 +80,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             ScreenHeader(
               title: 'Calendar',
               tabIndex: 2,
-              action: HeaderPillButton(label: 'Today', onTap: _goToToday),
+              action: AnimatedSwitcher(
+                duration: AppMotion.normal,
+                child: _isCurrentMonth
+                    ? const SizedBox.shrink(key: ValueKey('no-today'))
+                    : HeaderPillButton(
+                        key: const ValueKey('today'),
+                        label: 'Today',
+                        onTap: _goToToday,
+                      ),
+              ),
             ),
             Expanded(
               child: StreamBuilder<List<TransactionWithDetails>>(

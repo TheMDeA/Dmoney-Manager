@@ -220,7 +220,7 @@ class _CalculatorSheetState extends State<CalculatorSheet>
                     const SizedBox(height: 4),
                     Text(
                       result == null
-                          ? '—'
+                          ? ''
                           : '= ${formatAmountInput(result.round())}',
                       style: TextStyle(
                         fontSize: 32,

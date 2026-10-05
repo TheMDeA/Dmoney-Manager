@@ -1,3 +1,8 @@
+## [Unreleased]
+
+### Changed
+- The "Today" button in the calendar header now hides itself while you're already viewing the current month.
+
 ## [2.4.1] - 2026-10-05
 
 ### Changed
