@@ -14,7 +14,7 @@ import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../accounts/account_switcher_sheet.dart';
-import '../debts/add_debt_screen.dart';
+import '../debts/add_debt_sheet.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 import '../transactions/add_transaction_sheet.dart';
@@ -75,9 +75,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           const AddTransactionSheet(initialKind: 'income'),
                     ),
                     onScan: _scanReceipt,
-                    onDebt: () => Navigator.of(
-                      context,
-                    ).push(AppPageRoute(builder: (_) => const AddDebtScreen())),
+                    onDebt: () => showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      builder: (_) => const AddDebtSheet(),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const GoalSpotlightCard(),

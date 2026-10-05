@@ -13,7 +13,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'debt_detail_screen.dart';
-import 'add_debt_screen.dart';
+import 'add_debt_sheet.dart';
 
 /// Debt tracking: Payable / Receivable tabs, outstanding vs paid sections.
 class DebtsScreen extends ConsumerStatefulWidget {
@@ -35,11 +35,12 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         actions: [
           IconButton(
             tooltip: 'Add debt',
-            onPressed: () => Navigator.of(context).push(
-              AppPageRoute(
-                builder: (_) =>
-                    AddDebtScreen(initialDirection: _direction),
-              ),
+            onPressed: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (_) =>
+                  AddDebtSheet(initialDirection: _direction),
             ),
             icon: const Icon(Icons.add),
           ),

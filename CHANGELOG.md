@@ -3,6 +3,9 @@
 ### Fixed
 - The add/edit transaction sheet now shows a red hint under each missing field (amount, category, wallet) instead of a single popup message.
 
+### Changed
+- The debt form is now a bottom sheet like the other forms, with the same sections and inline validation, instead of a separate full-screen page.
+
 ## [2.3.3] - 2026-10-05
 
 ### Fixed
