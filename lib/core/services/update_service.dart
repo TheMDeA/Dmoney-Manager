@@ -108,19 +108,44 @@ Future<UpdateInfo?> checkForUpdate() async {
   );
 }
 
-/// Downloads the APK to the app cache and fires Android's installer.
-/// [onProgress] receives 0.0–1.0 (-1 when the size is unknown).
-/// Throws on download or install errors.
-Future<void> downloadAndInstall(
-  String apkUrl, {
+/// File handle for the cached APK of [version]. The file may not exist yet.
+Future<File> _apkFile(String version) async {
+  final dir = await getTemporaryDirectory();
+  return File('${dir.path}/dmoney-manager-$version.apk');
+}
+
+/// True when a complete APK for [version] is already in the cache —
+/// e.g. the download finished but the Android install prompt was dismissed.
+Future<bool> isApkCached(String version) async =>
+    await (await _apkFile(version)).exists();
+
+/// Streams the APK into the cache. Writes to a `.part` file first and
+/// renames on completion, so a partial download is never mistaken for a
+/// finished one. Stale cached versions are removed.
+Future<void> downloadApk(
+  String apkUrl,
+  String version, {
   required void Function(double progress) onProgress,
 }) async {
   if (apkUrl.isEmpty) {
     throw StateError('This release has no APK attached.');
   }
-  final dir = await getTemporaryDirectory();
-  final file = File('${dir.path}/dmoney-manager-update.apk');
-  if (await file.exists()) await file.delete();
+  final file = await _apkFile(version);
+  final fileName = file.path.split('/').last;
+  await for (final e in file.parent.list()) {
+    final name = e.path.split('/').last;
+    if (e is File &&
+        name.startsWith('dmoney-manager-') &&
+        name != fileName &&
+        (name.endsWith('.apk') || name.endsWith('.apk.part'))) {
+      try {
+        await e.delete();
+      } catch (_) {}
+    }
+  }
+
+  final part = File('${file.path}.part');
+  if (await part.exists()) await part.delete();
 
   final client = http.Client();
   try {
@@ -135,7 +160,7 @@ Future<void> downloadAndInstall(
     }
     final total = streamed.contentLength ?? -1;
     var received = 0;
-    final sink = file.openWrite();
+    final sink = part.openWrite();
     try {
       await for (final chunk in streamed.stream) {
         received += chunk.length;
@@ -148,7 +173,12 @@ Future<void> downloadAndInstall(
   } finally {
     client.close();
   }
+  await part.rename(file.path);
+}
 
+/// Hands a cached APK to Android's installer through the `dmoney/update`
+/// method channel. Throws on install errors.
+Future<void> installApk(File file) async {
   try {
     await _updateChannel.invokeMethod('installApk', {'path': file.path});
   } on PlatformException catch (e) {
@@ -158,4 +188,19 @@ Future<void> downloadAndInstall(
     }
     rethrow;
   }
+}
+
+/// Downloads the APK to the app cache (reusing it when already cached for
+/// [version]) and fires Android's installer.
+/// [onProgress] receives 0.0–1.0 (-1 when the size is unknown).
+/// Throws on download or install errors.
+Future<void> downloadAndInstall(
+  String apkUrl, {
+  required String version,
+  required void Function(double progress) onProgress,
+}) async {
+  if (!await isApkCached(version)) {
+    await downloadApk(apkUrl, version, onProgress: onProgress);
+  }
+  await installApk(await _apkFile(version));
 }

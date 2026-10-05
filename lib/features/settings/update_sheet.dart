@@ -30,6 +30,7 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
   _Phase _phase = _Phase.idle;
   double _progress = 0;
   String? _currentVersion;
+  bool _cached = false;
 
   @override
   void initState() {
@@ -37,17 +38,28 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
     installedVersion().then((v) {
       if (mounted) setState(() => _currentVersion = v);
     });
+    // A previous download may already be in the cache (e.g. the Android
+    // install prompt was dismissed) — then we can install directly.
+    isApkCached(widget.info.version).then((c) {
+      if (mounted) setState(() => _cached = c);
+    });
   }
 
   Future<void> _download() async {
-    setState(() {
-      _phase = _Phase.downloading;
-      _progress = 0;
-    });
     Haptics.medium();
     try {
+      final cached = await isApkCached(widget.info.version);
+      if (cached) {
+        setState(() => _phase = _Phase.installing);
+      } else {
+        setState(() {
+          _phase = _Phase.downloading;
+          _progress = 0;
+        });
+      }
       await downloadAndInstall(
         widget.info.apkUrl,
+        version: widget.info.version,
         onProgress: (p) {
           if (mounted && p >= 0) setState(() => _progress = p);
         },
@@ -79,7 +91,7 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
     return FormSheet(
       title: 'Update available',
       actionLabel: switch (_phase) {
-        _Phase.idle => 'Download update',
+        _Phase.idle => _cached ? 'Install update' : 'Download update',
         _Phase.downloading =>
           'Downloading… ${(_progress * 100).toStringAsFixed(0)}%',
         _Phase.installing => 'Opening installer…',
