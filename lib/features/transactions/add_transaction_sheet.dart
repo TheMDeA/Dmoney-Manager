@@ -66,6 +66,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   bool _saving = false;
   bool _success = false;
   String? _descError;
+  String? _amountError;
+  String? _categoryError;
+  String? _walletError;
 
   /// Smart suggestion state: the recommended category (badged in the grid)
   /// plus debounce/sequencing for the note listener.
@@ -97,6 +100,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _walletId = widget.initialWalletId;
     }
     _descCtrl.addListener(_onDescChanged);
+    _amountCtrl.addListener(_onAmountChanged);
     // Suggest for a prefilled description (edit mode) once the sheet settles.
     if (_descCtrl.text.trim().isNotEmpty && AppPrefs.smartSuggestions) {
       Future.microtask(_runSuggestion);
@@ -107,6 +111,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   void dispose() {
     _suggestTimer?.cancel();
     _descCtrl.removeListener(_onDescChanged);
+    _amountCtrl.removeListener(_onAmountChanged);
     _amountCtrl.dispose();
     _descCtrl.dispose();
     _memoCtrl.dispose();
@@ -124,6 +129,25 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
     _suggestTimer =
         Timer(const Duration(milliseconds: 400), _runSuggestion);
+  }
+
+  void _onAmountChanged() {
+    if (_amountError != null) setState(() => _amountError = null);
+  }
+
+  /// Inline field error, styled like the description field's error text.
+  Widget _fieldError(String? message) {
+    if (message == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.error,
+        ),
+      ),
+    );
   }
 
   Future<void> _runSuggestion() async {
@@ -180,6 +204,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             _templateRow(context, db),
             const SizedBox(height: 16),
             FormAmountEntry(controller: _amountCtrl),
+            _fieldError(_amountError),
             const SizedBox(height: 16),
             const FormSectionLabel('Description *'),
             const SizedBox(height: 8),
@@ -199,8 +224,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               onSelected: (c) => setState(() {
                 _kind = c.kind;
                 _categoryId = c.id;
+                _categoryError = null;
               }),
             ),
+            _fieldError(_categoryError),
             const SizedBox(height: 16),
             const FormSectionLabel('Wallet'),
             StreamBuilder<List<Wallet>>(
@@ -231,13 +258,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                               : Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
                         ),
-                        onSelected: (_) =>
-                            setState(() => _walletId = w.id),
+                        onSelected: (_) => setState(() {
+                          _walletId = w.id;
+                          _walletError = null;
+                        }),
                       ),
                   ],
                 );
               },
             ),
+            _fieldError(_walletError),
             const SizedBox(height: 16),
             const FormSectionLabel('Date & time'),
             Row(
@@ -570,14 +600,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final amount = parseAmountInput(_amountCtrl.text);
     final desc = _descCtrl.text.trim();
     final memo = _memoCtrl.text.trim();
-    if (desc.isEmpty) {
-      setState(() => _descError = 'Please describe this transaction');
-    }
-    if (amount <= 0 ||
-        _categoryId == null ||
-        _walletId == null ||
-        desc.isEmpty) {
-      _snack('Enter a description, amount, category and wallet');
+    // Inline per-field errors, like the description field's red text —
+    // no snackbar needed.
+    final descError = desc.isEmpty ? 'Please describe this transaction' : null;
+    final amountError = amount <= 0 ? 'Please enter an amount' : null;
+    final categoryError =
+        _categoryId == null ? 'Please select a category' : null;
+    final walletError = _walletId == null ? 'Please select a wallet' : null;
+    setState(() {
+      _descError = descError;
+      _amountError = amountError;
+      _categoryError = categoryError;
+      _walletError = walletError;
+    });
+    if (descError != null ||
+        amountError != null ||
+        categoryError != null ||
+        walletError != null) {
       return;
     }
     setState(() => _saving = true);
