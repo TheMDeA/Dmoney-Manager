@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ambient_glow.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -58,107 +59,132 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Stats')),
-      body: StreamBuilder<List<CategoryTotal>>(
-        stream: db.watchCategoryExpenseTotals(monthStart, monthEnd,
-            accountId: accountId),
-        builder: (context, donutSnap) {
-          if (!donutSnap.hasData) {
-            return const SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 96),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SkeletonBox(width: 160, height: 20),
-                  SizedBox(height: 12),
-                  SkeletonBox(height: 110, radius: 20),
-                  SizedBox(height: 16),
-                  SkeletonBox(width: 120, height: 18),
-                  SizedBox(height: 12),
-                  SkeletonBox(height: 220, radius: 20),
-                ],
-              ),
-            );
-          }
-          final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
-          return StreamBuilder<List<MonthlyTotal>>(
-            stream: db.watchMonthlyKindTotals(sixMonthStart, sixMonthEnd,
-              accountId: accountId),
-            builder: (context, monthlySnap) {
-              final monthlyTotals =
-                  monthlySnap.data ?? const <MonthlyTotal>[];
-              return StreamBuilder<List<Category>>(
-                stream: db.watchCategories(),
-                builder: (context, catSnap) {
-                  final cats = {
-                    for (final c in (catSnap.data ?? const <Category>[]))
-                      c.id: c,
-                  };
-                  return StreamBuilder<List<CategoryTotal>>(
-                    stream: db.watchCategoryExpenseTotals(
-                        prevStart, prevEnd,
-                        accountId: accountId),
-                    builder: (context, prevSnap) {
-                      final prevTotals =
-                          prevSnap.data ?? const <CategoryTotal>[];
-                      return SingleChildScrollView(
-                        padding:
-                            const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            _monthSelector(context),
-                            _overviewSection(
-                                context, db, monthStart, monthEnd,
-                                accountId),
-                            const SectionHeader(
-                                title: 'Insights'),
-                            _insightsCard(
-                                context, donutTotals, prevTotals, cats),
-                            SectionHeader(
-                              title: 'Spending by category',
-                              action: TextButton(
-                                onPressed: () =>
-                                    StructureScreen.open(context,
-                                        month: _month),
-                                child: const Text('Show more'),
-                              ),
-                            ),
-                            _donut(context, donutTotals, cats),
-                            const SectionHeader(title: 'Last 6 months'),
-                            _bars(context, monthlyTotals),
-                            SectionHeader(
-                                title: 'Net savings trend'),
-                            _trendLine(context, monthlyTotals),
-                            SectionHeader(
-                              title: 'Net worth',
-                              action: _netWorthRangeChips(),
-                            ),
-                            _netWorthCard(context, db, accountId),
-                            SizedBox(height: 8),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
+      body: AmbientGlow(
+        child: StreamBuilder<List<CategoryTotal>>(
+          stream: db.watchCategoryExpenseTotals(
+            monthStart,
+            monthEnd,
+            accountId: accountId,
+          ),
+          builder: (context, donutSnap) {
+            if (!donutSnap.hasData) {
+              return const SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(16, 4, 16, 96),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 160, height: 20),
+                    SizedBox(height: 12),
+                    SkeletonBox(height: 110, radius: 20),
+                    SizedBox(height: 16),
+                    SkeletonBox(width: 120, height: 18),
+                    SizedBox(height: 12),
+                    SkeletonBox(height: 220, radius: 20),
+                  ],
+                ),
               );
-            },
-          );
-        },
+            }
+            final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
+            return StreamBuilder<List<MonthlyTotal>>(
+              stream: db.watchMonthlyKindTotals(
+                sixMonthStart,
+                sixMonthEnd,
+                accountId: accountId,
+              ),
+              builder: (context, monthlySnap) {
+                final monthlyTotals =
+                    monthlySnap.data ?? const <MonthlyTotal>[];
+                return StreamBuilder<List<Category>>(
+                  stream: db.watchCategories(),
+                  builder: (context, catSnap) {
+                    final cats = {
+                      for (final c in (catSnap.data ?? const <Category>[]))
+                        c.id: c,
+                    };
+                    return StreamBuilder<List<CategoryTotal>>(
+                      stream: db.watchCategoryExpenseTotals(
+                        prevStart,
+                        prevEnd,
+                        accountId: accountId,
+                      ),
+                      builder: (context, prevSnap) {
+                        final prevTotals =
+                            prevSnap.data ?? const <CategoryTotal>[];
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _monthSelector(context),
+                              _overviewSection(
+                                context,
+                                db,
+                                monthStart,
+                                monthEnd,
+                                accountId,
+                              ),
+                              const SectionHeader(title: 'Insights'),
+                              _insightsCard(
+                                context,
+                                donutTotals,
+                                prevTotals,
+                                cats,
+                              ),
+                              SectionHeader(
+                                title: 'Spending by category',
+                                action: TextButton(
+                                  onPressed: () => StructureScreen.open(
+                                    context,
+                                    month: _month,
+                                  ),
+                                  child: const Text('Show more'),
+                                ),
+                              ),
+                              _donut(context, donutTotals, cats),
+                              const SectionHeader(title: 'Last 6 months'),
+                              _bars(context, monthlyTotals),
+                              SectionHeader(title: 'Net savings trend'),
+                              _trendLine(context, monthlyTotals),
+                              SectionHeader(
+                                title: 'Net worth',
+                                action: _netWorthRangeChips(),
+                              ),
+                              _netWorthCard(context, db, accountId),
+                              SizedBox(height: 8),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
 
   Widget _monthSelector(BuildContext context) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     void shift(int delta) => setState(() {
-          _month = DateTime(_month.year, _month.month + delta);
-          _touchedDonutIndex = -1;
-        });
+      _month = DateTime(_month.year, _month.month + delta);
+      _touchedDonutIndex = -1;
+    });
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -183,17 +209,28 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   /// Opening/ending are derived from the current wallet total minus the
   /// net of later transactions (balance adjustments fold into the nearest
   /// month).
-  Widget _overviewSection(BuildContext context, AppDatabase db,
-      DateTime monthStart, DateTime monthEnd, int? accountId) {
+  Widget _overviewSection(
+    BuildContext context,
+    AppDatabase db,
+    DateTime monthStart,
+    DateTime monthEnd,
+    int? accountId,
+  ) {
     final afterStart = monthEnd.add(const Duration(seconds: 1));
     final now = DateTime.now();
     return StreamBuilder<List<Wallet>>(
       stream: db.watchWallets(accountId: accountId),
       builder: (context, wSnap) {
-        final current = (wSnap.data ?? const <Wallet>[])
-            .fold<int>(0, (s, w) => s + w.balance);
+        final current = (wSnap.data ?? const <Wallet>[]).fold<int>(
+          0,
+          (s, w) => s + w.balance,
+        );
         return StreamBuilder<List<KindTotal>>(
-          stream: db.watchKindTotals(monthStart, monthEnd, accountId: accountId),
+          stream: db.watchKindTotals(
+            monthStart,
+            monthEnd,
+            accountId: accountId,
+          ),
           builder: (context, mSnap) {
             final kinds = {
               for (final k in (mSnap.data ?? const <KindTotal>[]))
@@ -220,7 +257,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                             children: [
                               Expanded(
                                 child: _balanceCell(
-                                    context, 'Opening balance', opening),
+                                  context,
+                                  'Opening balance',
+                                  opening,
+                                ),
                               ),
                               Container(
                                 width: 1,
@@ -229,7 +269,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               ),
                               Expanded(
                                 child: _balanceCell(
-                                    context, 'Ending balance', ending),
+                                  context,
+                                  'Ending balance',
+                                  ending,
+                                ),
                               ),
                             ],
                           ),
@@ -242,13 +285,25 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                       child: GlassCard(
                         child: Column(
                           children: [
-                            _overviewRow(context, 'Income', income,
-                                AppColors.income),
-                            _overviewRow(context, 'Expense', expense,
-                                AppColors.expense,
-                                format: (v) => '-${formatMoney(v)}'),
-                            _overviewRow(context, 'Total', income - expense,
-                                null),
+                            _overviewRow(
+                              context,
+                              'Income',
+                              income,
+                              AppColors.income,
+                            ),
+                            _overviewRow(
+                              context,
+                              'Expense',
+                              expense,
+                              AppColors.expense,
+                              format: (v) => '-${formatMoney(v)}',
+                            ),
+                            _overviewRow(
+                              context,
+                              'Total',
+                              income - expense,
+                              null,
+                            ),
                             Divider(height: 1, color: context.hairline),
                             InkWell(
                               onTap: () {
@@ -256,20 +311,23 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                 Navigator.of(context).push(
                                   AppPageRoute(
                                     builder: (_) => TransactionsScreen(
-                                        initialMonth: _month),
+                                      initialMonth: _month,
+                                    ),
                                   ),
                                 );
                               },
                               borderRadius: BorderRadius.circular(8),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 12),
+                                  vertical: 12,
+                                ),
                                 child: Row(
                                   children: [
                                     Text(
                                       'Show more',
                                       style: TextStyle(
-                                          color: context.textMuted),
+                                        color: context.textMuted,
+                                      ),
                                     ),
                                     const Spacer(),
                                     Icon(
@@ -310,17 +368,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       children: [
         Text(label, style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 4),
-        CountUpMoney(
-          amount: amount,
-          style: AppTextStyles.amount(size: 17),
-        ),
+        CountUpMoney(amount: amount, style: AppTextStyles.amount(size: 17)),
       ],
     );
   }
 
-  Widget _overviewRow(BuildContext context, String label, int amount,
-      Color? valueColor,
-      {String Function(int) format = formatMoney}) {
+  Widget _overviewRow(
+    BuildContext context,
+    String label,
+    int amount,
+    Color? valueColor, {
+    String Function(int) format = formatMoney,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
@@ -343,8 +402,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   String _prevMonthLabel() {
     const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final p = DateTime(_month.year, _month.month - 1);
     return '${names[p.month - 1]} ${p.year}';
@@ -357,13 +426,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   /// Noise guards: a category must represent at least 3% of the month's
   /// spending, and movers need a >= 15% swing to be worth mentioning.
   List<({IconData icon, Color color, String title, String subtitle})>
-      _buildInsights(
+  _buildInsights(
     BuildContext context,
     List<CategoryTotal> cur,
     List<CategoryTotal> prev,
     Map<int, Category> cats,
   ) {
-    final insights = <({IconData icon, Color color, String title, String subtitle})>[];
+    final insights =
+        <({IconData icon, Color color, String title, String subtitle})>[];
     final curTotal = cur.fold<int>(0, (s, e) => s + e.total);
     if (curTotal == 0) return insights;
     final prevTotal = prev.fold<int>(0, (s, e) => s + e.total);
@@ -463,8 +533,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
     // 4. Daily pace.
     final now = DateTime.now();
-    final isCurrent =
-        _month.year == now.year && _month.month == now.month;
+    final isCurrent = _month.year == now.year && _month.month == now.month;
     final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
     final elapsed = isCurrent ? now.day : daysInMonth;
     final prevDays = DateTime(_month.year, _month.month, 0).day;
@@ -497,8 +566,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
                 'Insights will appear here once you start tracking spending.',
-                style: TextStyle(
-                    color: context.textMuted, fontSize: 13),
+                style: TextStyle(color: context.textMuted, fontSize: 13),
               ),
             )
           : Column(
@@ -514,33 +582,34 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: insights[i]
-                                  .color
-                                  .withValues(alpha: 0.14),
+                              color: insights[i].color.withValues(alpha: 0.14),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(insights[i].icon,
-                                size: 20,
-                                color: insights[i].color),
+                            child: Icon(
+                              insights[i].icon,
+                              size: 20,
+                              color: insights[i].color,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   insights[i].title,
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   insights[i].subtitle,
                                   style: TextStyle(
-                                      color: context.textMuted,
-                                      fontSize: 12.5),
+                                    color: context.textMuted,
+                                    fontSize: 12.5,
+                                  ),
                                 ),
                               ],
                             ),
@@ -560,12 +629,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   ({String name, String colorHex, int amount}) _sliceOf(
     CategoryTotal e,
     Map<int, Category> cats,
-  ) =>
-      (
-        name: cats[e.categoryId]?.name ?? 'Other',
-        colorHex: cats[e.categoryId]?.colorHex ?? '#9CA3AF',
-        amount: e.total,
-      );
+  ) => (
+    name: cats[e.categoryId]?.name ?? 'Other',
+    colorHex: cats[e.categoryId]?.colorHex ?? '#9CA3AF',
+    amount: e.total,
+  );
 
   Widget _donut(
     BuildContext context,
@@ -600,8 +668,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         ),
     ];
     if (_touchedDonutIndex >= slices.length) _touchedDonutIndex = -1;
-    final touched =
-        _touchedDonutIndex >= 0 ? slices[_touchedDonutIndex] : null;
+    final touched = _touchedDonutIndex >= 0 ? slices[_touchedDonutIndex] : null;
 
     return GlassCard(
       child: Column(
@@ -620,10 +687,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                         setState(() {
                           if (event is FlTapUpEvent &&
                               response?.touchedSection != null) {
-                            final i = response!
-                                .touchedSection!.touchedSectionIndex;
-                            _touchedDonutIndex =
-                                _touchedDonutIndex == i ? -1 : i;
+                            final i =
+                                response!.touchedSection!.touchedSectionIndex;
+                            _touchedDonutIndex = _touchedDonutIndex == i
+                                ? -1
+                                : i;
                           } else if (event is FlTapUpEvent) {
                             _touchedDonutIndex = -1;
                           }
@@ -649,10 +717,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   children: [
                     Text(
                       touched?.name ?? 'Total',
-                      style: TextStyle(
-                        color: context.textMuted,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -752,7 +817,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       (i) => DateTime(now.year, now.month - 5 + i),
     );
     const monthNames = [
-      'J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D',
+      'J',
+      'F',
+      'M',
+      'A',
+      'M',
+      'J',
+      'J',
+      'A',
+      'S',
+      'O',
+      'N',
+      'D',
     ];
     final lookup = _monthlyLookup(totals);
 
@@ -820,10 +896,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   final isIncome = rodIndex == 0;
                   return BarTooltipItem(
                     '${_monthLabel(m)}\n',
-                    TextStyle(
-                      color: context.textMuted,
-                      fontSize: 11,
-                    ),
+                    TextStyle(color: context.textMuted, fontSize: 11),
                     children: [
                       TextSpan(
                         text:
@@ -858,10 +931,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       monthNames[months[v.toInt()].month - 1],
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: context.textMuted,
-                      ),
+                      style: TextStyle(fontSize: 11, color: context.textMuted),
                     ),
                   ),
                 ),
@@ -945,8 +1015,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   String _monthLabel(DateTime m) {
     const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${names[m.month - 1]} ${m.year}';
   }
@@ -986,8 +1066,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   Widget _netWorthCard(BuildContext context, AppDatabase db, int? accountId) {
     final now = DateTime.now();
     final from = DateTime(now.year, now.month - 11);
-    final to = DateTime(now.year, now.month + 1)
-        .subtract(const Duration(seconds: 1));
+    final to = DateTime(
+      now.year,
+      now.month + 1,
+    ).subtract(const Duration(seconds: 1));
     return StreamBuilder<List<Wallet>>(
       stream: db.watchWallets(accountId: accountId),
       builder: (context, wSnap) {
@@ -1005,11 +1087,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   Widget _netWorthChart(
-      BuildContext context, int currentTotal, List<MonthlyTotal> totals) {
+    BuildContext context,
+    int currentTotal,
+    List<MonthlyTotal> totals,
+  ) {
     final now = DateTime.now();
     final n = _netWorthRange;
-    final months =
-        List.generate(n, (i) => DateTime(now.year, now.month - n + 1 + i));
+    final months = List.generate(
+      n,
+      (i) => DateTime(now.year, now.month - n + 1 + i),
+    );
     final lookup = _monthlyLookup(totals);
     // Net worth at the end of each month, walked backwards from today.
     var worth = currentTotal.toDouble();
@@ -1020,36 +1107,36 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       worth -= ((kinds['income'] ?? 0) - (kinds['expense'] ?? 0));
     }
     final delta = points.last - points.first;
-    final pct =
-        points.first == 0 ? 0.0 : delta / points.first.abs() * 100;
+    final pct = points.first == 0 ? 0.0 : delta / points.first.abs() * 100;
     final up = delta >= 0;
-    final spots = [
-      for (var i = 0; i < n; i++) FlSpot(i.toDouble(), points[i]),
-    ];
+    final spots = [for (var i = 0; i < n; i++) FlSpot(i.toDouble(), points[i])];
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Total net worth',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: context.textMuted)),
+          Text(
+            'Total net worth',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: context.textMuted),
+          ),
           const SizedBox(height: 4),
           Row(
             children: [
               CountUpMoney(
                 amount: currentTotal,
-                style: AppTextStyles.displayBalance
-                    .copyWith(fontSize: 28, color: context.textPrimary),
+                style: AppTextStyles.displayBalance.copyWith(
+                  fontSize: 28,
+                  color: context.textPrimary,
+                ),
               ),
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (up ? AppColors.income : AppColors.expense)
-                      .withValues(alpha: 0.14),
+                  color: (up ? AppColors.income : AppColors.expense).withValues(
+                    alpha: 0.14,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -1081,55 +1168,55 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 ),
               ),
               child: LineChart(
-              LineChartData(
-                lineTouchData: LineTouchData(
-                  enabled: true,
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => context.raised,
-                    tooltipPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    getTooltipItems: (touchedSpots) => touchedSpots
-                        .map(
-                          (s) => LineTooltipItem(
-                            '${_monthLabel(months[s.x.toInt()])}\n${formatMoney(s.y.toInt())}',
-                            TextStyle(
-                              color: context.accent,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                LineChartData(
+                  lineTouchData: LineTouchData(
+                    enabled: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) => context.raised,
+                      tooltipPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      getTooltipItems: (touchedSpots) => touchedSpots
+                          .map(
+                            (s) => LineTooltipItem(
+                              '${_monthLabel(months[s.x.toInt()])}\n${formatMoney(s.y.toInt())}',
+                              TextStyle(
+                                color: context.accent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
+                          )
+                          .toList(),
+                    ),
                   ),
-                ),
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: true,
-                    color: context.accent,
-                    barWidth: 3,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          context.accent.withValues(alpha: 0.32),
-                          context.accent.withValues(alpha: 0.0),
-                        ],
+                  gridData: const FlGridData(show: false),
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: context.accent,
+                      barWidth: 3,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            context.accent.withValues(alpha: 0.32),
+                            context.accent.withValues(alpha: 0.0),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              duration: _animDuration,
-              curve: _animCurve,
+                  ],
+                ),
+                duration: _animDuration,
+                curve: _animCurve,
               ),
             ),
           ),
