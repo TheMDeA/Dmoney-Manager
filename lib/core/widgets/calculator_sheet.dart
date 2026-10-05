@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'dart:math' show pi, sin;
 
 import '../theme/app_accents.dart';
 import '../theme/app_colors.dart';
 import '../utils/expression.dart';
 import '../utils/formatters.dart';
 import '../utils/haptics.dart';
+import 'pressable.dart';
 
 /// Shows the calculator and completes with the chosen integer amount,
 /// or `null` when dismissed.
@@ -28,8 +31,22 @@ class CalculatorSheet extends StatefulWidget {
   State<CalculatorSheet> createState() => _CalculatorSheetState();
 }
 
-class _CalculatorSheetState extends State<CalculatorSheet> {
+class _CalculatorSheetState extends State<CalculatorSheet>
+    with SingleTickerProviderStateMixin {
   var _expr = '';
+
+  /// Shake for invalid "=" presses. Deliberate AppMotion exception: an
+  /// oscillation needs its own timing, like the passcode shake.
+  late final AnimationController _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 400),
+  );
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -104,14 +121,52 @@ class _CalculatorSheetState extends State<CalculatorSheet> {
 
   void _apply() {
     final r = _result;
-    if (r == null) return;
+    if (r == null) {
+      // Nothing valid to apply — wiggle the display instead of
+      // silently ignoring the tap.
+      _shake.forward(from: 0);
+      Haptics.medium();
+      return;
+    }
+    Haptics.medium();
     Navigator.of(context).pop(r.round());
   }
 
-  String _pretty(String expr) => expr
-      .replaceAll('*', '×')
-      .replaceAll('/', '÷')
-      .replaceAll('-', '−');
+  String _pretty(String expr) {
+    final withOps = expr
+        .replaceAll('*', '×')
+        .replaceAll('/', '÷')
+        .replaceAll('-', '−');
+    // Group digit runs with the locale's thousand separator so big
+    // amounts stay readable. Display only — [_expr] keeps raw digits.
+    final sep = _groupSep;
+    return withOps.replaceAllMapped(
+      RegExp(r'\d[\d.]*'),
+      (m) {
+        final seg = m.group(0)!;
+        final dot = seg.indexOf('.');
+        final intPart = dot < 0 ? seg : seg.substring(0, dot);
+        final fracPart = dot < 0 ? '' : seg.substring(dot);
+        if (intPart.isEmpty) return seg;
+        final buf = StringBuffer();
+        for (var i = 0; i < intPart.length; i++) {
+          if (i > 0 && (intPart.length - i) % 3 == 0) buf.write(sep);
+          buf.write(intPart[i]);
+        }
+        return '${buf.toString()}$fracPart';
+      },
+    );
+  }
+
+  /// Locale's thousand separator (e.g. '.' for IDR), for the expression
+  /// display grouping.
+  String get _groupSep {
+    try {
+      return NumberFormat('#,##0', currentCurrency.locale).symbols.GROUP_SEP;
+    } catch (_) {
+      return '.';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,41 +186,52 @@ class _CalculatorSheetState extends State<CalculatorSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            // Expression + live result.
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: context.raised,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _pretty(_expr.isEmpty ? '0' : _expr),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: context.textMuted,
+            // Expression + live result. Wiggles on invalid "=".
+            AnimatedBuilder(
+              animation: _shake,
+              builder: (context, child) {
+                final t = _shake.value;
+                final dx = 10 * sin(t * 4 * pi) * (1 - t);
+                return Transform.translate(
+                  offset: Offset(dx, 0),
+                  child: child,
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: context.raised,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _pretty(_expr.isEmpty ? '0' : _expr),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: context.textMuted,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    result == null
-                        ? '—'
-                        : '= ${formatAmountInput(result.round())}',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: result == null
-                          ? context.textMuted
-                          : context.accent,
+                    const SizedBox(height: 4),
+                    Text(
+                      result == null
+                          ? '—'
+                          : '= ${formatAmountInput(result.round())}',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: result == null
+                            ? context.textMuted
+                            : context.accent,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -213,67 +279,83 @@ class _CalculatorSheetState extends State<CalculatorSheet> {
             fontSize: 22, fontWeight: FontWeight.w600),
       );
     }
-    return Material(
-      color: key == '='
-          ? context.accent
-          : danger
-              ? AppColors.expense.withValues(alpha: 0.14)
-              : context.raised,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
+    return Pressable(
+      pressedScale: 0.93,
+      child: Material(
+        color: key == '='
+            ? context.accent
+            : danger
+                ? AppColors.expense.withValues(alpha: 0.14)
+                : context.raised,
         borderRadius: BorderRadius.circular(14),
-        onTap: () {
-          Haptics.select();
-          if (key == '=') {
-            _apply();
-          } else {
-            _input(switch (key) {
-              '×' => '*',
-              '÷' => '/',
-              '−' => '-',
-              _ => key,
-            });
-          }
-        },
-        child: Container(
-          height: 56,
-          alignment: Alignment.center,
-          child: key == '='
-              ? Theme(
-                  data: Theme.of(context).copyWith(
-                    iconTheme: IconThemeData(
-                        color: onAccentColor, size: 22),
-                  ),
-                  child: DefaultTextStyle(
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: onAccentColor,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            Haptics.select();
+            if (key == '=') {
+              _apply();
+            } else {
+              _input(switch (key) {
+                '×' => '*',
+                '÷' => '/',
+                '−' => '-',
+                _ => key,
+              });
+            }
+          },
+          // Long-press backspace clears the whole expression; long-press
+          // 0 appends "00" — handy for large round amounts.
+          onLongPress: key == 'back'
+              ? () {
+                  Haptics.medium();
+                  setState(() => _expr = '');
+                }
+              : key == '0'
+                  ? () {
+                      Haptics.select();
+                      setState(() => _expr += '00');
+                    }
+                  : null,
+          child: Container(
+            height: 56,
+            alignment: Alignment.center,
+            child: key == '='
+                ? Theme(
+                    data: Theme.of(context).copyWith(
+                      iconTheme: IconThemeData(
+                          color: onAccentColor, size: 22),
                     ),
-                    child: label,
-                  ),
-                )
-              : IconTheme(
-                  data: IconThemeData(
-                    color: danger
-                        ? AppColors.expense
-                        : opKey
-                            ? context.accent
-                            : context.textPrimary,
-                  ),
-                  child: DefaultTextStyle(
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
+                    child: DefaultTextStyle(
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: onAccentColor,
+                      ),
+                      child: label,
+                    ),
+                  )
+                : IconTheme(
+                    data: IconThemeData(
                       color: danger
                           ? AppColors.expense
                           : opKey
                               ? context.accent
                               : context.textPrimary,
                     ),
-                    child: label,
+                    child: DefaultTextStyle(
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: danger
+                            ? AppColors.expense
+                            : opKey
+                                ? context.accent
+                                : context.textPrimary,
+                      ),
+                      child: label,
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );
