@@ -23,10 +23,30 @@ import '../../debts/debt_detail_screen.dart';
 /// Swipe right to reveal Edit, swipe left to reveal Delete — tapping the
 /// revealed action runs it (two steps, so a stray swipe can't fire anything).
 /// Delete still offers the 5-second undo.
+///
+/// In [selectionMode] (bulk select), swipes are disabled, the leading icon
+/// becomes a checkbox, tap toggles selection, and long-press also toggles.
 class TransactionTile extends ConsumerWidget {
-  const TransactionTile({super.key, required this.details});
+  const TransactionTile({
+    super.key,
+    required this.details,
+    this.selectionMode = false,
+    this.selected = false,
+    this.onToggleSelected,
+  });
 
   final TransactionWithDetails details;
+
+  /// Whether the surrounding list is in bulk-selection mode.
+  final bool selectionMode;
+
+  /// Whether this row is currently selected (only meaningful in
+  /// [selectionMode]).
+  final bool selected;
+
+  /// Toggles this row's selection. Used for tap (in selection mode) and
+  /// long-press (enters selection mode).
+  final VoidCallback? onToggleSelected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,6 +62,7 @@ class TransactionTile extends ConsumerWidget {
     // or when another row is swiped.
     return Slidable(
       key: ValueKey('tx-${t.id}'),
+      enabled: !selectionMode,
       closeOnScroll: true,
       startActionPane: ActionPane(
         motion: const DrawerMotion(),
@@ -78,35 +99,48 @@ class TransactionTile extends ConsumerWidget {
         ],
       ),
       child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          AppPageRoute(
-            builder: (_) => isDebtLinked
-                ? DebtDetailScreen(debtId: t.debtId!)
-                : TransactionDetailScreen(
-                    transactionId: t.id,
-                    iconKey: c.iconKey,
-                    colorHex: c.colorHex,
-                    title: t.note.isEmpty ? c.name : t.note,
+        onTap: selectionMode
+            ? onToggleSelected
+            : () => Navigator.of(context).push(
+                  AppPageRoute(
+                    builder: (_) => isDebtLinked
+                        ? DebtDetailScreen(debtId: t.debtId!)
+                        : TransactionDetailScreen(
+                            transactionId: t.id,
+                            iconKey: c.iconKey,
+                            colorHex: c.colorHex,
+                            title: t.note.isEmpty ? c.name : t.note,
+                          ),
                   ),
-          ),
-        ),
+                ),
+        onLongPress: onToggleSelected,
       child: Padding(
         padding:
             const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         child: Row(
           children: [
-            Hero(
-              tag: 'tx-icon-${t.id}',
-              child: Container(
+            if (selectionMode)
+              SizedBox(
                 width: 46,
                 height: 46,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withValues(alpha: 0.16),
+                child: Checkbox(
+                  value: selected,
+                  onChanged: (_) => onToggleSelected?.call(),
                 ),
-                child: Icon(iconForKey(c.iconKey), color: color, size: 22),
+              )
+            else
+              Hero(
+                tag: 'tx-icon-${t.id}',
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withValues(alpha: 0.16),
+                  ),
+                  child: Icon(iconForKey(c.iconKey), color: color, size: 22),
+                ),
               ),
-            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

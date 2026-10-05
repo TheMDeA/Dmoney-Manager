@@ -19,13 +19,26 @@ import 'transaction_tile.dart';
 /// the list swaps to the new data. Wholesale changes (e.g. switching
 /// months) swap immediately without the exit choreography.
 class GroupedTransactionList extends StatefulWidget {
-  const GroupedTransactionList(
-      {super.key, required this.items, this.controller});
+  const GroupedTransactionList({
+    super.key,
+    required this.items,
+    this.controller,
+    this.selectedIds = const {},
+    this.onToggleSelected,
+  });
 
   final List<TransactionWithDetails> items;
 
   /// Optional scroll controller, e.g. for a date scrubber overlay.
   final ScrollController? controller;
+
+  /// Ids of selected transactions. A non-empty set puts the list in
+  /// bulk-selection mode (checkboxes, tap toggles, swipes disabled).
+  final Set<int> selectedIds;
+
+  /// Called with a transaction id to toggle its selection. When null,
+  /// selection is off entirely (long-press does nothing).
+  final void Function(int id)? onToggleSelected;
 
   @override
   State<GroupedTransactionList> createState() =>
@@ -100,7 +113,14 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
       final tiles = <Widget>[];
       for (var k = i; k < j; k++) {
         final d = _shown[k];
-        final tile = TransactionTile(details: d);
+        final tile = TransactionTile(
+          details: d,
+          selectionMode: widget.selectedIds.isNotEmpty,
+          selected: widget.selectedIds.contains(d.transaction.id),
+          onToggleSelected: widget.onToggleSelected == null
+              ? null
+              : () => widget.onToggleSelected!(d.transaction.id),
+        );
         if (_exiting.contains(d.transaction.id)) {
           tiles.add(_CollapseOut(
             key: ValueKey('exit-${d.transaction.id}'),

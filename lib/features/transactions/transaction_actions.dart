@@ -78,6 +78,8 @@ Future<void> deleteTransactionFlow(
   final photos = await db.watchPhotos(t.id).first;
   await db.deleteTransaction(t.id);
   afterDelete?.call();
+  // Don't let rapid deletes queue up a seemingly endless snackbar.
+  messenger.clearSnackBars();
   messenger.showSnackBar(
     SnackBar(
       content: const Text('Record deleted'),
@@ -87,6 +89,7 @@ Future<void> deleteTransactionFlow(
         onPressed: () async {
           Haptics.light();
           await db.restoreTransaction(t, photos);
+          messenger.clearSnackBars();
           messenger.showSnackBar(
             const SnackBar(
               content: Text('Record restored'),
