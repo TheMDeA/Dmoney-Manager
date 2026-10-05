@@ -94,11 +94,21 @@ class BalanceCard extends ConsumerWidget {
                           ),
                           // The digits count down to the dot mask when hiding and
                           // count back up when revealing — no fade/swap.
-                          CountUpBalance(
-                            amount: total,
-                            hidden: balanceHidden,
-                            style: AppTextStyles.displayBalance
-                                .copyWith(color: context.textPrimary),
+                          // Tapping the balance jumps to the Stats tab.
+                          InkWell(
+                            onTap: () {
+                              Haptics.select();
+                              ref
+                                  .read(tabIndexProvider.notifier)
+                                  .go(3);
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: CountUpBalance(
+                              amount: total,
+                              hidden: balanceHidden,
+                              style: AppTextStyles.displayBalance
+                                  .copyWith(color: context.textPrimary),
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -124,7 +134,7 @@ class BalanceCard extends ConsumerWidget {
                               Expanded(
                                 child: _flowCell(
                                   context,
-                                  label: 'Expenses',
+                                  label: 'Expense',
                                   amount: expense,
                                   isIncome: false,
                                   buckets: buckets('expense'),

@@ -18,7 +18,7 @@ import 'currency_screen.dart';
 import 'notifications_screen.dart';
 import 'update_sheet.dart';
 
-/// "More" tab: settings, tools, and app info.
+/// "Settings" tab: settings, tools, and app info.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -72,7 +72,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final hapticsEnabled = ref.watch(hapticsEnabledProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('More')),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
         children: [

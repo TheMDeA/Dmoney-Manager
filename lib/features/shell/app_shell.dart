@@ -127,7 +127,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             const Spacer(),
             _navItem(3, Icons.pie_chart_outline, Icons.pie_chart, 'Stats'),
             _navItem(4, Icons.savings_outlined, Icons.savings, 'Budgets'),
-            _navItem(5, Icons.settings_outlined, Icons.settings, 'More'),
+            _navItem(5, Icons.settings_outlined, Icons.settings, 'Settings'),
           ],
         ),
       ),

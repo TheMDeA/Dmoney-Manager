@@ -170,10 +170,12 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     final lastWeek = <int, int>{};
     final thisMonth = <int, int>{};
     final names = <int, String>{};
+    final debtCats = <int>{};
     for (final d in all) {
       final t = d.transaction;
       if (t.kind != 'expense') continue;
       names[t.categoryId] = d.category.name;
+      if (d.category.kind == 'debt') debtCats.add(t.categoryId);
       if (!t.date.isBefore(weekAgo)) {
         thisWeek[t.categoryId] = (thisWeek[t.categoryId] ?? 0) + t.amount;
       } else if (!t.date.isBefore(twoWeeksAgo)) {
@@ -186,7 +188,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     final out = <(String, String)>[];
 
     // 1. Fastest-rising category vs last week.
-    String? topCat;
+    int? topCatId;
     double topRise = 0;
     for (final e in thisWeek.entries) {
       final prev = lastWeek[e.key] ?? 0;
@@ -194,18 +196,27 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
           prev == 0 ? (e.value > 0 ? 1.0 : 0.0) : (e.value - prev) / prev;
       if (rise > topRise && e.value >= 50000) {
         topRise = rise;
-        topCat = names[e.key];
+        topCatId = e.key;
       }
     }
-    if (topCat != null) {
+    if (topCatId != null) {
+      final topCat = names[topCatId] ?? 'Unknown';
       final pct = (topRise * 100).toStringAsFixed(0);
       final spent = formatMoney(thisWeek.entries
           .firstWhere((e) => names[e.key] == topCat)
           .value);
-      out.add((
-        '$topCat spending is $pct% higher than last week.',
-        'You spent $spent on $topCat in the last 7 days. Small cuts here compound fast.',
-      ));
+      // Debt repayments aren't "spending" — phrase them correctly.
+      if (debtCats.contains(topCatId)) {
+        out.add((
+          '$topCat repayments are $pct% higher than last week.',
+          'You repaid $spent on $topCat debt in the last 7 days.',
+        ));
+      } else {
+        out.add((
+          '$topCat spending is $pct% higher than last week.',
+          'You spent $spent on $topCat in the last 7 days. Small cuts here compound fast.',
+        ));
+      }
     }
 
     // 2. Biggest category this month.

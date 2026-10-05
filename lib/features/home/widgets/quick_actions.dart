@@ -10,13 +10,13 @@ class QuickActions extends StatelessWidget {
     required this.onTransfer,
     required this.onTopUp,
     required this.onScan,
-    required this.onMore,
+    required this.onDebt,
   });
 
   final VoidCallback onTransfer;
   final VoidCallback onTopUp;
   final VoidCallback onScan;
-  final VoidCallback onMore;
+  final VoidCallback onDebt;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +24,7 @@ class QuickActions extends StatelessWidget {
       (Icons.swap_horiz, 'Transfer', onTransfer),
       (Icons.add_card, 'Top up', onTopUp),
       (Icons.receipt_long_outlined, 'Scan', onScan),
-      (Icons.more_horiz, 'More', onMore),
+      (Icons.handshake_outlined, 'Debt', onDebt),
     ];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
