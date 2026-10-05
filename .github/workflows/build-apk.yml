@@ -66,7 +66,7 @@ jobs:
       - name: Build APK
         run: |
           MODE="${{ github.event.inputs.build_mode || 'release' }}"
-          flutter build apk --$MODE > "$RUNNER_TEMP/flutter-build.log" 2>&1
+          flutter build apk --$MODE --target-platform android-arm64 > "$RUNNER_TEMP/flutter-build.log" 2>&1
           code=$?
           cat "$RUNNER_TEMP/flutter-build.log"
           exit $code
