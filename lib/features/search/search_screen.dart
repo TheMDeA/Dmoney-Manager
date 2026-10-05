@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,10 +22,37 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String _filter = 'all';
   final _recent = <String>[];
 
+  /// Debounced query actually used for filtering. The field updates
+  /// immediately for responsive typing, but the (potentially large)
+  /// in-memory filter only re-runs 300ms after the user stops typing.
+  String _query = '';
+  bool _hasText = false;
+  Timer? _debounce;
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _ctrl.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged(String v) {
+    final hasText = v.isNotEmpty;
+    if (hasText != _hasText) setState(() => _hasText = hasText);
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _query = v.trim().toLowerCase());
+    });
+  }
+
+  void _clearQuery() {
+    _debounce?.cancel();
+    _ctrl.clear();
+    setState(() {
+      _hasText = false;
+      _query = '';
+    });
   }
 
   @override
@@ -42,16 +71,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               decoration: InputDecoration(
                 hintText: 'Keyword, amount, or date…',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _ctrl.text.isEmpty
-                    ? null
-                    : IconButton(
+                suffixIcon: _hasText
+                    ? IconButton(
                         icon: const Icon(Icons.clear),
-                        onPressed: () => setState(_ctrl.clear),
-                      ),
+                        onPressed: _clearQuery,
+                      )
+                    : null,
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: _onQueryChanged,
               onSubmitted: (v) {
                 final q = v.trim();
+                _debounce?.cancel();
+                setState(() => _query = q.toLowerCase());
                 if (q.isNotEmpty && !_recent.contains(q)) {
                   setState(() => _recent.insert(0, q));
                 }
@@ -80,7 +111,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               stream: db.watchTransactions(accountId: accountId),
               builder: (context, snap) {
                 final all = snap.data ?? const <TransactionWithDetails>[];
-                final q = _ctrl.text.trim().toLowerCase();
+                final q = _query;
 
                 if (q.isEmpty) {
                   if (_recent.isEmpty) {
@@ -100,7 +131,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         ListTile(
                           leading: const Icon(Icons.history),
                           title: Text(r),
-                          onTap: () => setState(() => _ctrl.text = r),
+                          onTap: () {
+                            _debounce?.cancel();
+                            _ctrl.text = r;
+                            setState(() {
+                              _hasText = true;
+                              _query = r.toLowerCase();
+                            });
+                          },
                         ),
                     ],
                   );

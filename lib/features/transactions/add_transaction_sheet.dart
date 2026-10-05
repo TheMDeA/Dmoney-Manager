@@ -370,8 +370,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
     if (source == null) return;
     try {
-      final picked = await ImagePicker()
-          .pickImage(source: source, imageQuality: 85);
+      // Downscale at capture: a 12MP camera photo at full resolution is
+      // several MB; 1600px on the long edge keeps receipts readable at a
+      // fraction of the size. The copy saved to receipts/ inherits this.
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
       if (picked != null && mounted) {
         setState(() => _photoPath = picked.path);
       }

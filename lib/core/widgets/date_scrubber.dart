@@ -139,19 +139,20 @@ class _DateScrubberState extends State<DateScrubber> {
           ),
         ),
         // Floating date bubble while scrubbing, riding on the thumb.
+        // Compact so it covers as little of the row amounts as possible.
         if (_scrubbing && _bubbleDate != null)
           Positioned(
-            right: 30,
+            right: 28,
             top: 0,
             bottom: 0,
             child: Align(
               alignment: Alignment(0, _fraction * 2 - 1),
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                    horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: context.accent,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(10),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.3),
@@ -164,7 +165,7 @@ class _DateScrubberState extends State<DateScrubber> {
                   DateFormat('d MMM yyyy').format(_bubbleDate!),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                    fontSize: 13,
                     color: onAccent(context.accent),
                   ),
                 ),
