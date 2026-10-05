@@ -156,6 +156,6 @@ jobs:
         with:
           name: Dmoney Manager ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          body_path: CHANGELOG.md
+          body_path: release.md
           files: |
             **/*.apk
