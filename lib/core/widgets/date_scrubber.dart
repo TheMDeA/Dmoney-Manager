@@ -36,6 +36,40 @@ class _DateScrubberState extends State<DateScrubber> {
   var _scrubbing = false;
   DateTime? _bubbleDate;
 
+  /// Thumb position along the strip, 0.0 (top/newest) to 1.0 (bottom/oldest).
+  var _fraction = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onScroll);
+  }
+
+  @override
+  void didUpdateWidget(DateScrubber oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onScroll);
+      widget.controller.addListener(_onScroll);
+      _onScroll();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  /// Keeps the thumb glued to the list's scroll position.
+  void _onScroll() {
+    final c = widget.controller;
+    if (!c.hasClients) return;
+    final max = c.position.maxScrollExtent;
+    final fraction = max <= 0 ? 0.0 : (c.offset / max).clamp(0.0, 1.0);
+    if (fraction != _fraction) setState(() => _fraction = fraction);
+  }
+
   void _scrubTo(Offset globalPosition) {
     final box =
         _stripKey.currentContext?.findRenderObject() as RenderBox?;
@@ -88,7 +122,9 @@ class _DateScrubberState extends State<DateScrubber> {
             onVerticalDragEnd: _onEnd,
             onVerticalDragCancel: () =>
                 setState(() => _scrubbing = false),
-            child: Center(
+            child: Align(
+              // -1 = top, 1 = bottom: the thumb tracks the scroll position.
+              alignment: Alignment(0, _fraction * 2 - 1),
               child: AnimatedContainer(
                 duration: AppMotion.fast,
                 width: 4,
@@ -102,13 +138,14 @@ class _DateScrubberState extends State<DateScrubber> {
             ),
           ),
         ),
-        // Floating date bubble while scrubbing.
+        // Floating date bubble while scrubbing, riding on the thumb.
         if (_scrubbing && _bubbleDate != null)
           Positioned(
             right: 30,
             top: 0,
             bottom: 0,
-            child: Center(
+            child: Align(
+              alignment: Alignment(0, _fraction * 2 - 1),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 10),
