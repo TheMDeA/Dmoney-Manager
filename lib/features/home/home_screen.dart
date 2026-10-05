@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ambient_glow.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
@@ -42,24 +43,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final accountId = ref.watch(selectedAccountProvider);
 
     return Scaffold(
-      // Soft accent wash behind the content so the backdrop isn't flat.
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0, -1.1),
-                  radius: 1.4,
-                  colors: [
-                    context.accent.withValues(alpha: 0.12),
-                    context.accent.withValues(alpha: 0.0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
+      body: AmbientGlow(
+        child: SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               child: Column(
@@ -140,8 +125,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-        ],
-      ),
+        ),
     );
   }
 
