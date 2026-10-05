@@ -8,6 +8,7 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import '../../core/utils/haptics.dart';
 import 'category_form_screen.dart';
 
 /// Manage Category: INCOME / EXPENSE tabs, drag-to-reorder rows with
@@ -171,7 +172,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 tooltip: 'Delete',
                 icon: Icon(Icons.delete_outline,
                     size: 22, color: context.textMuted),
-                onPressed: () => _confirmDelete(context, db, c),
+                onPressed: () {
+                  Haptics.select();
+                  _confirmDelete(context, db, c);
+                },
               ),
             ],
           ),
@@ -193,7 +197,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel')),
           TextButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                Haptics.medium();
+                Navigator.pop(context, true);
+              },
               child: const Text('Delete')),
         ],
       ),

@@ -6,6 +6,7 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -38,6 +39,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
 
   void _swapWallets() {
     if (_fromId == null || _toId == null) return;
+    Haptics.select();
     setState(() {
       final t = _fromId;
       _fromId = _toId;
@@ -209,6 +211,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
       _snack('Enter an amount and two different wallets');
       return;
     }
+    Haptics.medium();
     setState(() => _saving = true);
     try {
       await ref

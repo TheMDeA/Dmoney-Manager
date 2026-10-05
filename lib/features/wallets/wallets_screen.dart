@@ -39,7 +39,10 @@ class WalletsScreen extends ConsumerWidget {
               title: 'Wallets',
               action: IconButton(
                 tooltip: 'Add wallet',
-                onPressed: () => _addWalletDialog(context, ref),
+                onPressed: () {
+                  Haptics.select();
+                  _addWalletDialog(context, ref);
+                },
                 icon: const Icon(Icons.add),
               ),
             ),
@@ -210,9 +213,12 @@ class WalletsScreen extends ConsumerWidget {
       child: Pressable(
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(context).push(
-            AppPageRoute(builder: (_) => WalletDetailScreen(walletId: w.id)),
-          ),
+          onTap: () {
+            Haptics.select();
+            Navigator.of(context).push(
+              AppPageRoute(builder: (_) => WalletDetailScreen(walletId: w.id)),
+            );
+          },
           // Long-press peeks at the wallet's key figures without opening it.
           onLongPress: () => _peekWallet(context, w, last),
           child: GlassCard(

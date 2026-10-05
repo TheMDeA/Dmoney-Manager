@@ -10,6 +10,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'photo_viewer_screen.dart';
@@ -78,12 +79,16 @@ class _TransactionDetailScreenState
         actions: [
           IconButton(
             tooltip: 'Duplicate',
-            onPressed: () => _duplicate(context, ref),
+            onPressed: () {
+              Haptics.select();
+              _duplicate(context, ref);
+            },
             icon: const Icon(Icons.copy_outlined),
           ),
           IconButton(
             tooltip: 'Edit',
             onPressed: () async {
+              Haptics.select();
               final d = await _future;
               if (!context.mounted || d == null) return;
               if (await editTransaction(context, d)) _refresh();
@@ -334,6 +339,7 @@ class _TransactionDetailScreenState
   }
 
   Future<void> _addPhoto(BuildContext context, WidgetRef ref) async {
+    Haptics.select();
     try {
       final picked =
           await ImagePicker().pickImage(source: ImageSource.gallery);

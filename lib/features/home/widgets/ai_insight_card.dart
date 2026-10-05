@@ -7,6 +7,7 @@ import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/haptics.dart';
 import '../../../data/database/app_database.dart';
 import '../../../state/providers.dart';
 
@@ -65,7 +66,10 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: () => setState(() => _expanded = !_expanded),
+              onTap: () {
+                Haptics.select();
+                setState(() => _expanded = !_expanded);
+              },
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

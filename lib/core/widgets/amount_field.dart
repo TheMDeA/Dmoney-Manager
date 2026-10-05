@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/formatters.dart';
+import '../utils/haptics.dart';
 import 'calculator_sheet.dart';
 
 /// Amount input with an always-visible currency symbol.
@@ -72,7 +73,10 @@ class AmountField extends StatelessWidget {
             tooltip: 'Calculator',
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.calculate_outlined, size: 22),
-            onPressed: () => _openCalculator(context),
+            onPressed: () {
+          Haptics.select();
+          _openCalculator(context);
+        },
           ),
       ],
     );

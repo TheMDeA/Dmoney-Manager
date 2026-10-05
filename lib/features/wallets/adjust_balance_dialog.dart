@@ -53,6 +53,7 @@ class _AdjustBalanceDialogState extends ConsumerState<AdjustBalanceDialog> {
   Future<void> _save() async {
     final diff = _diff;
     if (diff == 0 || _saving) return;
+    Haptics.medium();
     setState(() => _saving = true);
     final db = ref.read(databaseProvider);
     try {

@@ -7,6 +7,7 @@ import '../../core/services/app_prefs.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
@@ -35,13 +36,16 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         actions: [
           IconButton(
             tooltip: 'Add debt',
-            onPressed: () => showModalBottomSheet(
+            onPressed: () {
+              Haptics.select();
+              showModalBottomSheet(
               context: context,
               isScrollControlled: true,
               useSafeArea: true,
               builder: (_) =>
                   AddDebtSheet(initialDirection: _direction),
-            ),
+            );
+            },
             icon: const Icon(Icons.add),
           ),
         ],
@@ -159,11 +163,14 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       },
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(vertical: 4),
-        onTap: () => Navigator.of(context).push(
-          AppPageRoute(
-            builder: (_) => DebtDetailScreen(debtId: d.id),
-          ),
-        ),
+        onTap: () {
+          Haptics.select();
+          Navigator.of(context).push(
+            AppPageRoute(
+              builder: (_) => DebtDetailScreen(debtId: d.id),
+            ),
+          );
+        },
         leading: CircleAvatar(
           backgroundColor: color,
           child: Text(

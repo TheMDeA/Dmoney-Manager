@@ -4,6 +4,7 @@ import '../theme/app_accents.dart';
 import '../theme/app_colors.dart';
 import '../utils/expression.dart';
 import '../utils/formatters.dart';
+import '../utils/haptics.dart';
 
 /// Shows the calculator and completes with the chosen integer amount,
 /// or `null` when dismissed.
@@ -222,6 +223,7 @@ class _CalculatorSheetState extends State<CalculatorSheet> {
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () {
+          Haptics.select();
           if (key == '=') {
             _apply();
           } else {

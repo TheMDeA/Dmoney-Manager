@@ -127,12 +127,15 @@ class _AppShellState extends ConsumerState<AppShell> {
       // action, so the animation and swipe-to-dismiss behave identically
       // no matter which entry point is used.
       floatingActionButton: FloatingActionButton(
-        onPressed: () => showModalBottomSheet(
+        onPressed: () {
+          Haptics.select();
+          showModalBottomSheet(
           context: context,
           isScrollControlled: true,
           useSafeArea: true,
           builder: (_) => const AddTransactionSheet(),
-        ),
+          );
+        },
         child: const Icon(Icons.add, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

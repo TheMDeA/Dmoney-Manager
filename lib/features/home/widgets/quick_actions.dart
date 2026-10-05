@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_accents.dart';
+import '../../../core/utils/haptics.dart';
 
 /// Thumb-zone quick actions row. All actions are wired by the parent.
 class QuickActions extends StatelessWidget {
@@ -47,7 +48,10 @@ class _Action extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
+      onTap: () {
+        Haptics.select();
+        onTap();
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Column(

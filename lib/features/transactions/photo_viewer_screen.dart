@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/haptics.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -67,7 +68,10 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
               return IconButton(
                 tooltip: 'Delete photo',
                 icon: const Icon(Icons.delete_outline),
-                onPressed: () => _confirmDelete(context, db, photos[i]),
+                onPressed: () {
+                  Haptics.select();
+                  _confirmDelete(context, db, photos[i]);
+                },
               );
             },
           ),
@@ -150,7 +154,10 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.expense,
             ),

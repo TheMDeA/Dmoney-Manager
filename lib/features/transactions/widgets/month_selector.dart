@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/haptics.dart';
 
 /// Opens the bottom-sheet month/year picker; returns the picked month or null.
 Future<DateTime?> showMonthYearPicker(
@@ -33,11 +34,17 @@ class MonthSelector extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          onPressed: () => onShift(-1),
+          onPressed: () {
+            Haptics.select();
+            onShift(-1);
+          },
           icon: const Icon(Icons.chevron_left),
         ),
         GestureDetector(
-          onTap: onPick,
+          onTap: () {
+            Haptics.select();
+            onPick();
+          },
           child: Text(
             DateFormat('MMM yyyy').format(month),
             style: const TextStyle(
@@ -45,7 +52,10 @@ class MonthSelector extends StatelessWidget {
           ),
         ),
         IconButton(
-          onPressed: () => onShift(1),
+          onPressed: () {
+            Haptics.select();
+            onShift(1);
+          },
           icon: const Icon(Icons.chevron_right),
         ),
       ],
@@ -93,7 +103,10 @@ class _MonthPickerState extends State<MonthPicker> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  onPressed: () => setState(() => _year--),
+                  onPressed: () {
+                    Haptics.select();
+                    setState(() => _year--);
+                  },
                   icon: const Icon(Icons.chevron_left),
                 ),
                 Text(
@@ -103,12 +116,28 @@ class _MonthPickerState extends State<MonthPicker> {
                 ),
                 IconButton(
                   onPressed: _year < now.year
-                      ? () => setState(() => _year++)
+                      ? () {
+                          Haptics.select();
+                          setState(() => _year++);
+                        }
                       : null,
                   icon: const Icon(Icons.chevron_right),
                 ),
               ],
             ),
+            TextButton.icon(
+              onPressed: () {
+                Haptics.select();
+                Navigator.of(context).pop(DateTime(now.year, now.month));
+              },
+              icon: const Icon(Icons.today_outlined, size: 16),
+              label: const Text('Current month'),
+              style: TextButton.styleFrom(
+                foregroundColor: context.accent,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(height: 4),
             const SizedBox(height: 8),
             GridView.builder(
               shrinkWrap: true,
@@ -135,8 +164,11 @@ class _MonthPickerState extends State<MonthPicker> {
                     borderRadius: BorderRadius.circular(12),
                     onTap: future
                         ? null
-                        : () => Navigator.of(context)
-                            .pop(DateTime(_year, m + 1)),
+                        : () {
+                            Haptics.select();
+                            Navigator.of(context)
+                                .pop(DateTime(_year, m + 1));
+                          },
                     child: Center(
                       child: Text(
                         _names[m],

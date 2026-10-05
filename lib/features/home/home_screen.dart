@@ -88,11 +88,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   SectionHeader(
                     title: 'Recent transactions',
                     action: TextButton(
-                      onPressed: () => Navigator.of(context).push(
-                        AppPageRoute(
-                          builder: (_) => const TransactionsScreen(),
-                        ),
-                      ),
+                      onPressed: () {
+                        Haptics.select();
+                        Navigator.of(context).push(
+                          AppPageRoute(
+                            builder: (_) => const TransactionsScreen(),
+                          ),
+                        );
+                      },
                       child: const Text('View all'),
                     ),
                   ),
@@ -261,13 +264,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
         IconButton(
-          onPressed: () => Navigator.of(
-            context,
-          ).push(AppPageRoute(builder: (_) => const SearchScreen())),
+          onPressed: () {
+            Haptics.select();
+            Navigator.of(
+              context,
+            ).push(AppPageRoute(builder: (_) => const SearchScreen()));
+          },
           icon: const Icon(Icons.search),
         ),
         IconButton(
           onPressed: () {
+            Haptics.select();
             if (ref.read(lockEnabledProvider)) {
               ref.read(lockedProvider.notifier).lock();
             } else {
