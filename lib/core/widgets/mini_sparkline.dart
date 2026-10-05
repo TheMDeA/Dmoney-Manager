@@ -26,12 +26,25 @@ class MiniSparkline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final calmed = _calm(values);
     final spots = [
-      for (var i = 0; i < values.length; i++)
-        FlSpot(i.toDouble(), _calm(values)[i]),
+      for (var i = 0; i < calmed.length; i++) FlSpot(i.toDouble(), calmed[i]),
     ];
+    final maxVal = calmed.fold<double>(0, (m, v) => v > m ? v : m);
+    // Headroom so the line never glues itself to the container edge: a flat
+    // zero line (e.g. no income yet) would otherwise sit exactly on the
+    // bottom boundary, and a tall spike would touch the top.
+    final headroom = maxVal > 0 ? maxVal * 0.25 : 1.0;
+    // Horizontal breathing room so the endpoints don't touch the left/right
+    // edges of the box (the 2.5px stroke would otherwise get clipped there).
+    final double? minX = calmed.isNotEmpty ? -0.35 : null;
+    final double? maxX = calmed.isNotEmpty ? calmed.length - 1 + 0.35 : null;
     return LineChart(
       LineChartData(
+        minX: minX,
+        maxX: maxX,
+        minY: -headroom * 0.2,
+        maxY: maxVal + headroom,
         lineTouchData: const LineTouchData(enabled: false),
         gridData: const FlGridData(show: false),
         titlesData: const FlTitlesData(show: false),

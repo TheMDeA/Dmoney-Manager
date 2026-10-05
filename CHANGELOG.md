@@ -4,6 +4,9 @@
 - Main tab headers redesigned: a bold title with a lime full stop, and a "Today" shortcut pill on the Calendar header.
 - Tapping the month label in the calendar now opens the month/year picker, like in the transaction history.
 
+### Fixed
+- The balance card sparkline no longer sits glued to the edge of its box when a flow has no data yet.
+
 ## [2.3.3] - 2026-10-05
 
 ### Fixed
