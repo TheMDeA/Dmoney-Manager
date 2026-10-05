@@ -1,4 +1,4 @@
-## [Unreleased]
+## [2.3.0] - 2026-10-05
 
 ### Added
 - Bulk select in transaction history: long-press a record to select multiple, then delete them together (with undo) or move them to another category at once.
@@ -12,7 +12,6 @@
 - The fourth home quick action is now Debt (opens the add-debt form) instead of duplicating the Settings tab.
 - Tapping the total balance on the home card jumps to the Stats tab.
 - "See all" on the home screen now reads "View all", matching the wallet and budget screens.
-- Tapping the total balance on the home card jumps to the Stats tab.
 
 ### Fixed
 - The date scrubber bubble is more compact so it hides less of the row amounts while scrubbing.
