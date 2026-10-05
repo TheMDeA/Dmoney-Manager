@@ -46,6 +46,17 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _memoCtrl = TextEditingController();
+  // The bottom-sheet route has no ScaffoldMessenger of its own, so without
+  // this every snackbar would render behind the modal barrier and only
+  // become visible after the sheet closes.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  /// Shows a snackbar *inside* the sheet.
+  void _snack(String message) {
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
   late String _kind;
   int? _categoryId;
   int? _walletId;
@@ -136,9 +147,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
-    return Stack(
-      children: [
-        FormSheet(
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Stack(
+        children: [
+          FormSheet(
           title: _editing
               ? 'Edit record'
               : (_kind == 'income' ? 'Add income' : 'Add expense'),
@@ -281,7 +294,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ],
         ),
         if (_success) const _SuccessOverlay(),
-      ],
+        ],
+      ),
     );
   }
 
@@ -384,9 +398,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not pick photo: $e')),
-        );
+        _snack('Could not pick photo: $e');
       }
     }
   }
@@ -474,19 +486,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _descCtrl.text = t.note;
     });
     db.bumpTemplateUse(t.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Filled from "${t.name}"')),
-    );
+    _snack('Filled from "${t.name}"');
   }
 
   Future<void> _saveTemplate(AppDatabase db) async {
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _categoryId == null || _walletId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'Fill in amount, category and wallet first')),
-      );
+      _snack('Fill in amount, category and wallet first');
       return;
     }
     final nameCtrl = TextEditingController(
@@ -529,9 +535,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       ),
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Template "$name" saved')),
-      );
+      _snack('Template "$name" saved');
     }
   }
 
@@ -573,11 +577,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         _categoryId == null ||
         _walletId == null ||
         desc.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'Enter a description, amount, category and wallet')),
-      );
+      _snack('Enter a description, amount, category and wallet');
       return;
     }
     setState(() => _saving = true);

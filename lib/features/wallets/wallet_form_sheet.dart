@@ -48,6 +48,15 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   int? _accountId;
   List<Account> _accounts = const [];
   bool _saving = false;
+  // Own messenger: the bottom-sheet route has none, so snackbars would
+  // otherwise render behind the modal barrier.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  void _snack(String message) {
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   bool get _editing => widget.existing != null;
 
@@ -72,16 +81,12 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a wallet name')),
-      );
+      _snack('Enter a wallet name');
       return;
     }
     final accountId = _accountId;
     if (!_editing && accountId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pick an account for this wallet')),
-      );
+      _snack('Pick an account for this wallet');
       return;
     }
     setState(() => _saving = true);
@@ -113,9 +118,11 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
-    return StreamBuilder<List<Account>>(
-      stream: db.watchAccounts(),
-      builder: (context, snap) {
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: StreamBuilder<List<Account>>(
+        stream: db.watchAccounts(),
+        builder: (context, snap) {
         _accounts = snap.data ?? const <Account>[];
         if (!_editing &&
             (_accountId == null ||
@@ -180,6 +187,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
           ],
         );
       },
+      ),
     );
   }
 }

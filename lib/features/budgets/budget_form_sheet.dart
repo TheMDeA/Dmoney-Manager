@@ -49,6 +49,15 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
   final _limitCtrl = TextEditingController();
   int? _categoryId;
   bool _saving = false;
+  // Own messenger: the bottom-sheet route has none, so snackbars would
+  // otherwise render behind the modal barrier.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  void _snack(String message) {
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   void dispose() {
@@ -60,10 +69,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
     final limit = parseAmountInput(_limitCtrl.text);
     final catId = _categoryId;
     if (catId == null || limit <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Pick a category and enter a monthly limit')),
-      );
+      _snack('Pick a category and enter a monthly limit');
       return;
     }
     setState(() => _saving = true);
@@ -81,8 +87,10 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return FormSheet(
-      title: 'Add budget',
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: FormSheet(
+        title: 'Add budget',
       subtitle: 'Set a monthly spending limit per category.',
       actionLabel: 'Add budget',
       onAction: _save,
@@ -99,6 +107,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
         FormAmountEntry(controller: _limitCtrl, autofocus: true),
         const SizedBox(height: 8),
       ],
+      ),
     );
   }
 }

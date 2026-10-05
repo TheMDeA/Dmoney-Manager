@@ -37,6 +37,15 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
   DateTime? _deadline;
   late String _colorHex;
   bool _saving = false;
+  // Own messenger: the bottom-sheet route has none, so snackbars would
+  // otherwise render behind the modal barrier.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  void _snack(String message) {
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   bool get _editing => widget.existing != null;
 
@@ -73,10 +82,7 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
     final name = _nameCtrl.text.trim();
     final target = parseAmountInput(_targetCtrl.text);
     if (name.isEmpty || target <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Enter a name and a target amount')),
-      );
+      _snack('Enter a name and a target amount');
       return;
     }
     setState(() => _saving = true);
@@ -110,8 +116,10 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return FormSheet(
-      title: _editing ? 'Edit savings goal' : 'Add savings goal',
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: FormSheet(
+        title: _editing ? 'Edit savings goal' : 'Add savings goal',
       subtitle: _editing
           ? null
           : 'Set aside money for something that matters.',
@@ -144,6 +152,7 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
         ),
         const SizedBox(height: 8),
       ],
+      ),
     );
   }
 }

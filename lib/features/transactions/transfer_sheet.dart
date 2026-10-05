@@ -21,6 +21,15 @@ class TransferSheet extends ConsumerStatefulWidget {
 class _TransferSheetState extends ConsumerState<TransferSheet> {
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  // Own messenger: the bottom-sheet route has none, so snackbars would
+  // otherwise render behind the modal barrier.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  void _snack(String message) {
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
   int? _fromId;
   int? _toId;
   int _swaps = 0; // drives the swap button's rotation animation
@@ -47,10 +56,12 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
-    return Stack(
-      children: [
-        FormSheet(
-          title: 'Transfer',
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: Stack(
+        children: [
+          FormSheet(
+            title: 'Transfer',
           subtitle: 'Move money between two wallets.',
           actionLabel: 'Transfer',
           onAction: _save,
@@ -187,18 +198,15 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
               ],
             ),
         if (_success) const _TransferSuccessOverlay(),
-      ],
+        ],
+      ),
     );
   }
 
   Future<void> _save() async {
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _fromId == null || _toId == null || _fromId == _toId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter an amount and two different wallets'),
-        ),
-      );
+      _snack('Enter an amount and two different wallets');
       return;
     }
     setState(() => _saving = true);
