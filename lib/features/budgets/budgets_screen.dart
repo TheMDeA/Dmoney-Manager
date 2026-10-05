@@ -9,6 +9,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/count_up_money.dart';
 import '../../core/widgets/animated_progress_bar.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/pressable.dart';
@@ -203,8 +204,17 @@ class BudgetsScreen extends ConsumerWidget {
                   child: Text(c?.name ?? 'Budget',
                       style: const TextStyle(fontWeight: FontWeight.w600)),
                 ),
-                Text('${formatMoney(spent)} / ${formatMoney(b.limit)}',
-                    style: AppTextStyles.amount(size: 13)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CountUpMoney(
+                      amount: spent,
+                      style: AppTextStyles.amount(size: 13),
+                    ),
+                    Text(' / ${formatMoney(b.limit)}',
+                        style: AppTextStyles.amount(size: 13)),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -214,12 +224,29 @@ class BudgetsScreen extends ConsumerWidget {
               color: color,
             ),
             const SizedBox(height: 6),
-            Text(
-              ratio >= 1
-                  ? 'Over budget by ${formatMoney(spent - b.limit)}'
-                  : '${formatMoney(b.limit - spent)} left',
-              style: AppTextStyles.amount(size: 12).copyWith(
-                  color: ratio >= 1 ? AppColors.expense : context.textMuted),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (ratio >= 1) ...[
+                  Text('Over budget by ',
+                      style: AppTextStyles.amount(size: 12).copyWith(
+                          color: AppColors.expense)),
+                  CountUpMoney(
+                    amount: spent - b.limit,
+                    style: AppTextStyles.amount(size: 12).copyWith(
+                        color: AppColors.expense),
+                  ),
+                ] else ...[
+                  CountUpMoney(
+                    amount: b.limit - spent,
+                    style: AppTextStyles.amount(size: 12)
+                        .copyWith(color: context.textMuted),
+                  ),
+                  Text(' left',
+                      style: AppTextStyles.amount(size: 12)
+                          .copyWith(color: context.textMuted)),
+                ],
+              ],
             ),
           ],
         ),
@@ -286,9 +313,21 @@ class BudgetsScreen extends ConsumerWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('${formatMoney(goals[i].saved)} of ${formatMoney(goals[i].target)}',
-                                style: AppTextStyles.amount(size: 12).copyWith(
-                                    color: context.textMuted)),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CountUpMoney(
+                                  amount: goals[i].saved,
+                                  style: AppTextStyles.amount(size: 12)
+                                      .copyWith(color: context.textMuted),
+                                ),
+                                Text(
+                                    ' of ${formatMoney(goals[i].target)}',
+                                    style: AppTextStyles.amount(size: 12)
+                                        .copyWith(
+                                            color: context.textMuted)),
+                              ],
+                            ),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

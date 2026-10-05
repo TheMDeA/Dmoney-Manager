@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/amount_text.dart';
+import '../../core/widgets/count_up_money.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/widgets/transaction_tile.dart';
@@ -32,8 +34,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   late DateTime _month =
       DateTime(DateTime.now().year, DateTime.now().month);
+  int _slideDir = 1;
 
   void _shift(int delta) => setState(() {
+        _slideDir = delta.sign;
         _month = DateTime(_month.year, _month.month + delta);
       });
 
@@ -91,7 +95,49 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               _monthSelector(),
               _summary(monthIncome, monthExpense),
               _weekdayHeader(),
-              Expanded(child: _grid(gridStart, totals, todayKey)),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: AppMotion.normal,
+                  layoutBuilder:
+                      (currentChild, previousChildren) => Stack(
+                    children: [
+                      ...previousChildren,
+                      ?currentChild,
+                    ],
+                  ),
+                  transitionBuilder: (child, animation) {
+                    // Direction-aware slide: the incoming month enters
+                    // from the tapped side, the outgoing exits opposite.
+                    final monthKey =
+                        (child.key! as ValueKey<DateTime>).value;
+                    final incoming = monthKey == _month;
+                    final begin = incoming
+                        ? Offset(0.3 * _slideDir, 0)
+                        : Offset(-0.3 * _slideDir, 0);
+                    final position =
+                        Tween<Offset>(begin: begin, end: Offset.zero)
+                            .animate(CurvedAnimation(
+                      parent: animation,
+                      curve: incoming
+                          ? AppMotion.enter
+                          : AppMotion.exit,
+                    ));
+                    return ClipRect(
+                      child: FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: position,
+                          child: child,
+                        ),
+                      ),
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey(_month),
+                    child: _grid(gridStart, totals, todayKey),
+                  ),
+                ),
+              ),
             ],
           );
         },
@@ -141,24 +187,35 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         children: [
           cell(
             'Income',
-            Text(formatMoney(income),
-                style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
-                    .copyWith(color: AppColors.income)),
+            CountUpMoney(
+              amount: income,
+              style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
+                  .copyWith(color: AppColors.income),
+            ),
           ),
           cell(
             'Expense',
-            Text('-${formatMoney(expense)}',
-                style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
-                    .copyWith(color: AppColors.expense)),
+            CountUpMoney(
+              amount: expense,
+              format: (v) => '-${formatMoney(v)}',
+              style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
+                  .copyWith(color: AppColors.expense),
+            ),
           ),
           cell(
             'Total',
-            total == 0
-                ? Text(formatMoney(0),
-                    style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
-                        .copyWith(color: context.textMuted))
-                : AmountText(total.abs(),
-                    isIncome: total > 0, size: 15),
+            CountUpMoney(
+              amount: total,
+              format: (v) =>
+                  v >= 0 ? formatMoney(v) : '-${formatMoney(-v)}',
+              style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
+                  .copyWith(
+                      color: total == 0
+                          ? context.textMuted
+                          : total > 0
+                              ? AppColors.income
+                              : AppColors.expense),
+            ),
           ),
         ],
       ),

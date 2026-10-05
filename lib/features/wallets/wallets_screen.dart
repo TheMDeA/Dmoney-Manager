@@ -11,6 +11,7 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/count_up_money.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/pressable.dart';
 import '../../data/database/app_database.dart';
@@ -83,9 +84,12 @@ class WalletsScreen extends ConsumerWidget {
                             Text('Combined balance',
                                 style: TextStyle(color: context.textMuted, fontSize: 13)),
                             const SizedBox(height: 4),
-                            Text(formatMoney(total),
-                                style: AppTextStyles.displayBalance
-                                    .copyWith(fontSize: 32, color: context.textPrimary)),
+                            CountUpMoney(
+                              amount: total,
+                              style: AppTextStyles.displayBalance.copyWith(
+                                  fontSize: 32,
+                                  color: context.textPrimary),
+                            ),
                             SizedBox(height: 4),
                             Text('${wallets.length} wallets',
                                 style: TextStyle(
@@ -194,8 +198,8 @@ class WalletsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            Text(
-              formatMoney(w.balance),
+            CountUpMoney(
+              amount: w.balance,
               style: AppTextStyles.amount(size: 17).copyWith(
                 color: negative ? AppColors.expense : context.textPrimary,
               ),
