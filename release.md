@@ -1,11 +1,10 @@
-## [2.3.3] - 2026-10-05
-
-### Fixed
-- Bottom nav icons now track the page continuously while swiping or switching tabs, instead of popping with a delayed bounce after the page settled.
-- The add/edit transaction sheet now shows a red hint under each missing field (amount, category, wallet) instead of a single popup message.
+## [2.4.0] - 2026-10-05
 
 ### Changed
-- Home screen polish: a soft accent glow behind the content and on the balance card, calmer sparklines that stay readable when one day spikes, and the insight card now follows your theme color.
-- The soft accent background glow now extends to the Wallets, Calendar, Stats, Budgets, and Settings pages.
-- The debt form is now a bottom sheet like the other forms, with the same sections and inline validation, instead of a separate full-screen page.
-- Form sheets now cap at three-quarters of the screen height instead of covering the whole display.
+- Main tab headers redesigned: a bold title with a lime full stop, and a "Today" shortcut pill on the Calendar header.
+- Tapping the month label in the calendar now opens the month/year picker, like in the transaction history.
+- The month/year picker gained a "Current month" shortcut for one-tap jumps back to today, and stepping through months now gives subtle haptic feedback.
+- Haptic feedback pass across the app: quick actions, the calculator keypad, photo handling, save buttons, and delete confirmations now respond with subtle taps.
+
+### Fixed
+- The balance card sparkline no longer sits glued to the edge of its box when a flow has no data yet.

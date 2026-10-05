@@ -1,4 +1,4 @@
-## [Unreleased]
+## [2.4.0] - 2026-10-05
 
 ### Changed
 - Main tab headers redesigned: a bold title with a lime full stop, and a "Today" shortcut pill on the Calendar header.
