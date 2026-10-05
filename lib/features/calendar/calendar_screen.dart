@@ -73,6 +73,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           children: [
             ScreenHeader(
               title: 'Calendar',
+              tabIndex: 2,
               action: HeaderPillButton(label: 'Today', onTap: _goToToday),
             ),
             Expanded(

@@ -63,7 +63,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const ScreenHeader(title: 'Stats'),
+            const ScreenHeader(title: 'Stats', tabIndex: 3),
             Expanded(
               child: StreamBuilder<List<CategoryTotal>>(
                 stream: db.watchCategoryExpenseTotals(

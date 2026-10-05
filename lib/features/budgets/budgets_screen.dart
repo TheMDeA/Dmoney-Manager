@@ -41,7 +41,7 @@ class BudgetsScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const ScreenHeader(title: 'Budgets'),
+            const ScreenHeader(title: 'Budgets', tabIndex: 4),
             Expanded(
               child: StreamBuilder<List<Budget>>(
                 stream: db.watchBudgets(mk),

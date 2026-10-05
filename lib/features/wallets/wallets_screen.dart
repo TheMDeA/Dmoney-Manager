@@ -37,6 +37,7 @@ class WalletsScreen extends ConsumerWidget {
           children: [
             ScreenHeader(
               title: 'Wallets',
+              tabIndex: 1,
               action: IconButton(
                 tooltip: 'Add wallet',
                 onPressed: () {
