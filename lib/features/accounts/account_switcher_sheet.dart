@@ -6,8 +6,11 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
+import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'move_wallets_sheet.dart';
+import 'new_account_sheet.dart';
 
 /// Account palette shared by the switcher and the new-account dialog.
 const accountPalette = [
@@ -197,9 +200,9 @@ class _AccountSwitcherSheetState
   }
 
   Future<void> _newAccount(List<Account> accounts) async {
-    final result = await showDialog<_NewAccountResult>(
-      context: context,
-      builder: (_) => const _NewAccountDialog(),
+    final result = await showFormSheet<NewAccountResult>(
+      context,
+      (_) => NewAccountSheet(palette: accountPalette),
     );
     if (result == null) return;
     await ref.read(databaseProvider).addAccount(
@@ -320,9 +323,9 @@ class _AccountSwitcherSheetState
       );
       return;
     }
-    final result = await showDialog<_MoveWalletsResult>(
-      context: context,
-      builder: (_) => _MoveWalletsDialog(
+    final result = await showFormSheet<MoveWalletsResult>(
+      context,
+      (_) => MoveWalletsSheet(
         source: account,
         wallets: wallets,
         destinations: destinations,
@@ -373,96 +376,6 @@ class _AccountSwitcherSheetState
         SnackBar(content: Text('Deleted "${account.name}"')),
       );
     }
-  }
-}
-
-class _NewAccountResult {
-  _NewAccountResult(this.name, this.colorHex);
-  final String name;
-  final String colorHex;
-}
-
-class _NewAccountDialog extends StatefulWidget {
-  const _NewAccountDialog();
-
-  @override
-  State<_NewAccountDialog> createState() => _NewAccountDialogState();
-}
-
-class _NewAccountDialogState extends State<_NewAccountDialog> {
-  final _ctrl = TextEditingController();
-  var _colorHex = accountPalette.first;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('New account'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: _ctrl,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Name',
-              hintText: 'e.g. Work',
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          const Text('Color'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            children: [
-              for (final hex in accountPalette)
-                GestureDetector(
-                  onTap: () => setState(() => _colorHex = hex),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: colorFromHex(hex),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _colorHex == hex
-                            ? context.textPrimary
-                            : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                    child: _colorHex == hex
-                        ? Icon(Icons.check,
-                            size: 18, color: onAccent(colorFromHex(hex)))
-                        : null,
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _ctrl.text.trim().isEmpty
-              ? null
-              : () => Navigator.of(context).pop(
-                  _NewAccountResult(_ctrl.text.trim(), _colorHex)),
-          child: const Text('Create'),
-        ),
-      ],
-    );
   }
 }
 
@@ -565,97 +478,6 @@ class _ColorDialogState extends State<_ColorDialog> {
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_hex),
           child: const Text('Save'),
-        ),
-      ],
-    );
-  }
-}
-
-class _MoveWalletsResult {
-  _MoveWalletsResult(this.walletIds, this.destinationId);
-  final List<int> walletIds;
-  final int destinationId;
-}
-
-class _MoveWalletsDialog extends StatefulWidget {
-  const _MoveWalletsDialog({
-    required this.source,
-    required this.wallets,
-    required this.destinations,
-  });
-
-  final Account source;
-  final List<Wallet> wallets;
-  final List<Account> destinations;
-
-  @override
-  State<_MoveWalletsDialog> createState() => _MoveWalletsDialogState();
-}
-
-class _MoveWalletsDialogState extends State<_MoveWalletsDialog> {
-  final _picked = <int>{};
-  late int _destinationId = widget.destinations.first.id;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Move wallets from ${widget.source.name}'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final w in widget.wallets)
-                    CheckboxListTile(
-                      value: _picked.contains(w.id),
-                      onChanged: (v) => setState(() {
-                        if (v == true) {
-                          _picked.add(w.id);
-                        } else {
-                          _picked.remove(w.id);
-                        }
-                      }),
-                      title: Text(w.name),
-                      subtitle: Text(formatMoney(w.balance),
-                          style: TextStyle(
-                              color: context.textMuted, fontSize: 12)),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text('Move to'),
-            DropdownButton<int>(
-              value: _destinationId,
-              isExpanded: true,
-              items: [
-                for (final a in widget.destinations)
-                  DropdownMenuItem(value: a.id, child: Text(a.name)),
-              ],
-              onChanged: (v) =>
-                  setState(() => _destinationId = v ?? _destinationId),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _picked.isEmpty
-              ? null
-              : () => Navigator.of(context).pop(
-                  _MoveWalletsResult(_picked.toList(), _destinationId)),
-          child: const Text('Move'),
         ),
       ],
     );

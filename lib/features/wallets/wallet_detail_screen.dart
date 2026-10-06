@@ -14,7 +14,7 @@ import '../../core/widgets/month_scrubber.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
-import 'adjust_balance_dialog.dart';
+import 'adjust_balance_sheet.dart';
 import '../transactions/add_transaction_sheet.dart';
 import '../transactions/widgets/grouped_transaction_list.dart';
 import '../transactions/widgets/month_overview.dart';
@@ -199,7 +199,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             child: FilledButton(
               onPressed: () {
                 Haptics.select();
-                AdjustBalanceDialog.show(context, wallet);
+                AdjustBalanceSheet.show(context, wallet);
               },
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brandBlue,

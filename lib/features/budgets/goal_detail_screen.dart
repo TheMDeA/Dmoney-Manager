@@ -9,8 +9,10 @@ import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
+import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'goal_deposit_sheet.dart';
 import 'goal_form_sheet.dart';
 
 /// Detail view for one savings goal: saved/remain progress, deadline info,
@@ -411,51 +413,18 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
 
   Future<void> _depositDialog(
       BuildContext context, AppDatabase db, Goal goal, bool isDeposit) async {
-    final amountCtrl = TextEditingController();
-    final noteCtrl = TextEditingController();
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isDeposit
-            ? 'Deposit to "${goal.name}"'
-            : 'Withdraw from "${goal.name}"'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: amountCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ThousandsSeparatorInputFormatter()],
-              decoration: InputDecoration(
-                  labelText: 'Amount (${currentCurrency.code})'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: noteCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Note (optional)'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(isDeposit ? 'Deposit' : 'Withdraw')),
-        ],
-      ),
+    final result = await showFormSheet<GoalDepositInput>(
+      context,
+      (_) => GoalDepositSheet(goal: goal, isDeposit: isDeposit),
     );
-    final amount = parseAmountInput(amountCtrl.text);
-    if (saved == true && amount > 0 && context.mounted) {
+    final amount = result?.amount ?? 0;
+    if (result != null && amount > 0 && context.mounted) {
       final wasComplete = goal.target > 0 && goal.saved >= goal.target;
       await db.recordGoalDeposit(
         goalId: goal.id,
         amount: isDeposit ? amount : -amount,
         date: DateTime.now(),
-        note: noteCtrl.text.trim(),
+        note: result.note,
       );
       if (!context.mounted) return;
       // Celebrate the moment a deposit pushes the goal to 100%.

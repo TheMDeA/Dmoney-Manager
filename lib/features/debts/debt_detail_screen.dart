@@ -13,6 +13,7 @@ import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'edit_debt_sheet.dart';
+import 'record_payment_sheet.dart';
 
 /// Detail view for one debt: received/left progress, info, payment history,
 /// record-payment FAB, plus edit/delete.
@@ -334,14 +335,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
   Future<void> _recordPayment(BuildContext context, AppDatabase db) async {
     final debt = await db.getDebtById(widget.debtId);
     if (debt == null || !context.mounted) return;
-    final wallets = await db.watchWallets().first;
-    if (!context.mounted) return;
-    final result = await showDialog<_PaymentInput>(
-      context: context,
-      builder: (_) => _RecordPaymentDialog(
-        debt: debt,
-        wallets: wallets,
-      ),
+    final result = await showFormSheet<DebtPaymentInput>(
+      context,
+      (_) => RecordPaymentSheet(debt: debt),
     );
     if (result != null && result.amount > 0) {
       await db.recordDebtPayment(
@@ -411,126 +407,5 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       await db.deleteDebt(widget.debtId);
       if (context.mounted) Navigator.pop(context);
     }
-  }
-}
-
-class _PaymentInput {
-  _PaymentInput({
-    required this.amount,
-    required this.date,
-    required this.note,
-    required this.walletId,
-  });
-  final int amount;
-  final DateTime date;
-  final String note;
-  final int? walletId;
-}
-
-/// Dialog for recording one repayment against a debt.
-class _RecordPaymentDialog extends StatefulWidget {
-  const _RecordPaymentDialog({required this.debt, required this.wallets});
-
-  final Debt debt;
-  final List<Wallet> wallets;
-
-  @override
-  State<_RecordPaymentDialog> createState() => _RecordPaymentDialogState();
-}
-
-class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
-  final _amountCtrl = TextEditingController();
-  final _noteCtrl = TextEditingController();
-  DateTime _date = DateTime.now();
-  int? _walletId;
-
-  @override
-  void initState() {
-    super.initState();
-    _walletId = widget.debt.walletId ??
-        (widget.wallets.isNotEmpty ? widget.wallets.first.id : null);
-  }
-
-  @override
-  void dispose() {
-    _amountCtrl.dispose();
-    _noteCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final receivable = widget.debt.direction == 'receivable';
-    return AlertDialog(
-      title: Text(receivable ? 'Record received' : 'Record payment'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _amountCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ThousandsSeparatorInputFormatter()],
-              decoration: InputDecoration(
-                  labelText: 'Amount (${currentCurrency.code})'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteCtrl,
-              decoration: const InputDecoration(labelText: 'Note (optional)'),
-            ),
-            const SizedBox(height: 12),
-            if (widget.wallets.isNotEmpty)
-              DropdownButtonFormField<int?>(
-                initialValue: _walletId,
-                decoration: const InputDecoration(labelText: 'Wallet'),
-                items: [
-                  const DropdownMenuItem<int?>(
-                      value: null, child: Text('No wallet')),
-                  for (final w in widget.wallets)
-                    DropdownMenuItem<int?>(
-                        value: w.id, child: Text(w.name)),
-                ],
-                onChanged: (v) => setState(() => _walletId = v),
-              ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _date,
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime.now().add(const Duration(days: 365)),
-                );
-                if (picked != null) {
-                  setState(() => _date = DateTime(picked.year, picked.month,
-                      picked.day, _date.hour, _date.minute));
-                }
-              },
-              icon: const Icon(Icons.calendar_today_outlined, size: 18),
-              label: Text(formatDate(_date)),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        FilledButton(
-          onPressed: () => Navigator.pop(
-            context,
-            _PaymentInput(
-              amount: parseAmountInput(_amountCtrl.text),
-              date: _date,
-              note: _noteCtrl.text.trim(),
-              walletId: _walletId,
-            ),
-          ),
-          child: const Text('Save'),
-        ),
-      ],
-    );
   }
 }
