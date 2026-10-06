@@ -10,6 +10,7 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/count_up_money.dart';
 import '../../core/widgets/animated_progress_bar.dart';
@@ -19,6 +20,7 @@ import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../debts/debts_screen.dart';
+import '../debts/debt_detail_screen.dart';
 import 'budget_detail_screen.dart';
 import 'budget_form_sheet.dart';
 import 'goal_detail_screen.dart';
@@ -453,6 +455,14 @@ class BudgetsScreen extends ConsumerWidget {
             for (final d in debts)
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                onTap: () {
+                  Haptics.select();
+                  Navigator.of(context).push(
+                    AppPageRoute(
+                      builder: (_) => DebtDetailScreen(debtId: d.id),
+                    ),
+                  );
+                },
                 leading: CircleAvatar(
                   backgroundColor: colorFromHex(
                     d.colorHex,

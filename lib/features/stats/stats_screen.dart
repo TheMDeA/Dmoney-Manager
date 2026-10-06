@@ -843,18 +843,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       (i) => DateTime(now.year, now.month - 5 + i),
     );
     const monthNames = [
-      'J',
-      'F',
-      'M',
-      'A',
-      'M',
-      'J',
-      'J',
-      'A',
-      'S',
-      'O',
-      'N',
-      'D',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final lookup = _monthlyLookup(totals);
 
@@ -988,11 +988,25 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       final net = (kinds['income'] ?? 0) - (kinds['expense'] ?? 0);
       spots.add(FlSpot(i.toDouble(), net.toDouble()));
     }
+
+    // Axis bounds from the data so the min/max labels sit exactly on the
+    // extreme dots.
+    var minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
+    var maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    if (minY == maxY) {
+      // Flat line (e.g. no data yet) — give the chart some room.
+      final pad = maxY.abs() * 0.1;
+      minY -= pad > 0 ? pad : 1;
+      maxY += pad > 0 ? pad : 1;
+    }
+
     return GlassCard(
       child: SizedBox(
         height: 180,
         child: LineChart(
           LineChartData(
+            minY: minY,
+            maxY: maxY,
             lineTouchData: LineTouchData(
               enabled: true,
               touchTooltipData: LineTouchTooltipData(
@@ -1016,7 +1030,53 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ),
             ),
             gridData: const FlGridData(show: false),
-            titlesData: const FlTitlesData(show: false),
+            titlesData: FlTitlesData(
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 38,
+                  interval: maxY - minY,
+                  getTitlesWidget: (v, meta) {
+                    // Only the extremes — keeps the chart clean.
+                    final isExtreme = (v - meta.min).abs() < 1e-6 ||
+                        (v - meta.max).abs() < 1e-6;
+                    if (!isExtreme) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        _compactMoney(v.round()),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: context.textMuted,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  interval: 1,
+                  getTitlesWidget: (v, _) => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _shortMonth(months[v.toInt()].month),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: context.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+            ),
             borderData: FlBorderData(show: false),
             lineBarsData: [
               LineChartBarData(
@@ -1037,6 +1097,38 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         ),
       ),
     );
+  }
+
+  /// Compact money for chart axis labels, e.g. 5_000_000 -> "5M".
+  String _compactMoney(int amount) {
+    String trim(double v) {
+      final s = v.toStringAsFixed(1);
+      return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
+    }
+
+    final abs = amount.abs();
+    if (abs >= 1000000000) return '${trim(amount / 1000000000)}B';
+    if (abs >= 1000000) return '${trim(amount / 1000000)}M';
+    if (abs >= 1000) return '${trim(amount / 1000)}K';
+    return formatMoney(amount);
+  }
+
+  String _shortMonth(int month) {
+    const names = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return names[month - 1];
   }
 
   String _monthLabel(DateTime m) {
