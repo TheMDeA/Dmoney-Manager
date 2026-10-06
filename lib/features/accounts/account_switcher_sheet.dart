@@ -46,12 +46,12 @@ class _AccountSwitcherSheet extends ConsumerStatefulWidget {
 
 class _AccountSwitcherSheetState
     extends ConsumerState<_AccountSwitcherSheet> {
-  // Own messenger: the bottom-sheet route has none, so snackbars would
-  // otherwise render behind the modal barrier.
-  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
-
+  // A Scaffold inside the sheet route: it registers with the root
+  // ScaffoldMessenger, so snackbars render on the front layer, above
+  // the sheet — a bare nested ScaffoldMessenger has no Scaffold to
+  // present through and would swallow them silently.
   void _snack(String message) {
-    _messengerKey.currentState?.showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
   }
@@ -60,9 +60,9 @@ class _AccountSwitcherSheetState
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final selectedId = ref.watch(selectedAccountProvider);
-    return ScaffoldMessenger(
-      key: _messengerKey,
-      child: SafeArea(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
         child: Column(

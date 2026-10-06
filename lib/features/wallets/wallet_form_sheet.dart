@@ -48,12 +48,13 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   int? _accountId;
   List<Account> _accounts = const [];
   bool _saving = false;
-  // Own messenger: the bottom-sheet route has none, so snackbars would
-  // otherwise render behind the modal barrier.
-  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  // A Scaffold inside the sheet route registers with the root
+  // ScaffoldMessenger, so snackbars render on the front layer, above
+  // the sheet. (A bare nested ScaffoldMessenger has no Scaffold to
+  // present through and silently swallows them.)
 
   void _snack(String message) {
-    _messengerKey.currentState?.showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
   }
@@ -118,9 +119,9 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
-    return ScaffoldMessenger(
-      key: _messengerKey,
-      child: StreamBuilder<List<Account>>(
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: StreamBuilder<List<Account>>(
         stream: db.watchAccounts(),
         builder: (context, snap) {
         _accounts = snap.data ?? const <Account>[];
