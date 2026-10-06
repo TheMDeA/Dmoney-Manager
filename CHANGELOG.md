@@ -1,3 +1,8 @@
+## [Unreleased]
+
+### Fixed
+- The "create another account first" message when moving wallets now appears immediately instead of hiding behind the account sheet.
+
 ## [2.4.3] - 2026-10-06
 
 ### Fixed

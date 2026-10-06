@@ -300,14 +300,21 @@ class _AccountSwitcherSheetState
   Future<void> _moveWallets(
       Account account, List<Wallet> wallets, List<Account> accounts) async {
     if (wallets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      // Pop the sheet first so the message isn't hidden behind it —
+      // it would otherwise only surface on the home screen after the
+      // sheet is dismissed.
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
         const SnackBar(content: Text('No wallets in this account yet')),
       );
       return;
     }
     final destinations = accounts.where((a) => a.id != account.id).toList();
     if (destinations.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
         const SnackBar(
             content: Text('Create another account first to move wallets')),
       );
