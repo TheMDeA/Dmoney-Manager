@@ -9,8 +9,10 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'edit_debt_sheet.dart';
 
 /// Detail view for one debt: received/left progress, info, payment history,
 /// record-payment FAB, plus edit/delete.
@@ -355,11 +357,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
   Future<void> _editDebt(BuildContext context, AppDatabase db) async {
     final debt = await db.getDebtById(widget.debtId);
     if (debt == null || !context.mounted) return;
-    final wallets = await db.watchWallets().first;
-    if (!context.mounted) return;
-    final result = await showDialog<_DebtEditInput>(
-      context: context,
-      builder: (_) => _EditDebtDialog(debt: debt, wallets: wallets),
+    final result = await showFormSheet<DebtEditInput>(
+      context,
+      (_) => EditDebtSheet(debt: debt),
     );
     if (result == null || !context.mounted) return;
     await db.updateDebt(
@@ -526,150 +526,6 @@ class _RecordPaymentDialogState extends State<_RecordPaymentDialog> {
               date: _date,
               note: _noteCtrl.text.trim(),
               walletId: _walletId,
-            ),
-          ),
-          child: const Text('Save'),
-        ),
-      ],
-    );
-  }
-}
-
-class _DebtEditInput {
-  _DebtEditInput({
-    required this.person,
-    required this.note,
-    required this.amount,
-    required this.dueDate,
-    required this.walletId,
-    required this.recordAsTransaction,
-  });
-  final String person;
-  final String note;
-  final int amount;
-  final DateTime? dueDate;
-  final int? walletId;
-  final bool recordAsTransaction;
-}
-
-/// Dialog for editing a debt's details.
-class _EditDebtDialog extends StatefulWidget {
-  const _EditDebtDialog({required this.debt, required this.wallets});
-
-  final Debt debt;
-  final List<Wallet> wallets;
-
-  @override
-  State<_EditDebtDialog> createState() => _EditDebtDialogState();
-}
-
-class _EditDebtDialogState extends State<_EditDebtDialog> {
-  late final TextEditingController _personCtrl;
-  late final TextEditingController _noteCtrl;
-  late final TextEditingController _amountCtrl;
-  DateTime? _dueDate;
-  int? _walletId;
-  late bool _recordTx;
-
-  @override
-  void initState() {
-    super.initState();
-    _personCtrl = TextEditingController(text: widget.debt.person);
-    _noteCtrl = TextEditingController(text: widget.debt.note);
-    _amountCtrl =
-        TextEditingController(text: formatAmountInput(widget.debt.amount));
-    _dueDate = widget.debt.dueDate;
-    _walletId = widget.debt.walletId;
-    _recordTx = widget.debt.recordAsTransaction;
-  }
-
-  @override
-  void dispose() {
-    _personCtrl.dispose();
-    _noteCtrl.dispose();
-    _amountCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Edit debt'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-                controller: _personCtrl,
-                decoration: const InputDecoration(labelText: 'Person')),
-            const SizedBox(height: 12),
-            TextField(
-                controller: _noteCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Note (optional)')),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ThousandsSeparatorInputFormatter()],
-              decoration: InputDecoration(
-                  labelText: 'Amount (${currentCurrency.code})'),
-            ),
-            const SizedBox(height: 12),
-            if (widget.wallets.isNotEmpty)
-              DropdownButtonFormField<int?>(
-                initialValue: _walletId,
-                decoration: const InputDecoration(labelText: 'Wallet'),
-                items: [
-                  const DropdownMenuItem<int?>(
-                      value: null, child: Text('No wallet')),
-                  for (final w in widget.wallets)
-                    DropdownMenuItem<int?>(
-                        value: w.id, child: Text(w.name)),
-                ],
-                onChanged: (v) => setState(() => _walletId = v),
-              ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate:
-                      _dueDate ?? DateTime.now().add(const Duration(days: 7)),
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-                );
-                if (picked != null) setState(() => _dueDate = picked);
-              },
-              icon: const Icon(Icons.calendar_today_outlined, size: 18),
-              label: Text(_dueDate == null
-                  ? 'Due date (optional)'
-                  : formatDate(_dueDate!)),
-            ),
-            SwitchListTile(
-              title: const Text('Show in transaction history'),
-              subtitle:
-                  const Text('Record this debt as a transaction'),
-              value: _recordTx,
-              onChanged: (v) => setState(() => _recordTx = v),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        FilledButton(
-          onPressed: () => Navigator.pop(
-            context,
-            _DebtEditInput(
-              person: _personCtrl.text.trim(),
-              note: _noteCtrl.text.trim(),
-              amount: parseAmountInput(_amountCtrl.text),
-              dueDate: _dueDate,
-              walletId: _walletId,
-              recordAsTransaction: _recordTx,
             ),
           ),
           child: const Text('Save'),
