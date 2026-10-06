@@ -46,11 +46,23 @@ class _AccountSwitcherSheet extends ConsumerStatefulWidget {
 
 class _AccountSwitcherSheetState
     extends ConsumerState<_AccountSwitcherSheet> {
+  // Own messenger: the bottom-sheet route has none, so snackbars would
+  // otherwise render behind the modal barrier.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+  void _snack(String message) {
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final selectedId = ref.watch(selectedAccountProvider);
-    return SafeArea(
+    return ScaffoldMessenger(
+      key: _messengerKey,
+      child: SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
         child: Column(
@@ -138,6 +150,7 @@ class _AccountSwitcherSheetState
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -214,9 +227,7 @@ class _AccountSwitcherSheetState
         );
     Haptics.medium();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Account "${result.name}" created')),
-      );
+      _snack('Account "${result.name}" created');
     }
     // Stay on the current scope; the new account starts empty.
   }
@@ -303,24 +314,12 @@ class _AccountSwitcherSheetState
   Future<void> _moveWallets(
       Account account, List<Wallet> wallets, List<Account> accounts) async {
     if (wallets.isEmpty) {
-      // Pop the sheet first so the message isn't hidden behind it —
-      // it would otherwise only surface on the home screen after the
-      // sheet is dismissed.
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop();
-      messenger.showSnackBar(
-        const SnackBar(content: Text('No wallets in this account yet')),
-      );
+      _snack('No wallets in this account yet');
       return;
     }
     final destinations = accounts.where((a) => a.id != account.id).toList();
     if (destinations.isEmpty) {
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop();
-      messenger.showSnackBar(
-        const SnackBar(
-            content: Text('Create another account first to move wallets')),
-      );
+      _snack('Create another account first to move wallets');
       return;
     }
     final result = await showFormSheet<MoveWalletsResult>(
@@ -337,20 +336,15 @@ class _AccountSwitcherSheetState
         .moveWalletsToAccount(result.walletIds, result.destinationId);
     Haptics.medium();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'Moved ${result.walletIds.length} wallet${result.walletIds.length == 1 ? '' : 's'}')),
-      );
+      _snack(
+          'Moved ${result.walletIds.length} wallet${result.walletIds.length == 1 ? '' : 's'}');
     }
   }
 
   Future<void> _delete(
       Account account, List<Wallet> wallets, List<Account> accounts) async {
     if (accounts.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Can't delete the last account")),
-      );
+      _snack("Can't delete the last account");
       return;
     }
     final destinations = accounts.where((a) => a.id != account.id).toList();
@@ -372,9 +366,7 @@ class _AccountSwitcherSheetState
     }
     Haptics.medium();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Deleted "${account.name}"')),
-      );
+      _snack('Deleted "${account.name}"');
     }
   }
 }

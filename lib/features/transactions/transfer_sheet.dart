@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
@@ -226,7 +225,6 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
       if (mounted) setState(() => _saving = false);
     }
     if (!mounted) return;
-    HapticFeedback.mediumImpact();
     setState(() => _success = true);
     await Future.delayed(const Duration(milliseconds: 750));
     if (!mounted) return;
