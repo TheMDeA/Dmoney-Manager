@@ -1,9 +1,4 @@
-## [2.4.2] - 2026-10-06
-
-### Changed
-- The bar chart in Stats now labels months with three letters (Jun, Jul) instead of single letters.
-- The net savings trend in Stats now shows month labels and min/max values so the chart is readable.
+## [2.4.3] - 2026-10-06
 
 ### Fixed
-- Debts listed on the Budgets tab can now be tapped to open their details.
-- The transaction detail screen no longer repeats the description below the title.
+- Chart tooltips in Stats no longer get cut off at the card edges, and the trend chart's value labels no longer wrap onto two lines.

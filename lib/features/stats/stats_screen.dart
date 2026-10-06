@@ -913,6 +913,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               enabled: true,
               touchTooltipData: BarTouchTooltipData(
                 getTooltipColor: (_) => context.raised,
+                // Keep the tooltip inside the card instead of overflowing
+                // its edges when touching edge bars.
+                fitInsideHorizontally: true,
+                fitInsideVertically: true,
                 tooltipPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
@@ -1011,6 +1015,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               enabled: true,
               touchTooltipData: LineTouchTooltipData(
                 getTooltipColor: (_) => context.raised,
+                fitInsideHorizontally: true,
+                fitInsideVertically: true,
                 tooltipPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
@@ -1034,7 +1040,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
-                  reservedSize: 38,
+                  reservedSize: 44,
                   interval: maxY - minY,
                   getTitlesWidget: (v, meta) {
                     // Only the extremes — keeps the chart clean.
@@ -1291,6 +1297,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     enabled: true,
                     touchTooltipData: LineTouchTooltipData(
                       getTooltipColor: (_) => context.raised,
+                      fitInsideHorizontally: true,
+                      fitInsideVertically: true,
                       tooltipPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
