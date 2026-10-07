@@ -1,7 +1,9 @@
 import 'package:custom_refresh_indicator/custom_refresh_indicator.dart';
 import 'package:flutter/material.dart';
 
+import '../services/app_prefs.dart';
 import '../theme/app_accents.dart';
+import '../utils/formatters.dart';
 
 /// Pull-to-refresh with a coin that drops in as you pull and spins while
 /// refreshing, replacing the stock circular spinner.
@@ -102,7 +104,8 @@ class _CoinIndicatorState extends State<_CoinIndicator>
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    'Rp',
+                    // Follows the selected currency, e.g. Rp, $, €, ¥.
+                    currencyByCode(AppPrefs.currencyCode).symbol.trim(),
                     style: TextStyle(
                       color: onAccent(accent),
                       fontWeight: FontWeight.w800,
