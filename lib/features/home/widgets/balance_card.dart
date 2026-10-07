@@ -173,8 +173,10 @@ class BalanceCard extends ConsumerWidget {
             const SizedBox(height: 4),
             // Counts up/down whenever the range (or data) changes, like the
             // total balance above — same size for income and expense.
+            // Follows the privacy eye toggle too.
             CountUpMoney(
               amount: amount,
+              hidden: balanceHidden,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTextStyles.amount(size: 16).copyWith(color: color),
