@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/app_prefs.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_motion.dart';
@@ -37,6 +38,22 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   int _swaps = 0; // drives the swap button's rotation animation
   bool _saving = false;
   bool _success = false;
+  Offset? _successFrom;
+  Offset? _successTo;
+  final _stackKey = GlobalKey();
+  final _fromKey = GlobalKey();
+  final _toKey = GlobalKey();
+
+  /// Center of the widget behind [key], in the sheet Stack's coordinates.
+  /// Null when the layout isn't available (the overlay falls back).
+  Offset? _centerOf(GlobalKey key) {
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null || box == null) return null;
+    return stackBox.globalToLocal(
+      box.localToGlobal(box.size.center(Offset.zero)),
+    );
+  }
 
   void _swapWallets() {
     if (_fromId == null || _toId == null) return;
@@ -60,6 +77,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     return Stack(
+      key: _stackKey,
       children: [
         FormSheet(
           title: 'Transfer',
@@ -88,6 +106,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                     // above, To's rises from below), instead of the text
                     // just blinking to the new value.
                     AnimatedSwitcher(
+                      key: _fromKey,
                       duration: AppMotion.normal,
                       switchInCurve: AppMotion.enter,
                       switchOutCurve: AppMotion.exit,
@@ -148,6 +167,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                     ),
                     const SizedBox(height: 4),
                     AnimatedSwitcher(
+                      key: _toKey,
                       duration: AppMotion.normal,
                       switchInCurve: AppMotion.enter,
                       switchOutCurve: AppMotion.exit,
@@ -190,7 +210,8 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
             const SizedBox(height: 8),
           ],
         ),
-        if (_success) const _TransferSuccessOverlay(),
+        if (_success)
+          _TransferSuccessOverlay(from: _successFrom, to: _successTo),
       ],
     );
   }
@@ -216,8 +237,12 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
       if (mounted) setState(() => _saving = false);
     }
     if (!mounted) return;
-    setState(() => _success = true);
-    await Future.delayed(const Duration(milliseconds: 750));
+    setState(() {
+      _successFrom = _centerOf(_fromKey);
+      _successTo = _centerOf(_toKey);
+      _success = true;
+    });
+    await Future.delayed(const Duration(milliseconds: 1050));
     if (!mounted) return;
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -226,9 +251,51 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   }
 }
 
-/// Brief success state: lime checkmark with a springy scale-in.
-class _TransferSuccessOverlay extends StatelessWidget {
-  const _TransferSuccessOverlay();
+/// Success state: a coin flies from the From wallet to the To wallet along
+/// an arc, then a lime checkmark pops with a springy scale-in.
+class _TransferSuccessOverlay extends StatefulWidget {
+  const _TransferSuccessOverlay({required this.from, required this.to});
+
+  /// Flight endpoints in the sheet Stack's coordinates. Null falls back
+  /// to sensible defaults inside the overlay.
+  final Offset? from;
+  final Offset? to;
+
+  @override
+  State<_TransferSuccessOverlay> createState() =>
+      _TransferSuccessOverlayState();
+}
+
+class _TransferSuccessOverlayState extends State<_TransferSuccessOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1050),
+  )..forward();
+  late final Animation<double> _flight = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(0.0, 0.55, curve: Curves.easeInOut),
+  );
+  late final Animation<double> _coinFade = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(0.48, 0.62, curve: Curves.easeOut),
+  );
+  late final Animation<double> _checkPop = CurvedAnimation(
+    parent: _controller,
+    curve: const Interval(0.55, 1.0, curve: Curves.elasticOut),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    Haptics.light();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -237,24 +304,90 @@ class _TransferSuccessOverlay extends StatelessWidget {
         color: Theme.of(
           context,
         ).scaffoldBackgroundColor.withValues(alpha: 0.85),
-        alignment: Alignment.center,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.4, end: 1.0),
-          duration: AppMotion.normal,
-          curve: Curves.elasticOut,
-          builder: (context, scale, child) =>
-              Transform.scale(scale: scale, child: child),
-          child: Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: context.accent,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.check, color: onAccent(context.accent), size: 44),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final size = constraints.biggest;
+            final from =
+                widget.from ?? Offset(size.width / 2, size.height * 0.25);
+            final to = widget.to ?? Offset(size.width / 2, size.height * 0.5);
+            return AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final t = _flight.value;
+                // Quadratic bezier arcing above the straight line.
+                final cx = (from.dx + to.dx) / 2;
+                final cy = (from.dy + to.dy) / 2 - 110;
+                final x =
+                    (1 - t) * (1 - t) * from.dx +
+                    2 * (1 - t) * t * cx +
+                    t * t * to.dx;
+                final y =
+                    (1 - t) * (1 - t) * from.dy +
+                    2 * (1 - t) * t * cy +
+                    t * t * to.dy;
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: x - 20,
+                      top: y - 20,
+                      child: Opacity(
+                        opacity: 1 - _coinFade.value,
+                        child: Transform.rotate(
+                          angle: t * 6.2832, // one full spin along the flight
+                          child: _flightCoin(context),
+                        ),
+                      ),
+                    ),
+                    if (_checkPop.value > 0)
+                      Center(
+                        child: Transform.scale(
+                          scale: 0.4 + 0.6 * _checkPop.value,
+                          child: _checkBadge(context),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            );
+          },
         ),
       ),
+    );
+  }
+
+  /// The flying coin: accent disc with the selected currency's symbol,
+  /// matching the pull-to-refresh coin.
+  Widget _flightCoin(BuildContext context) {
+    final accent = context.accent;
+    return Container(
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: accent,
+        border: Border.all(color: accent.withValues(alpha: 0.4), width: 3),
+        boxShadow: [
+          BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 12),
+        ],
+      ),
+      child: Text(
+        currencyByCode(AppPrefs.currencyCode).symbol.trim(),
+        style: TextStyle(
+          color: onAccent(accent),
+          fontWeight: FontWeight.w800,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+
+  Widget _checkBadge(BuildContext context) {
+    return Container(
+      width: 88,
+      height: 88,
+      decoration: BoxDecoration(color: context.accent, shape: BoxShape.circle),
+      child: Icon(Icons.check, color: onAccent(context.accent), size: 44),
     );
   }
 }

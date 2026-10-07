@@ -16,11 +16,15 @@ class CountUpMoney extends StatefulWidget {
     required this.amount,
     this.style,
     this.format = formatMoney,
+    this.maxLines,
+    this.overflow,
   });
 
   final int amount;
   final TextStyle? style;
   final String Function(int) format;
+  final int? maxLines;
+  final TextOverflow? overflow;
 
   @override
   State<CountUpMoney> createState() => _CountUpMoneyState();
@@ -46,7 +50,12 @@ class _CountUpMoneyState extends State<CountUpMoney> {
       curve: AppMotion.enter,
       builder: (context, value, _) {
         _latest = value;
-        return Text(widget.format(value), style: widget.style);
+        return Text(
+          widget.format(value),
+          style: widget.style,
+          maxLines: widget.maxLines,
+          overflow: widget.overflow,
+        );
       },
       onEnd: () => _from = widget.amount,
     );

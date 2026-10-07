@@ -7,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../core/widgets/count_up_balance.dart';
+import '../../../core/widgets/count_up_money.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../data/database/app_database.dart';
 import '../../../state/providers.dart';
@@ -170,11 +171,14 @@ class BalanceCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              formatSignedMoney(amount, isIncome: isIncome),
+            // Counts up/down whenever the range (or data) changes, like the
+            // total balance above — same size for income and expense.
+            CountUpMoney(
+              amount: amount,
               maxLines: 1,
-              softWrap: false,
+              overflow: TextOverflow.ellipsis,
               style: AppTextStyles.amount(size: 16).copyWith(color: color),
+              format: (v) => formatSignedMoney(v, isIncome: isIncome),
             ),
           ],
         ),
