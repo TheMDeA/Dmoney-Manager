@@ -1,7 +1,6 @@
 ## [2.4.5] - 2026-10-07
 
 ### Added
-- The + button now expands into the add-transaction sheet.
 - Pull-to-refresh now shows a coin dropping in.
 
 ### Changed

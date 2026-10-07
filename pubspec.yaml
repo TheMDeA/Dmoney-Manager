@@ -33,7 +33,6 @@ dependencies:
   flutter_sticky_header: ^0.8.0
   package_info_plus: ^10.2.2
   http: ^1.6.0
-  animations: ^2.1.1
   custom_refresh_indicator: ^4.0.1
 
 dev_dependencies:

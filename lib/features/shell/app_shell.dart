@@ -1,4 +1,3 @@
-import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -124,33 +123,20 @@ class _AppShellState extends ConsumerState<AppShell> {
         onPageChanged: (i) => ref.read(tabIndexProvider.notifier).go(i),
         children: _screens,
       ),
-      // The FAB morphs into the add-transaction sheet via a container
-      // transform; the Top up quick action opens the same sheet as a
-      // standard bottom sheet.
-      floatingActionButton: OpenContainer(
-        transitionDuration: MediaQuery.of(context).disableAnimations
-            ? Duration.zero
-            : AppMotion.normal,
-        transitionType: ContainerTransitionType.fade,
-        closedColor: Theme.of(context).colorScheme.primary,
-        closedShape: const CircleBorder(),
-        closedElevation: 0,
-        openColor: Theme.of(context).bottomSheetTheme.backgroundColor ??
-            Theme.of(context).colorScheme.surface,
-        openElevation: 0,
-        openShape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        tappable: false,
-        closedBuilder: (context, openContainer) => FloatingActionButton(
-          onPressed: () {
-            Haptics.select();
-            openContainer();
-          },
-          child: const Icon(Icons.add, size: 28),
-        ),
-        openBuilder: (context, closeContainer) =>
-            _AddSheetPage(close: closeContainer),
+      // The FAB opens the same modal bottom sheet as the Top up quick
+      // action, so the animation and swipe-to-dismiss behave identically
+      // no matter which entry point is used.
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Haptics.select();
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (_) => const AddTransactionSheet(),
+          );
+        },
+        child: const Icon(Icons.add, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
@@ -232,79 +218,3 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
-/// Full-screen page for the FAB's container transform: a scrim plus the
-/// add-transaction sheet bottom-anchored, so the FAB appears to expand
-/// into the sheet.
-///
-/// OpenContainer's route has no scrim and isn't dismissible, so this page
-/// provides both: tap the scrim or drag the sheet down to close. The drag
-/// is disabled while the keyboard is open to avoid fighting text fields.
-class _AddSheetPage extends StatefulWidget {
-  const _AddSheetPage({required this.close});
-
-  final VoidCallback close;
-
-  @override
-  State<_AddSheetPage> createState() => _AddSheetPageState();
-}
-
-class _AddSheetPageState extends State<_AddSheetPage> {
-  double _dragOffset = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-    final sheetBg = Theme.of(context).bottomSheetTheme.backgroundColor ??
-        Theme.of(context).colorScheme.surface;
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          // Scrim: fades in with the route transition; tap to dismiss.
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: widget.close,
-              child: Container(
-                color: Colors.black.withValues(
-                  alpha: 0.5 *
-                      (1 - (_dragOffset / 400).clamp(0.0, 1.0)),
-                ),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Transform.translate(
-              offset: Offset(0, _dragOffset),
-              child: GestureDetector(
-                onVerticalDragUpdate: keyboardOpen
-                    ? null
-                    : (d) => setState(() => _dragOffset =
-                        (_dragOffset + d.delta.dy).clamp(0.0, 400.0)),
-                onVerticalDragEnd: keyboardOpen
-                    ? null
-                    : (d) {
-                        if (_dragOffset > 120 ||
-                            d.velocity.pixelsPerSecond.dy > 600) {
-                          widget.close();
-                        } else {
-                          setState(() => _dragOffset = 0);
-                        }
-                      },
-                child: SafeArea(
-                  top: false,
-                  child: Material(
-                    color: sheetBg,
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(24)),
-                    child: const AddTransactionSheet(),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
