@@ -16,9 +16,10 @@ Future<bool> showBudgetFormSheet(
   WidgetRef ref, {
   required String monthKey,
 }) async {
-  final saved = await showFormSheet<bool>(
+  final saved = await showSnackSheet<bool>(
     context,
     (context) => _BudgetFormSheet(monthKey: monthKey),
+    borderRadius: 28,
   );
   return saved == true;
 }
@@ -55,9 +56,9 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
   // present through and silently swallows them.)
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -75,9 +76,14 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
     }
     setState(() => _saving = true);
     try {
-      await ref.read(databaseProvider).addBudget(
+      await ref
+          .read(databaseProvider)
+          .addBudget(
             BudgetsCompanion.insert(
-                categoryId: catId, month: widget.monthKey, limit: limit),
+              categoryId: catId,
+              month: widget.monthKey,
+              limit: limit,
+            ),
           );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -88,10 +94,8 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: FormSheet(
-        title: 'Add budget',
+    return FormSheet(
+      title: 'Add budget',
       subtitle: 'Set a monthly spending limit per category.',
       actionLabel: 'Add budget',
       onAction: _save,
@@ -108,7 +112,6 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
         FormAmountEntry(controller: _limitCtrl, autofocus: true),
         const SizedBox(height: 8),
       ],
-      ),
     );
   }
 }
@@ -123,8 +126,7 @@ class _EditBudgetLimitSheet extends ConsumerStatefulWidget {
       _EditBudgetLimitSheetState();
 }
 
-class _EditBudgetLimitSheetState
-    extends ConsumerState<_EditBudgetLimitSheet> {
+class _EditBudgetLimitSheetState extends ConsumerState<_EditBudgetLimitSheet> {
   final _ctrl = TextEditingController();
   bool _loaded = false;
 
@@ -156,8 +158,8 @@ class _EditBudgetLimitSheetState
             return FormSheet(
               title: 'Edit budget limit',
               actionLabel: 'Save changes',
-              onAction: () => Navigator.of(context)
-                  .pop(parseAmountInput(_ctrl.text)),
+              onAction: () =>
+                  Navigator.of(context).pop(parseAmountInput(_ctrl.text)),
               children: [
                 if (c != null) _categoryTile(context, c),
                 if (c != null) const SizedBox(height: 16),
@@ -179,16 +181,15 @@ class _EditBudgetLimitSheetState
         Container(
           width: 40,
           height: 40,
-          decoration:
-              BoxDecoration(color: color, shape: BoxShape.circle),
-          child: Icon(iconForKey(c.iconKey),
-              color: onAccent(color), size: 20),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Icon(iconForKey(c.iconKey), color: onAccent(color), size: 20),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: Text(c.name,
-              style:
-                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          child: Text(
+            c.name,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );

@@ -14,9 +14,10 @@ Future<bool> showWalletFormSheet(
   WidgetRef ref, {
   Wallet? existing,
 }) async {
-  final saved = await showFormSheet<bool>(
+  final saved = await showSnackSheet<bool>(
     context,
     (context) => _WalletFormSheet(existing: existing),
+    borderRadius: 28,
   );
   return saved == true;
 }
@@ -24,12 +25,12 @@ Future<bool> showWalletFormSheet(
 const _walletKinds = ['cash', 'bank', 'ewallet', 'credit'];
 
 String _kindLabel(String kind) => switch (kind) {
-      'cash' => 'Cash',
-      'bank' => 'Bank account',
-      'ewallet' => 'E-wallet',
-      'credit' => 'Credit card',
-      _ => kind,
-    };
+  'cash' => 'Cash',
+  'bank' => 'Bank account',
+  'ewallet' => 'E-wallet',
+  'credit' => 'Credit card',
+  _ => kind,
+};
 
 class _WalletFormSheet extends ConsumerStatefulWidget {
   const _WalletFormSheet({this.existing});
@@ -54,9 +55,9 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   // present through and silently swallows them.)
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   bool get _editing => widget.existing != null;
@@ -119,11 +120,9 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: StreamBuilder<List<Account>>(
-        stream: db.watchAccounts(),
-        builder: (context, snap) {
+    return StreamBuilder<List<Account>>(
+      stream: db.watchAccounts(),
+      builder: (context, snap) {
         _accounts = snap.data ?? const <Account>[];
         if (!_editing &&
             (_accountId == null ||
@@ -131,8 +130,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
           // New wallets default to the active account scope when it
           // still exists.
           final scoped = ref.watch(selectedAccountProvider);
-          _accountId = scoped != null &&
-                  _accounts.any((a) => a.id == scoped)
+          _accountId = scoped != null && _accounts.any((a) => a.id == scoped)
               ? scoped
               : (_accounts.isNotEmpty ? _accounts.first.id : null);
         }
@@ -160,9 +158,10 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
               const SizedBox(height: 16),
               const FormSectionLabel('Account'),
               if (_accounts.isEmpty)
-                Text('No accounts yet.',
-                    style:
-                        TextStyle(color: context.textMuted, fontSize: 13))
+                Text(
+                  'No accounts yet.',
+                  style: TextStyle(color: context.textMuted, fontSize: 13),
+                )
               else
                 FormChoiceChips<Account>(
                   options: _accounts,
@@ -171,8 +170,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
                     orElse: () => _accounts.first,
                   ),
                   labelFor: (a) => a.name,
-                  onSelected: (a) =>
-                      setState(() => _accountId = a.id),
+                  onSelected: (a) => setState(() => _accountId = a.id),
                 ),
               const SizedBox(height: 16),
               const FormSectionLabel('Initial amount (optional)'),
@@ -188,7 +186,6 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
           ],
         );
       },
-      ),
     );
   }
 }

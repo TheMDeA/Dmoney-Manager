@@ -30,6 +30,78 @@ Future<T?> showFormSheet<T>(
   );
 }
 
+/// Shows a bottom sheet that can present snackbars on the front layer.
+///
+/// A bare nested ScaffoldMessenger can't present — it needs a [Scaffold]
+/// to present through. [SheetScaffold] provides one, full-screen and
+/// transparent, so the root messenger has something to present through
+/// while the visible sheet stays content-sized.
+Future<T?> showSnackSheet<T>(
+  BuildContext context,
+  Widget Function(BuildContext) builder, {
+  Color? backgroundColor,
+  double borderRadius = 24,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => SheetScaffold(
+      backgroundColor: backgroundColor ?? Theme.of(context).colorScheme.surface,
+      borderRadius: borderRadius,
+      child: builder(context),
+    ),
+  );
+}
+
+/// Sheet wrapper for sheets that need snackbars on the front layer.
+///
+/// A bare nested ScaffoldMessenger can't present — it needs a [Scaffold]
+/// to present through — but a Scaffold expands to fill the screen, which
+/// would stretch the sheet's own background full screen too. This keeps
+/// the Scaffold full-screen and transparent (snackbars present at the
+/// screen bottom, above the sheet) while the visible sheet is a separate
+/// content-sized [Material], bottom-aligned inside it and capped at 75%
+/// of the screen height like [FormSheet].
+class SheetScaffold extends StatelessWidget {
+  const SheetScaffold({
+    super.key,
+    required this.child,
+    this.backgroundColor,
+    this.borderRadius = 24,
+  });
+
+  final Widget child;
+  final Color? backgroundColor;
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
+          child: Material(
+            color: backgroundColor ?? theme.bottomSheetTheme.backgroundColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(borderRadius),
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The sheet scaffold: grabber, title, scrollable content and a pinned
 /// primary action at the bottom.
 class FormSheet extends StatelessWidget {
@@ -63,89 +135,87 @@ class FormSheet extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.only(bottom: bottomInset),
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 12),
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(subtitle!,
-                      style: TextStyle(
-                          color: context.textMuted, fontSize: 13)),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Flexible(
-            child: SingleChildScrollView(
+            const SizedBox(height: 16),
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: FilledButton(
-                onPressed: (actionEnabled && !busy) ? onAction : null,
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: context.accent,
-                  foregroundColor: onAccent(context.accent),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                child: busy
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: onAccent(context.accent),
-                        ),
-                      )
-                    : Text(
-                        actionLabel,
-                        style:
-                            const TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(color: context.textMuted, fontSize: 13),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: children,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: FilledButton(
+                  onPressed: (actionEnabled && !busy) ? onAction : null,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: context.accent,
+                    foregroundColor: onAccent(context.accent),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: busy
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: onAccent(context.accent),
+                          ),
+                        )
+                      : Text(
+                          actionLabel,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -163,9 +233,9 @@ class FormSectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -206,10 +276,11 @@ class FormDatePill extends StatelessWidget {
               onTap();
             },
             icon: Icon(icon, size: 18),
-            label: Text(text ?? (date == null ? placeholder : formatDate(date!))),
+            label: Text(
+              text ?? (date == null ? placeholder : formatDate(date!)),
+            ),
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                  vertical: 14, horizontal: 16),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -269,8 +340,11 @@ class ColorDots extends StatelessWidget {
                 ),
               ),
               child: selected == hex
-                  ? Icon(Icons.check,
-                      color: onAccent(colorFromHex(hex)), size: 20)
+                  ? Icon(
+                      Icons.check,
+                      color: onAccent(colorFromHex(hex)),
+                      size: 20,
+                    )
                   : null,
             ),
           ),

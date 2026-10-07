@@ -19,6 +19,7 @@ import '../debts/add_debt_sheet.dart';
 import '../search/search_screen.dart';
 import '../settings/settings_screen.dart';
 import '../transactions/add_transaction_sheet.dart';
+import '../../core/widgets/form_sheet.dart';
 import '../transactions/transfer_sheet.dart';
 import '../transactions/transactions_screen.dart';
 import '../transactions/widgets/transaction_tile.dart';
@@ -46,93 +47,86 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       body: AmbientGlow(
         child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _header(context),
-                  const SizedBox(height: 12),
-                  BalanceCard(
-                    balanceHidden: _balanceHidden,
-                    onToggleHidden: () {
-                      Haptics.light();
-                      setState(() => _balanceHidden = !_balanceHidden);
-                    },
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _header(context),
+                const SizedBox(height: 12),
+                BalanceCard(
+                  balanceHidden: _balanceHidden,
+                  onToggleHidden: () {
+                    Haptics.light();
+                    setState(() => _balanceHidden = !_balanceHidden);
+                  },
+                ),
+                const SizedBox(height: 12),
+                _rangeSwitcher(context, range),
+                const SizedBox(height: 16),
+                QuickActions(
+                  onTransfer: () =>
+                      showSnackSheet(context, (_) => const TransferSheet()),
+                  onTopUp: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) =>
+                        const AddTransactionSheet(initialKind: 'income'),
                   ),
-                  const SizedBox(height: 12),
-                  _rangeSwitcher(context, range),
-                  const SizedBox(height: 16),
-                  QuickActions(
-                    onTransfer: () => showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (_) => const TransferSheet(),
-                    ),
-                    onTopUp: () => showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (_) =>
-                          const AddTransactionSheet(initialKind: 'income'),
-                    ),
-                    onScan: _scanReceipt,
-                    onDebt: () => showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      useSafeArea: true,
-                      builder: (_) => const AddDebtSheet(),
-                    ),
+                  onScan: _scanReceipt,
+                  onDebt: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => const AddDebtSheet(),
                   ),
-                  const SizedBox(height: 16),
-                  const GoalSpotlightCard(),
-                  const AiInsightCard(),
-                  SectionHeader(
-                    title: 'Recent transactions',
-                    action: TextButton(
-                      onPressed: () {
-                        Haptics.select();
-                        Navigator.of(context).push(
-                          AppPageRoute(
-                            builder: (_) => const TransactionsScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text('View all'),
-                    ),
-                  ),
-                  StreamBuilder<List<TransactionWithDetails>>(
-                    stream: db.watchTransactions(
-                      limit: 8,
-                      accountId: accountId,
-                    ),
-                    builder: (context, snap) {
-                      final items =
-                          snap.data ?? const <TransactionWithDetails>[];
-                      if (items.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Center(child: Text('No transactions yet')),
-                        );
-                      }
-                      return Column(
-                        children: [
-                          for (var i = 0; i < items.length; i++)
-                            Entrance(
-                              key: ValueKey(items[i].transaction.id),
-                              delay: Duration(
-                                milliseconds: (i * 60).clamp(0, 300),
-                              ),
-                              child: TransactionTile(details: items[i]),
-                            ),
-                        ],
+                ),
+                const SizedBox(height: 16),
+                const GoalSpotlightCard(),
+                const AiInsightCard(),
+                SectionHeader(
+                  title: 'Recent transactions',
+                  action: TextButton(
+                    onPressed: () {
+                      Haptics.select();
+                      Navigator.of(context).push(
+                        AppPageRoute(
+                          builder: (_) => const TransactionsScreen(),
+                        ),
                       );
                     },
+                    child: const Text('View all'),
                   ),
-                ],
-              ),
+                ),
+                StreamBuilder<List<TransactionWithDetails>>(
+                  stream: db.watchTransactions(limit: 8, accountId: accountId),
+                  builder: (context, snap) {
+                    final items = snap.data ?? const <TransactionWithDetails>[];
+                    if (items.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(child: Text('No transactions yet')),
+                      );
+                    }
+                    return Column(
+                      children: [
+                        for (var i = 0; i < items.length; i++)
+                          Entrance(
+                            key: ValueKey(items[i].transaction.id),
+                            delay: Duration(
+                              milliseconds: (i * 60).clamp(0, 300),
+                            ),
+                            child: TransactionTile(details: items[i]),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
+      ),
     );
   }
 

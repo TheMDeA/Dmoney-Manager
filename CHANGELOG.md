@@ -10,6 +10,7 @@
 ### Fixed
 - Account messages (created, moved, deleted) now appear above the account sheet instead of hiding behind it.
 - Validation messages in the budget, goal, wallet, and transfer forms now appear correctly.
+- Bottom sheets (edit goal, accounts, transfer, etc.) now size to their content instead of filling the screen.
 - Invalid form fields now shake when you try to save.
 - Search results now cascade in like the other lists.
 - Editing your profile name no longer leaks a text controller.

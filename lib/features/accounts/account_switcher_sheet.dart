@@ -28,12 +28,7 @@ const accountPalette = [
 /// scope, create accounts, and manage them (rename / recolor / move
 /// wallets / delete). `null` selection means "All accounts".
 Future<void> showAccountSwitcherSheet(BuildContext context) {
-  return showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    builder: (_) => const _AccountSwitcherSheet(),
-  );
+  return showSnackSheet(context, (_) => const _AccountSwitcherSheet());
 }
 
 class _AccountSwitcherSheet extends ConsumerStatefulWidget {
@@ -44,25 +39,22 @@ class _AccountSwitcherSheet extends ConsumerStatefulWidget {
       _AccountSwitcherSheetState();
 }
 
-class _AccountSwitcherSheetState
-    extends ConsumerState<_AccountSwitcherSheet> {
+class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
   // A Scaffold inside the sheet route: it registers with the root
   // ScaffoldMessenger, so snackbars render on the front layer, above
   // the sheet — a bare nested ScaffoldMessenger has no Scaffold to
   // present through and would swallow them silently.
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final selectedId = ref.watch(selectedAccountProvider);
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
+    return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
         child: Column(
@@ -73,8 +65,10 @@ class _AccountSwitcherSheetState
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text('Accounts',
-                  style: Theme.of(context).textTheme.titleLarge),
+              child: Text(
+                'Accounts',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
             ),
             Flexible(
               child: StreamBuilder<List<Account>>(
@@ -86,9 +80,11 @@ class _AccountSwitcherSheetState
                   if (selectedId != null &&
                       accounts.isNotEmpty &&
                       accounts.every((a) => a.id != selectedId)) {
-                    Future.microtask(() => ref
-                        .read(selectedAccountProvider.notifier)
-                        .select(null));
+                    Future.microtask(
+                      () => ref
+                          .read(selectedAccountProvider.notifier)
+                          .select(null),
+                    );
                   }
                   return StreamBuilder<List<Wallet>>(
                     stream: db.watchWallets(),
@@ -98,8 +94,10 @@ class _AccountSwitcherSheetState
                       for (final w in wallets) {
                         byAccount.putIfAbsent(w.accountId, () => []).add(w);
                       }
-                      final totalBalance =
-                          wallets.fold<int>(0, (s, w) => s + w.balance);
+                      final totalBalance = wallets.fold<int>(
+                        0,
+                        (s, w) => s + w.balance,
+                      );
                       return ListView(
                         shrinkWrap: true,
                         children: [
@@ -122,22 +120,30 @@ class _AccountSwitcherSheetState
                               subtitle:
                                   '${(byAccount[a.id] ?? const <Wallet>[]).length} wallet${(byAccount[a.id] ?? const <Wallet>[]).length == 1 ? '' : 's'}',
                               trailing: formatMoney(
-                                  (byAccount[a.id] ?? const <Wallet>[]).fold<int>(
-                                      0, (s, w) => s + w.balance)),
+                                (byAccount[a.id] ?? const <Wallet>[]).fold<int>(
+                                  0,
+                                  (s, w) => s + w.balance,
+                                ),
+                              ),
                               selected: selectedId == a.id,
                               onTap: () => _select(a.id),
                               onLongPress: () => _manage(
-                                  a,
-                                  byAccount[a.id] ?? const <Wallet>[],
-                                  accounts),
+                                a,
+                                byAccount[a.id] ?? const <Wallet>[],
+                                accounts,
+                              ),
                             ),
                           const Divider(),
                           ListTile(
                             leading: const Icon(Icons.add_circle_outline),
                             title: const Text('New account'),
-                            subtitle: Text('Group wallets, e.g. Work',
-                                style: TextStyle(
-                                    color: context.textMuted, fontSize: 12)),
+                            subtitle: Text(
+                              'Group wallets, e.g. Work',
+                              style: TextStyle(
+                                color: context.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
                             onTap: () => _newAccount(accounts),
                           ),
                         ],
@@ -150,28 +156,32 @@ class _AccountSwitcherSheetState
           ],
         ),
       ),
-      ),
     );
   }
 
   Widget _grabber(BuildContext context) => Center(
-        child: Container(
-          width: 36,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      );
+    child: Container(
+      width: 36,
+      height: 4,
+      decoration: BoxDecoration(
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    ),
+  );
 
   Widget _dot(BuildContext context, Color color) => Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        child: Icon(Icons.account_balance_wallet_outlined,
-            size: 20, color: onAccent(color)),
-      );
+    width: 40,
+    height: 40,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    child: Icon(
+      Icons.account_balance_wallet_outlined,
+      size: 20,
+      color: onAccent(color),
+    ),
+  );
 
   Widget _row(
     BuildContext context, {
@@ -185,16 +195,20 @@ class _AccountSwitcherSheetState
   }) {
     return ListTile(
       leading: leading,
-      title: Text(title,
-          style: TextStyle(
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
-      subtitle: Text(subtitle,
-          style: TextStyle(color: context.textMuted, fontSize: 12)),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: context.textMuted, fontSize: 12),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(trailing,
-              style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(trailing, style: const TextStyle(fontWeight: FontWeight.w600)),
           if (selected) ...[
             const SizedBox(width: 8),
             Icon(Icons.check_circle, color: context.accent, size: 20),
@@ -218,7 +232,9 @@ class _AccountSwitcherSheetState
       (_) => NewAccountSheet(palette: accountPalette),
     );
     if (result == null) return;
-    await ref.read(databaseProvider).addAccount(
+    await ref
+        .read(databaseProvider)
+        .addAccount(
           AccountsCompanion.insert(
             name: result.name,
             kind: 'personal',
@@ -233,7 +249,10 @@ class _AccountSwitcherSheetState
   }
 
   Future<void> _manage(
-      Account account, List<Wallet> wallets, List<Account> accounts) {
+    Account account,
+    List<Wallet> wallets,
+    List<Account> accounts,
+  ) {
     Haptics.light();
     return showModalBottomSheet(
       context: context,
@@ -243,8 +262,11 @@ class _AccountSwitcherSheetState
           children: [
             const SizedBox(height: 12),
             Center(
-                child: Text(account.name,
-                    style: Theme.of(context).textTheme.titleMedium)),
+              child: Text(
+                account.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
             const SizedBox(height: 8),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
@@ -266,9 +288,9 @@ class _AccountSwitcherSheetState
               leading: const Icon(Icons.drive_file_move_outlined),
               title: const Text('Move wallets…'),
               subtitle: Text(
-                  '${wallets.length} wallet${wallets.length == 1 ? '' : 's'} in this account',
-                  style:
-                      TextStyle(color: context.textMuted, fontSize: 12)),
+                '${wallets.length} wallet${wallets.length == 1 ? '' : 's'} in this account',
+                style: TextStyle(color: context.textMuted, fontSize: 12),
+              ),
               onTap: () {
                 Navigator.of(context).pop();
                 _moveWallets(account, wallets, accounts);
@@ -276,8 +298,10 @@ class _AccountSwitcherSheetState
             ),
             ListTile(
               leading: Icon(Icons.delete_outline, color: AppColors.expense),
-              title: Text('Delete account',
-                  style: TextStyle(color: AppColors.expense)),
+              title: Text(
+                'Delete account',
+                style: TextStyle(color: AppColors.expense),
+              ),
               onTap: () {
                 Navigator.of(context).pop();
                 _delete(account, wallets, accounts);
@@ -293,7 +317,8 @@ class _AccountSwitcherSheetState
   Future<void> _rename(Account account) async {
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => _NameDialog(title: 'Rename account', initial: account.name),
+      builder: (_) =>
+          _NameDialog(title: 'Rename account', initial: account.name),
     );
     if (name == null || name == account.name) return;
     await ref.read(databaseProvider).renameAccount(account.id, name);
@@ -312,7 +337,10 @@ class _AccountSwitcherSheetState
   }
 
   Future<void> _moveWallets(
-      Account account, List<Wallet> wallets, List<Account> accounts) async {
+    Account account,
+    List<Wallet> wallets,
+    List<Account> accounts,
+  ) async {
     if (wallets.isEmpty) {
       _snack('No wallets in this account yet');
       return;
@@ -337,12 +365,16 @@ class _AccountSwitcherSheetState
     Haptics.medium();
     if (mounted) {
       _snack(
-          'Moved ${result.walletIds.length} wallet${result.walletIds.length == 1 ? '' : 's'}');
+        'Moved ${result.walletIds.length} wallet${result.walletIds.length == 1 ? '' : 's'}',
+      );
     }
   }
 
   Future<void> _delete(
-      Account account, List<Wallet> wallets, List<Account> accounts) async {
+    Account account,
+    List<Wallet> wallets,
+    List<Account> accounts,
+  ) async {
     if (accounts.length <= 1) {
       _snack("Can't delete the last account");
       return;
@@ -382,8 +414,9 @@ class _NameDialog extends StatefulWidget {
 }
 
 class _NameDialogState extends State<_NameDialog> {
-  late final TextEditingController _ctrl =
-      TextEditingController(text: widget.initial);
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.initial,
+  );
 
   @override
   void dispose() {
@@ -408,8 +441,8 @@ class _NameDialogState extends State<_NameDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _ctrl.text.trim().isEmpty ||
-                  _ctrl.text.trim() == widget.initial
+          onPressed:
+              _ctrl.text.trim().isEmpty || _ctrl.text.trim() == widget.initial
               ? null
               : () => Navigator.of(context).pop(_ctrl.text.trim()),
           child: const Text('Save'),
@@ -450,13 +483,18 @@ class _ColorDialogState extends State<_ColorDialog> {
                   color: colorFromHex(hex),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _hex == hex ? context.textPrimary : Colors.transparent,
+                    color: _hex == hex
+                        ? context.textPrimary
+                        : Colors.transparent,
                     width: 2,
                   ),
                 ),
                 child: _hex == hex
-                    ? Icon(Icons.check,
-                        size: 20, color: onAccent(colorFromHex(hex)))
+                    ? Icon(
+                        Icons.check,
+                        size: 20,
+                        color: onAccent(colorFromHex(hex)),
+                      )
                     : null,
               ),
             ),

@@ -15,9 +15,10 @@ Future<bool> showGoalFormSheet(
   WidgetRef ref, {
   Goal? existing,
 }) async {
-  final saved = await showFormSheet<bool>(
+  final saved = await showSnackSheet<bool>(
     context,
     (context) => _GoalFormSheet(existing: existing),
+    borderRadius: 28,
   );
   return saved == true;
 }
@@ -43,9 +44,9 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
   // present through and silently swallows them.)
 
   void _snack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   bool get _editing => widget.existing != null;
@@ -56,7 +57,8 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
     final e = widget.existing;
     _nameCtrl = TextEditingController(text: e?.name ?? '');
     _targetCtrl = TextEditingController(
-        text: e == null ? '' : formatAmountInput(e.target));
+      text: e == null ? '' : formatAmountInput(e.target),
+    );
     _deadline = e?.deadline;
     _colorHex = e?.colorHex ?? '#C6FF4A';
   }
@@ -71,8 +73,7 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
   Future<void> _pickDeadline() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate:
-          _deadline ?? DateTime.now().add(const Duration(days: 30)),
+      initialDate: _deadline ?? DateTime.now().add(const Duration(days: 30)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
     );
@@ -117,13 +118,9 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: FormSheet(
-        title: _editing ? 'Edit savings goal' : 'Add savings goal',
-      subtitle: _editing
-          ? null
-          : 'Set aside money for something that matters.',
+    return FormSheet(
+      title: _editing ? 'Edit savings goal' : 'Add savings goal',
+      subtitle: _editing ? null : 'Set aside money for something that matters.',
       actionLabel: _editing ? 'Save changes' : 'Add goal',
       onAction: _save,
       busy: _saving,
@@ -153,7 +150,6 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
         ),
         const SizedBox(height: 8),
       ],
-      ),
     );
   }
 }
