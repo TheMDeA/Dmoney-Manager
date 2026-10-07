@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_motion.dart';
+import '../../core/widgets/coin_refresh_indicator.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,7 +73,7 @@ class WalletsScreen extends ConsumerWidget {
                               () => d,
                             );
                           }
-                          return RefreshIndicator(
+                          return CoinRefreshIndicator(
                             onRefresh: () async {
                               Haptics.light();
                               await Future.delayed(

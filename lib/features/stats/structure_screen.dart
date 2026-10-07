@@ -12,6 +12,7 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/app_page_route.dart';
 import '../../core/widgets/entrance.dart';
+import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -114,15 +115,12 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: SizedBox(
               width: double.infinity,
-              child: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'income', label: Text('INCOME')),
-                  ButtonSegment(value: 'expense', label: Text('EXPENSE')),
-                ],
-                selected: {_kind},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() {
-                  _kind = s.first;
+              child: SlidingSegmented<String>(
+                values: const ['income', 'expense'],
+                labels: const ['INCOME', 'EXPENSE'],
+                selected: _kind,
+                onChanged: (v) => setState(() {
+                  _kind = v;
                   _touched = -1;
                 }),
               ),

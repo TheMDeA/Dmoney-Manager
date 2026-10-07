@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/widgets/entrance.dart';
+import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -306,19 +307,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _rangeSwitcher(BuildContext context, String range) {
     return Center(
-      child: SegmentedButton<String>(
-        segments: const [
-          ButtonSegment(value: 'day', label: Text('Day')),
-          ButtonSegment(value: 'week', label: Text('Week')),
-          ButtonSegment(value: 'month', label: Text('Month')),
-        ],
-        selected: {range},
-        onSelectionChanged: (s) {
+      child: SlidingSegmented<String>(
+        values: const ['day', 'week', 'month'],
+        labels: const ['Day', 'Week', 'Month'],
+        selected: range,
+        onChanged: (v) {
           Haptics.select();
-          ref.read(dateRangeProvider.notifier).set(s.first);
+          ref.read(dateRangeProvider.notifier).set(v);
         },
-        showSelectedIcon: false,
-        style: SegmentedButton.styleFrom(visualDensity: VisualDensity.compact),
       ),
     );
   }

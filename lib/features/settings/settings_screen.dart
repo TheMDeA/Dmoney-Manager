@@ -368,6 +368,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ).showSnackBar(const SnackBar(content: Text('Profile updated')));
       }
     }
+    ctrl.dispose();
   }
 
   Widget _accentSwatch(WidgetRef ref, AppAccent a) {

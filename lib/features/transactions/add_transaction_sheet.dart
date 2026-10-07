@@ -15,6 +15,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
+import '../../core/widgets/shaker.dart';
+import '../../core/widgets/sliding_segmented.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../categories/category_picker_section.dart';
@@ -69,6 +71,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   String? _amountError;
   String? _categoryError;
   String? _walletError;
+  final _descShake = ShakeController();
+  final _amountShake = ShakeController();
+  final _categoryShake = ShakeController();
+  final _walletShake = ShakeController();
 
   /// Smart suggestion state: the recommended category (badged in the grid)
   /// plus debounce/sequencing for the note listener.
@@ -183,16 +189,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           onAction: _save,
           busy: _saving,
           children: [
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'expense', label: Text('Expense')),
-                ButtonSegment(value: 'income', label: Text('Income')),
-              ],
-              selected: {_kind},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) {
+            SlidingSegmented<String>(
+              values: const ['expense', 'income'],
+              labels: const ['Expense', 'Income'],
+              selected: _kind,
+              onChanged: (v) {
                 setState(() {
-                  _kind = s.first;
+                  _kind = v;
                   _categoryId = null;
                   _suggestedId = null;
                 });
@@ -203,29 +206,38 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             const SizedBox(height: 16),
             _templateRow(context, db),
             const SizedBox(height: 16),
-            FormAmountEntry(controller: _amountCtrl),
+            Shaker(
+              controller: _amountShake,
+              child: FormAmountEntry(controller: _amountCtrl),
+            ),
             _fieldError(_amountError),
             const SizedBox(height: 16),
             const FormSectionLabel('Description *'),
             const SizedBox(height: 8),
-            TextField(
-              controller: _descCtrl,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                hintText: 'What was this for?',
-                errorText: _descError,
+            Shaker(
+              controller: _descShake,
+              child: TextField(
+                controller: _descCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: 'What was this for?',
+                  errorText: _descError,
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            CategoryPickerSection(
-              kind: _kind,
-              selectedId: _categoryId,
-              suggestedId: _suggestedId,
-              onSelected: (c) => setState(() {
-                _kind = c.kind;
-                _categoryId = c.id;
-                _categoryError = null;
-              }),
+            Shaker(
+              controller: _categoryShake,
+              child: CategoryPickerSection(
+                kind: _kind,
+                selectedId: _categoryId,
+                suggestedId: _suggestedId,
+                onSelected: (c) => setState(() {
+                  _kind = c.kind;
+                  _categoryId = c.id;
+                  _categoryError = null;
+                }),
+              ),
             ),
             _fieldError(_categoryError),
             const SizedBox(height: 16),
@@ -242,28 +254,31 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     wallets.every((w) => w.id != _walletId)) {
                   _walletId = wallets.isNotEmpty ? wallets.first.id : null;
                 }
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final w in wallets)
-                      ChoiceChip(
-                        label: Text(w.name),
-                        selected: _walletId == w.id,
-                        selectedColor: context.accent,
-                        showCheckmark: false,
-                        labelStyle: TextStyle(
-                          color: _walletId == w.id
-                              ? onAccent(context.accent)
-                              : Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.w600,
+                return Shaker(
+                  controller: _walletShake,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final w in wallets)
+                        ChoiceChip(
+                          label: Text(w.name),
+                          selected: _walletId == w.id,
+                          selectedColor: context.accent,
+                          showCheckmark: false,
+                          labelStyle: TextStyle(
+                            color: _walletId == w.id
+                                ? onAccent(context.accent)
+                                : Theme.of(context).colorScheme.onSurface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          onSelected: (_) => setState(() {
+                            _walletId = w.id;
+                            _walletError = null;
+                          }),
                         ),
-                        onSelected: (_) => setState(() {
-                          _walletId = w.id;
-                          _walletError = null;
-                        }),
-                      ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),
@@ -631,6 +646,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         amountError != null ||
         categoryError != null ||
         walletError != null) {
+      if (descError != null) _descShake.shake();
+      if (amountError != null) _amountShake.shake();
+      if (categoryError != null) _categoryShake.shake();
+      if (walletError != null) _walletShake.shake();
       return;
     }
     Haptics.medium();

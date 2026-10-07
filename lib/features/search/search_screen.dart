@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/entrance.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/widgets/transaction_tile.dart';
@@ -164,7 +165,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: results.length,
-                  itemBuilder: (_, i) => TransactionTile(details: results[i]),
+                  itemBuilder: (_, i) => Entrance(
+                    key: ValueKey(results[i].transaction.id),
+                    delay: Duration(
+                        milliseconds: (i * 40).clamp(0, 320)),
+                    child: TransactionTile(details: results[i]),
+                  ),
                 );
               },
             ),

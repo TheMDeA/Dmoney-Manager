@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/app_page_route.dart';
 import '../../core/widgets/date_scrubber.dart';
+import '../../core/widgets/coin_refresh_indicator.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../core/utils/haptics.dart';
 import '../categories/select_category_screen.dart';
@@ -287,14 +289,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                 child: Center(
-                  child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'month', label: Text('Month')),
-                      ButtonSegment(value: 'all', label: Text('All')),
-                    ],
-                    selected: {_view},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (s) => _setView(s.first),
+                  child: SlidingSegmented<String>(
+                    values: const ['month', 'all'],
+                    labels: const ['Month', 'All'],
+                    selected: _view,
+                    onChanged: _setView,
                   ),
                 ),
               ),
@@ -323,7 +322,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                                   const AddTransactionSheet(),
                             ),
                           )
-                        : RefreshIndicator(
+                        : CoinRefreshIndicator(
                             onRefresh: () async {
                               Haptics.light();
                               // Local-first data: the streams are already live.
