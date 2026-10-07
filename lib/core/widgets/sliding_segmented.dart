@@ -40,8 +40,7 @@ class SlidingSegmented<T> extends StatelessWidget {
           child: Stack(
             children: [
               AnimatedPositioned(
-                duration:
-                    disabled ? Duration.zero : AppMotion.normal,
+                duration: disabled ? Duration.zero : AppMotion.normal,
                 curve: AppMotion.enter,
                 left: index * segWidth,
                 top: 0,
@@ -50,7 +49,8 @@ class SlidingSegmented<T> extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: accent,
-                    borderRadius: BorderRadius.circular(9),
+                    // Stadium: fully rounded ends for a true pill look.
+                    borderRadius: BorderRadius.circular(100),
                   ),
                 ),
               ),

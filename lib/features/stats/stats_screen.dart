@@ -39,6 +39,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   int _touchedDonutIndex = -1;
   int _netWorthRange = 6;
+  int? _trendSelected;
+  int? _worthSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +159,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                     _donut(context, donutTotals, cats),
                                     const SectionHeader(title: 'Last 6 months'),
                                     _bars(context, monthlyTotals),
-                                    SectionHeader(title: 'Net savings trend'),
+                                    SectionHeader(
+                                      title: 'Net savings trend',
+                                      action: _trendReadout(monthlyTotals),
+                                    ),
                                     _trendLine(context, monthlyTotals),
                                     SectionHeader(
                                       title: 'Net worth',
@@ -978,31 +983,60 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   // -------------------------------- trend --------------------------------
 
-  Widget _trendLine(BuildContext context, List<MonthlyTotal> totals) {
+  /// Month labels + net savings per month (income minus expense; transfers
+  /// are neutral). Shared by the chart and the fixed touch readout.
+  (List<DateTime>, List<double>) _trendData(List<MonthlyTotal> totals) {
     final now = DateTime.now();
     final months = List.generate(
       6,
       (i) => DateTime(now.year, now.month - 5 + i),
     );
     final lookup = _monthlyLookup(totals);
-    final spots = <FlSpot>[];
+    final nets = <double>[];
     for (var i = 0; i < months.length; i++) {
       final kinds = lookup[_monthKey(months[i])] ?? const {};
       // Transfers move money between wallets — neutral for net savings.
-      final net = (kinds['income'] ?? 0) - (kinds['expense'] ?? 0);
-      spots.add(FlSpot(i.toDouble(), net.toDouble()));
+      nets.add(((kinds['income'] ?? 0) - (kinds['expense'] ?? 0)).toDouble());
     }
+    return (months, nets);
+  }
 
-    // Axis bounds from the data so the min/max labels sit exactly on the
-    // extreme dots.
-    var minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
-    var maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
-    if (minY == maxY) {
+  /// Fixed readout for the touched trend point. Lives in the section header,
+  /// above the chart, so the finger never covers it.
+  Widget _trendReadout(List<MonthlyTotal> totals) {
+    final i = _trendSelected;
+    if (i == null) return const SizedBox.shrink();
+    final (months, nets) = _trendData(totals);
+    if (i < 0 || i >= months.length) return const SizedBox.shrink();
+    return Text(
+      '${_monthLabel(months[i])} · ${formatMoney(nets[i].toInt())}',
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: context.accent,
+      ),
+    );
+  }
+
+  Widget _trendLine(BuildContext context, List<MonthlyTotal> totals) {
+    final (months, nets) = _trendData(totals);
+    final spots = [
+      for (var i = 0; i < nets.length; i++) FlSpot(i.toDouble(), nets[i]),
+    ];
+
+    // Axis bounds from the data, with headroom: the curved line overshoots
+    // the data points slightly, so exact data bounds would clip it at the
+    // plot edges.
+    final dataMin = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
+    final dataMax = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    var pad = (dataMax - dataMin) * 0.12;
+    if (pad <= 0) {
       // Flat line (e.g. no data yet) — give the chart some room.
-      final pad = maxY.abs() * 0.1;
-      minY -= pad > 0 ? pad : 1;
-      maxY += pad > 0 ? pad : 1;
+      pad = dataMax.abs() * 0.1;
+      if (pad <= 0) pad = 1;
     }
+    final minY = dataMin - pad;
+    final maxY = dataMax + pad;
 
     return GlassCard(
       child: SizedBox(
@@ -1013,29 +1047,45 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             maxY: maxY,
             lineTouchData: LineTouchData(
               enabled: true,
+              // Generous hit target: points sit ~60px apart, so 40px makes
+              // the whole plot tappable and the nearest point wins.
+              touchSpotThreshold: 40,
+              touchCallback: (event, response) {
+                final touched = response?.lineBarSpots;
+                if (touched == null || touched.isEmpty) return;
+                final idx = touched.first.spotIndex;
+                if (idx != _trendSelected) {
+                  setState(() => _trendSelected = idx);
+                }
+              },
               touchTooltipData: LineTouchTooltipData(
-                getTooltipColor: (_) => context.raised,
+                // The value is shown in the fixed header readout instead:
+                // an invisible tooltip keeps the spot highlight without a
+                // floating box the finger would cover.
+                getTooltipColor: (_) => Colors.transparent,
+                tooltipPadding: EdgeInsets.zero,
                 fitInsideHorizontally: true,
                 fitInsideVertically: true,
-                tooltipPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
                 getTooltipItems: (touchedSpots) => touchedSpots
                     .map(
-                      (s) => LineTooltipItem(
-                        '${_monthLabel(months[s.x.toInt()])}\n${formatMoney(s.y.toInt())}',
-                        TextStyle(
-                          color: context.accent,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                      (_) => const LineTooltipItem('', TextStyle(fontSize: 1)),
                     )
                     .toList(),
               ),
             ),
             gridData: const FlGridData(show: false),
+            extraLinesData: ExtraLinesData(
+              horizontalLines: [
+                // Break-even baseline — only when the data crosses zero.
+                if (minY < 0 && maxY > 0)
+                  HorizontalLine(
+                    y: 0,
+                    color: context.textMuted.withValues(alpha: 0.35),
+                    strokeWidth: 1,
+                    dashArray: [4, 4],
+                  ),
+              ],
+            ),
             titlesData: FlTitlesData(
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
@@ -1043,14 +1093,15 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   reservedSize: 44,
                   interval: maxY - minY,
                   getTitlesWidget: (v, meta) {
-                    // Only the extremes — keeps the chart clean.
-                    final isExtreme = (v - meta.min).abs() < 1e-6 ||
-                        (v - meta.max).abs() < 1e-6;
-                    if (!isExtreme) return const SizedBox.shrink();
+                    // Only the extremes — keeps the chart clean. Labels show
+                    // the true data values, not the padded axis bounds.
+                    final isMin = (v - meta.min).abs() < 1e-6;
+                    final isMax = (v - meta.max).abs() < 1e-6;
+                    if (!isMin && !isMax) return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Text(
-                        _compactMoney(v.round()),
+                        _compactMoney((isMin ? dataMin : dataMax).round()),
                         style: TextStyle(
                           fontSize: 10,
                           color: context.textMuted,
@@ -1068,10 +1119,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       _shortMonth(months[v.toInt()].month),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: context.textMuted,
-                      ),
+                      style: TextStyle(fontSize: 10, color: context.textMuted),
                     ),
                   ),
                 ),
@@ -1178,7 +1226,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     : context.textMuted,
                 fontWeight: FontWeight.w700,
               ),
-              onSelected: (_) => setState(() => _netWorthRange = m),
+              onSelected: (_) => setState(() {
+                _netWorthRange = m;
+                _worthSelected = null;
+              }),
             ),
           ),
       ],
@@ -1234,17 +1285,41 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final pct = points.first == 0 ? 0.0 : delta / points.first.abs() * 100;
     final up = delta >= 0;
     final spots = [for (var i = 0; i < n; i++) FlSpot(i.toDouble(), points[i])];
+    // Headroom so the curved line (which overshoots the data points
+    // slightly) never clips at the plot edges.
+    final nwMin = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
+    final nwMax = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+    var nwPad = (nwMax - nwMin) * 0.12;
+    if (nwPad <= 0) {
+      nwPad = nwMax.abs() * 0.1;
+      if (nwPad <= 0) nwPad = 1;
+    }
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Total net worth',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: context.textMuted),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Total net worth',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: context.textMuted),
+              ),
+              // Fixed readout for the touched point — above the chart, so
+              // the finger never covers it.
+              if (_worthSelected != null && _worthSelected! < months.length)
+                Text(
+                  '${_monthLabel(months[_worthSelected!])} · ${formatMoney(points[_worthSelected!].toInt())}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: context.accent,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 4),
           Row(
             children: [
               CountUpMoney(
@@ -1276,7 +1351,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 180,
+            height: 200,
             // Line-draw effect: the chart is revealed left-to-right, as if
             // the line is being drawn. Replays when the range changes.
             child: TweenAnimationBuilder<double>(
@@ -1293,32 +1368,67 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ),
               child: LineChart(
                 LineChartData(
+                  minY: nwMin - nwPad,
+                  maxY: nwMax + nwPad,
                   lineTouchData: LineTouchData(
                     enabled: true,
+                    // Generous hit target: points sit ~60px apart, so 40px
+                    // makes the whole plot tappable, nearest point wins.
+                    touchSpotThreshold: 40,
+                    touchCallback: (event, response) {
+                      final touched = response?.lineBarSpots;
+                      if (touched == null || touched.isEmpty) return;
+                      final idx = touched.first.spotIndex;
+                      if (idx != _worthSelected) {
+                        setState(() => _worthSelected = idx);
+                      }
+                    },
                     touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (_) => context.raised,
+                      // The value is shown in the fixed card header instead:
+                      // an invisible tooltip keeps the spot highlight without
+                      // a floating box the finger would cover.
+                      getTooltipColor: (_) => Colors.transparent,
+                      tooltipPadding: EdgeInsets.zero,
                       fitInsideHorizontally: true,
                       fitInsideVertically: true,
-                      tooltipPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
                       getTooltipItems: (touchedSpots) => touchedSpots
                           .map(
-                            (s) => LineTooltipItem(
-                              '${_monthLabel(months[s.x.toInt()])}\n${formatMoney(s.y.toInt())}',
-                              TextStyle(
-                                color: context.accent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            (_) => const LineTooltipItem(
+                              '',
+                              TextStyle(fontSize: 1),
                             ),
                           )
                           .toList(),
                     ),
                   ),
                   gridData: const FlGridData(show: false),
-                  titlesData: const FlTitlesData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: 1,
+                        getTitlesWidget: (v, _) => Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _shortMonth(months[v.toInt()].month),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: context.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   borderData: FlBorderData(show: false),
                   lineBarsData: [
                     LineChartBarData(

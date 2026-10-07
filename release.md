@@ -1,16 +1,10 @@
-## [2.4.5] - 2026-10-07
-
-### Added
-- Pull-to-refresh now shows a coin dropping in.
+## [2.4.6] - 2026-10-07
 
 ### Changed
-- Option pills (Expense/Income, Day/Week/Month, etc.) now slide instead of jumping.
-- Budget and debt progress bars now animate smoothly.
+- Removed the sparkline graphs next to the home income/expense totals.
+- Stats line charts are easier to touch: tapping anywhere near a month selects it, and the value shows in a fixed label instead of under your finger.
 
 ### Fixed
-- Account messages (created, moved, deleted) now appear above the account sheet instead of hiding behind it.
-- Validation messages in the budget, goal, wallet, and transfer forms now appear correctly.
-- Bottom sheets (edit goal, accounts, transfer, etc.) now size to their content instead of filling the screen.
-- Invalid form fields now shake when you try to save.
-- Search results now cascade in like the other lists.
-- Editing your profile name no longer leaks a text controller.
+- The selected option pill (Day/Week/Month, Expense/Income) is now fully rounded.
+- The net worth chart line no longer gets cut off at the top.
+- Net worth chart now shows month labels; net savings trend shows a break-even line.
