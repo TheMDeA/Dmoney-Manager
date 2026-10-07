@@ -7,6 +7,8 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
+import '../../core/widgets/shaker.dart';
+import '../../core/widgets/sliding_segmented.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -53,6 +55,9 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
   String? _nameError;
   String? _amountError;
   String? _walletError;
+  final _nameShake = ShakeController();
+  final _amountShake = ShakeController();
+  final _walletShake = ShakeController();
 
   bool get _isBorrowing => _direction == 'payable';
 
@@ -115,30 +120,32 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
       onAction: _save,
       busy: _saving,
       children: [
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'payable', label: Text('I borrowed')),
-            ButtonSegment(value: 'receivable', label: Text('I lent')),
-          ],
-          selected: {_direction},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) =>
-              setState(() => _direction = s.first),
+        SlidingSegmented<String>(
+          values: const ['payable', 'receivable'],
+          labels: const ['I borrowed', 'I lent'],
+          selected: _direction,
+          onChanged: (v) => setState(() => _direction = v),
         ),
         const SizedBox(height: 16),
         const FormSectionLabel('Name'),
         const SizedBox(height: 8),
-        TextField(
-          controller: _nameCtrl,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            hintText:
-                _isBorrowing ? 'Who do you borrow from?' : 'Who owes you?',
-            errorText: _nameError,
+        Shaker(
+          controller: _nameShake,
+          child: TextField(
+            controller: _nameCtrl,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              hintText:
+                  _isBorrowing ? 'Who do you borrow from?' : 'Who owes you?',
+              errorText: _nameError,
+            ),
           ),
         ),
         const SizedBox(height: 16),
-        FormAmountEntry(controller: _amountCtrl),
+        Shaker(
+          controller: _amountShake,
+          child: FormAmountEntry(controller: _amountCtrl),
+        ),
         _fieldError(_amountError),
         const SizedBox(height: 16),
         const FormSectionLabel('Date & time'),
@@ -251,9 +258,11 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
                 wallets.every((w) => w.id != _walletId)) {
               _walletId = null;
             }
-            return Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            return Shaker(
+              controller: _walletShake,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
               children: [
                 for (final w in wallets)
                   ChoiceChip(
@@ -273,6 +282,7 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
                     }),
                   ),
               ],
+            ),
             );
           },
         ),
@@ -314,6 +324,9 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
       _walletError = walletError;
     });
     if (nameError != null || amountError != null || walletError != null) {
+      if (nameError != null) _nameShake.shake();
+      if (amountError != null) _amountShake.shake();
+      if (walletError != null) _walletShake.shake();
       return;
     }
     setState(() => _saving = true);

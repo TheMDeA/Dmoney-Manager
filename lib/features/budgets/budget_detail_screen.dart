@@ -158,7 +158,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // Progress bar with centered percentage.
+          // Progress bar with centered percentage; the fill tweens to a
+          // new value instead of jumping.
           SizedBox(
             height: 26,
             child: ClipRRect(
@@ -166,9 +167,14 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
               child: Stack(
                 children: [
                   Container(color: context.raised),
-                  FractionallySizedBox(
-                    widthFactor: ratio.clamp(0.0, 1.0),
-                    child: Container(color: barColor),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: ratio.clamp(0.0, 1.0)),
+                    duration: AppMotion.slow,
+                    curve: AppMotion.enter,
+                    builder: (context, v, _) => FractionallySizedBox(
+                      widthFactor: v,
+                      child: Container(color: barColor),
+                    ),
                   ),
                   Center(
                     child: Text(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
+import '../../core/widgets/shaker.dart';
 import '../../data/database/app_database.dart';
 
 /// Result of the goal deposit/withdraw sheet.
@@ -35,6 +36,7 @@ class _GoalDepositSheetState extends ConsumerState<GoalDepositSheet> {
   bool _saving = false;
 
   String? _amountError;
+  final _amountShake = ShakeController();
 
   @override
   void dispose() {
@@ -53,7 +55,10 @@ class _GoalDepositSheetState extends ConsumerState<GoalDepositSheet> {
       onAction: _save,
       busy: _saving,
       children: [
-        FormAmountEntry(controller: _amountCtrl, autofocus: true),
+        Shaker(
+          controller: _amountShake,
+          child: FormAmountEntry(controller: _amountCtrl, autofocus: true),
+        ),
         if (_amountError != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -83,6 +88,7 @@ class _GoalDepositSheetState extends ConsumerState<GoalDepositSheet> {
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0) {
       setState(() => _amountError = 'Please enter an amount');
+      _amountShake.shake();
       return;
     }
     setState(() => _saving = true);

@@ -5,6 +5,7 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
+import '../../core/widgets/shaker.dart';
 
 /// Result of the new-account sheet.
 class NewAccountResult {
@@ -31,6 +32,7 @@ class _NewAccountSheetState extends ConsumerState<NewAccountSheet> {
   bool _saving = false;
 
   String? _nameError;
+  final _nameShake = ShakeController();
 
   @override
   void initState() {
@@ -59,13 +61,16 @@ class _NewAccountSheetState extends ConsumerState<NewAccountSheet> {
       children: [
         const FormSectionLabel('Name'),
         const SizedBox(height: 8),
-        TextField(
-          controller: _ctrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            hintText: 'e.g. Work',
-            errorText: _nameError,
+        Shaker(
+          controller: _nameShake,
+          child: TextField(
+            controller: _ctrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              hintText: 'e.g. Work',
+              errorText: _nameError,
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -107,6 +112,7 @@ class _NewAccountSheetState extends ConsumerState<NewAccountSheet> {
     final name = _ctrl.text.trim();
     if (name.isEmpty) {
       setState(() => _nameError = 'Please enter a name');
+      _nameShake.shake();
       return;
     }
     setState(() => _saving = true);

@@ -7,6 +7,7 @@ import '../../core/services/app_prefs.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
@@ -160,12 +161,17 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
               child: Stack(
                 children: [
                   Container(color: context.raised),
-                  FractionallySizedBox(
-                    widthFactor: ratio.clamp(0.0, 1.0),
-                    child: Container(
-                      color: debt.isPaid
-                          ? AppColors.income
-                          : AppColors.expense,
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: ratio.clamp(0.0, 1.0)),
+                    duration: AppMotion.slow,
+                    curve: AppMotion.enter,
+                    builder: (context, v, _) => FractionallySizedBox(
+                      widthFactor: v,
+                      child: Container(
+                        color: debt.isPaid
+                            ? AppColors.income
+                            : AppColors.expense,
+                      ),
                     ),
                   ),
                   Center(

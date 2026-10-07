@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
+import '../../core/widgets/shaker.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -52,6 +53,8 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
 
   String? _personError;
   String? _amountError;
+  final _personShake = ShakeController();
+  final _amountShake = ShakeController();
 
   @override
   void initState() {
@@ -113,16 +116,22 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
       children: [
         const FormSectionLabel('Person'),
         const SizedBox(height: 8),
-        TextField(
-          controller: _personCtrl,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            hintText: 'Who is this debt with?',
-            errorText: _personError,
+        Shaker(
+          controller: _personShake,
+          child: TextField(
+            controller: _personCtrl,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              hintText: 'Who is this debt with?',
+              errorText: _personError,
+            ),
           ),
         ),
         const SizedBox(height: 16),
-        FormAmountEntry(controller: _amountCtrl),
+        Shaker(
+          controller: _amountShake,
+          child: FormAmountEntry(controller: _amountCtrl),
+        ),
         _fieldError(_amountError),
         const SizedBox(height: 16),
         const FormSectionLabel('Note (optional)'),
@@ -218,7 +227,11 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
       _personError = personError;
       _amountError = amountError;
     });
-    if (personError != null || amountError != null) return;
+    if (personError != null || amountError != null) {
+      if (personError != null) _personShake.shake();
+      if (amountError != null) _amountShake.shake();
+      return;
+    }
     setState(() => _saving = true);
     if (mounted) {
       Navigator.pop(

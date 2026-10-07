@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
+import '../../core/widgets/shaker.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -45,6 +46,7 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
   bool _saving = false;
 
   String? _amountError;
+  final _amountShake = ShakeController();
 
   bool get _receivable => widget.debt.direction == 'receivable';
 
@@ -64,7 +66,10 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
       onAction: _save,
       busy: _saving,
       children: [
-        FormAmountEntry(controller: _amountCtrl, autofocus: true),
+        Shaker(
+          controller: _amountShake,
+          child: FormAmountEntry(controller: _amountCtrl, autofocus: true),
+        ),
         if (_amountError != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -172,6 +177,7 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0) {
       setState(() => _amountError = 'Please enter an amount');
+      _amountShake.shake();
       return;
     }
     setState(() => _saving = true);

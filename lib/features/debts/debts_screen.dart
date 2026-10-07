@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/widgets/entrance.dart';
+import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -64,14 +65,11 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
             children: [
               Center(
-                child: SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'payable', label: Text('PAYABLE')),
-                    ButtonSegment(value: 'receivable', label: Text('RECEIVABLE')),
-                  ],
-                  selected: {_direction},
-                  showSelectedIcon: false,
-                  onSelectionChanged: (s) => setState(() => _direction = s.first),
+                child: SlidingSegmented<String>(
+                  values: const ['payable', 'receivable'],
+                  labels: const ['PAYABLE', 'RECEIVABLE'],
+                  selected: _direction,
+                  onChanged: (v) => setState(() => _direction = v),
                 ),
               ),
               const SizedBox(height: 12),
