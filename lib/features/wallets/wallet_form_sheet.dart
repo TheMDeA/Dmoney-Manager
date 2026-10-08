@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import 'wallet_brands.dart';
+import 'widgets/wallet_badge.dart';
 
 /// Shows the standardized Add/Edit wallet bottom sheet. Returns true when
 /// the wallet was saved.
@@ -46,6 +49,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   late final TextEditingController _initialCtrl;
   late String _kind;
   late String _colorHex;
+  String? _logoTemplate;
   int? _accountId;
   List<Account> _accounts = const [];
   bool _saving = false;
@@ -70,6 +74,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
     _initialCtrl = TextEditingController();
     _kind = e?.kind ?? 'cash';
     _colorHex = e?.colorHex ?? '#C6FF4A';
+    _logoTemplate = e?.logoTemplate;
     if (e != null) _accountId = e.accountId;
   }
 
@@ -100,6 +105,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
           name: name,
           kind: _kind,
           colorHex: _colorHex,
+          logoTemplate: _logoTemplate,
         );
       } else {
         await db.createWallet(
@@ -108,6 +114,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
           kind: _kind,
           initialAmount: parseAmountInput(_initialCtrl.text),
           colorHex: _colorHex,
+          logoTemplate: _logoTemplate,
         );
       }
     } finally {
@@ -115,6 +122,30 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
     }
     if (!mounted) return;
     Navigator.of(context).pop(true);
+  }
+
+  /// A selectable brand badge. Picking a template also applies the
+  /// brand's color, which can still be fine-tuned with the color dots.
+  Widget _brandOption(WalletBrand brand) {
+    final selected = _logoTemplate == brand.id;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _logoTemplate = brand.id;
+        _colorHex = brand.colorHex;
+      }),
+      child: Container(
+        margin: const EdgeInsets.only(right: 10),
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? context.accent : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: WalletBadge(brand: brand, height: 30),
+      ),
+    );
   }
 
   @override
@@ -182,6 +213,54 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
               selected: _colorHex,
               onSelected: (hex) => setState(() => _colorHex = hex),
             ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const FormSectionLabel('Logo'),
+                if (_logoTemplate != null)
+                  GestureDetector(
+                    onTap: () => setState(() => _logoTemplate = null),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        'Clear',
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final group in walletBrandGroups.entries) ...[
+              Text(
+                group.key,
+                style: TextStyle(
+                  color: context.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final brand in group.value)
+                      _brandOption(brand),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             const SizedBox(height: 8),
           ],
         );

@@ -3,7 +3,6 @@ import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
@@ -21,6 +20,8 @@ import '../transactions/widgets/month_overview.dart';
 import '../transactions/widgets/month_selector.dart';
 import 'wallet_category_screen.dart';
 import 'wallet_form_sheet.dart';
+import 'wallet_brands.dart';
+import 'widgets/wallet_badge.dart';
 
 /// Detail view for one wallet: balance, adjust-balance, per-kind stats,
 /// and its transactions grouped by category.
@@ -124,7 +125,6 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     List<Wallet> allWallets,
     List<TransactionWithDetails> txs,
   ) {
-    final color = colorFromHex(wallet.colorHex);
     final negative = wallet.balance < 0;
     final income = txs.where((d) => d.transaction.kind == 'income').toList();
     final expense = txs.where((d) => d.transaction.kind == 'expense').toList();
@@ -146,15 +146,12 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         children: [
           Hero(
             tag: 'wallet-${wallet.id}',
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(20),
+            child: WalletBadge(
+              brand: walletBrandForWallet(
+                logoTemplate: wallet.logoTemplate,
+                kind: wallet.kind,
               ),
-              child: Icon(iconForKey(_walletIconKey(wallet.kind)),
-                  color: onAccent(color), size: 36),
+              height: 64,
             ),
           ),
           const SizedBox(height: 12),

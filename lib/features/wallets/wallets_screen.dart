@@ -10,19 +10,22 @@ import '../../core/widgets/ambient_glow.dart';
 import '../../core/widgets/screen_header.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
-import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/count_up_money.dart';
 import '../../core/widgets/glass_card.dart';
-import '../../core/widgets/pressable.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import '../transactions/add_transaction_sheet.dart';
+import 'wallet_brands.dart';
 import 'wallet_detail_screen.dart';
 import 'wallet_form_sheet.dart';
+import 'widgets/wallet_badge.dart';
 
-/// Wallets grouped under a Personal / Work / Family account switcher.
+/// Wallets grouped under a Personal / Work / Family account switcher,
+/// rendered as a fanned card stack. Tapping a card focuses it: it slides
+/// to the front and expands with quick actions and recent transactions.
 class WalletsScreen extends ConsumerWidget {
   const WalletsScreen({super.key});
 
@@ -66,12 +69,14 @@ class WalletsScreen extends ConsumerWidget {
                         builder: (context, txSnap) {
                           final recent =
                               txSnap.data ?? const <TransactionWithDetails>[];
-                          final lastByWallet = <int, TransactionWithDetails>{};
+                          final recentByWallet =
+                              <int, List<TransactionWithDetails>>{};
                           for (final d in recent) {
-                            lastByWallet.putIfAbsent(
+                            final list = recentByWallet.putIfAbsent(
                               d.transaction.walletId,
-                              () => d,
+                              () => [],
                             );
+                            if (list.length < 3) list.add(d);
                           }
                           return CoinRefreshIndicator(
                             onRefresh: () async {
@@ -129,7 +134,7 @@ class WalletsScreen extends ConsumerWidget {
                                       ),
                                       SizedBox(height: 4),
                                       Text(
-                                        '${wallets.length} wallets',
+                                        '${wallets.length} wallets · tap a card to focus it',
                                         style: TextStyle(
                                           color: context.textMuted,
                                           fontSize: 12,
@@ -150,18 +155,12 @@ class WalletsScreen extends ConsumerWidget {
                                         _addWalletDialog(context, ref),
                                   )
                                 else
-                                  for (var i = 0; i < wallets.length; i++)
-                                    Entrance(
-                                      key: ValueKey(wallets[i].id),
-                                      delay: Duration(
-                                        milliseconds: (i * 60).clamp(0, 300),
-                                      ),
-                                      child: _walletCard(
-                                        context,
-                                        wallets[i],
-                                        lastByWallet[wallets[i].id],
-                                      ),
+                                  Entrance(
+                                    child: _WalletStack(
+                                      wallets: wallets,
+                                      recentByWallet: recentByWallet,
                                     ),
+                                  ),
                               ],
                             ),
                           );
@@ -203,88 +202,421 @@ class WalletsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _walletCard(
-    BuildContext context,
-    Wallet w,
-    TransactionWithDetails? last,
-  ) {
-    final color = colorFromHex(w.colorHex);
-    final negative = w.balance < 0;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Pressable(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Haptics.select();
-            Navigator.of(context).push(
-              AppPageRoute(builder: (_) => WalletDetailScreen(walletId: w.id)),
-            );
-          },
-          // Long-press peeks at the wallet's key figures without opening it.
-          onLongPress: () => _peekWallet(context, w, last),
-          child: GlassCard(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              children: [
-                Hero(
-                  tag: 'wallet-${w.id}',
-                  child: Container(
-                    width: 6,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
+  Future<void> _addWalletDialog(BuildContext context, WidgetRef ref) =>
+      showWalletFormSheet(context, ref);
+}
+
+/// Fanned card stack of wallets. Tapping a card brings it to the front
+/// and expands it with actions and recent transactions; tapping it
+/// again (or another card) returns to / switches the focus.
+class _WalletStack extends ConsumerStatefulWidget {
+  const _WalletStack({required this.wallets, required this.recentByWallet});
+
+  final List<Wallet> wallets;
+  final Map<int, List<TransactionWithDetails>> recentByWallet;
+
+  @override
+  ConsumerState<_WalletStack> createState() => _WalletStackState();
+}
+
+class _WalletStackState extends ConsumerState<_WalletStack> {
+  static const _cardH = 188.0;
+  static const _peek = 88.0;
+  static const _focusedH = 420.0;
+  static const _tuck = 54.0;
+
+  int? _focusedId;
+
+  @override
+  Widget build(BuildContext context) {
+    final wallets = widget.wallets;
+    final n = wallets.length;
+    final focusedIndex = _focusedId == null
+        ? -1
+        : wallets.indexWhere((w) => w.id == _focusedId);
+    final focused = focusedIndex >= 0;
+
+    // Paint order: bottom cards first so the front card paints last.
+    final order = <int>[];
+    if (!focused) {
+      for (var i = n - 1; i >= 0; i--) {
+        order.add(i);
+      }
+    } else {
+      for (var i = n - 1; i >= 0; i--) {
+        if (i != focusedIndex) order.add(i);
+      }
+      order.add(focusedIndex);
+    }
+
+    var tuckOrder = 0;
+    final stackH = focused
+        ? 8 + _focusedH + 16 + _tuck * (n - 1) + 76
+        : 8 + _cardH + _peek * (n - 1) + 20;
+
+    return SizedBox(
+      height: stackH,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          for (final i in order)
+            Builder(
+              builder: (context) {
+                final w = wallets[i];
+                final isFocused = focused && i == focusedIndex;
+                final double top;
+                if (!focused) {
+                  top = 8 + i * _peek;
+                } else if (isFocused) {
+                  top = 8;
+                } else {
+                  top = 8 + _focusedH + 16 + (tuckOrder++) * _tuck;
+                }
+                return AnimatedPositioned(
+                  key: ValueKey(w.id),
+                  duration: AppMotion.slow,
+                  curve: AppMotion.enter,
+                  top: top,
+                  left: 0,
+                  right: 0,
+                  height: isFocused ? _focusedH : _cardH,
+                  child: AnimatedOpacity(
+                    duration: AppMotion.normal,
+                    opacity: focused && !isFocused ? 0.55 : 1.0,
+                    child: _stackCard(context, w, isFocused),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        w.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stackCard(BuildContext context, Wallet w, bool focused) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = colorFromHex(w.colorHex);
+    final brand = walletBrandForWallet(
+      logoTemplate: w.logoTemplate,
+      kind: w.kind,
+    );
+    final negative = w.balance < 0;
+    final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
+    final last = recent.isNotEmpty ? recent.first : null;
+
+    return GestureDetector(
+      onTap: () {
+        Haptics.select();
+        setState(() => _focusedId = focused ? null : w.id);
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: color.withValues(alpha: isDark ? 0.38 : 0.3),
+            ),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [
+                      Color.lerp(const Color(0xFF1D1F22), color, 0.16)!,
+                      const Color(0xFF131416),
+                    ]
+                  : [
+                      Color.lerp(Colors.white, color, 0.14)!,
+                      Colors.white,
+                    ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: isDark ? 0.28 : 0.2),
+                blurRadius: 28,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Brand accent bar, like a card's edge stripe.
+              Positioned(
+                left: 0,
+                top: 22,
+                bottom: 22,
+                child: Container(
+                  width: 5,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(3),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.8),
+                        blurRadius: 12,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _kindLabel(w.kind),
-                        style: TextStyle(
-                          color: context.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                      if (last != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
-                          style: TextStyle(
-                            color: context.textMuted,
-                            fontSize: 11,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
                     ],
                   ),
                 ),
-                CountUpMoney(
-                  amount: w.balance,
-                  style: AppTextStyles.amount(size: 17).copyWith(
-                    color: negative ? AppColors.expense : context.textPrimary,
-                  ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 16, 18, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      w.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 18,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (focused) ...[
+                                    const SizedBox(width: 4),
+                                    _editButton(w),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _kindLabel(w.kind),
+                                style: TextStyle(
+                                  color: context.textMuted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Hero(
+                          tag: 'wallet-${w.id}',
+                          child: WalletBadge(brand: brand),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    CountUpMoney(
+                      amount: w.balance,
+                      style: AppTextStyles.amount(size: 26).copyWith(
+                        color: negative
+                            ? AppColors.expense
+                            : context.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (last != null)
+                      Text(
+                        '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 11.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      Text(
+                        'No transactions yet',
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    if (focused) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          _action(
+                            context,
+                            icon: Icons.swap_horiz,
+                            label: 'Transfer',
+                            onTap: () => _transfer(w),
+                          ),
+                          const SizedBox(width: 10),
+                          _action(
+                            context,
+                            icon: Icons.add_card_outlined,
+                            label: 'Top up',
+                            onTap: () => _topUp(w),
+                          ),
+                          const SizedBox(width: 10),
+                          _action(
+                            context,
+                            icon: Icons.history,
+                            label: 'History',
+                            onTap: () => _history(w),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: 1,
+                        color: context.textMuted.withValues(alpha: 0.18),
+                      ),
+                      const SizedBox(height: 4),
+                      for (final d in recent)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      d.transaction.note.isEmpty
+                                          ? d.category.name
+                                          : d.transaction.note,
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      formatDate(d.transaction.date),
+                                      style: TextStyle(
+                                        color: context.textMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                formatMoney(_signedAmount(d)),
+                                style: AppTextStyles.amount(size: 13.5)
+                                    .copyWith(
+                                      color: _amountColor(d),
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _editButton(Wallet w) {
+    return GestureDetector(
+      onTap: () {
+        Haptics.select();
+        showWalletFormSheet(context, ref, existing: w);
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(
+          Icons.edit_outlined,
+          size: 16,
+          color: context.textMuted,
+        ),
+      ),
+    );
+  }
+
+  Widget _action(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          Haptics.select();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: context.textMuted.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: context.textMuted.withValues(alpha: 0.14),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: context.accent),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _transfer(Wallet w) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddTransactionSheet(
+        initialKind: 'transfer',
+        initialWalletId: w.id,
+      ),
+    );
+  }
+
+  void _topUp(Wallet w) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddTransactionSheet(
+        initialKind: 'income',
+        initialWalletId: w.id,
+      ),
+    );
+  }
+
+  void _history(Wallet w) {
+    Navigator.of(
+      context,
+    ).push(AppPageRoute(builder: (_) => WalletDetailScreen(walletId: w.id)));
+  }
+
+  int _signedAmount(TransactionWithDetails d) {
+    final a = d.transaction.amount;
+    return d.transaction.kind == 'expense' ? -a : a;
+  }
+
+  Color _amountColor(TransactionWithDetails d) {
+    return switch (d.transaction.kind) {
+      'expense' => AppColors.expense,
+      'income' => AppColors.income,
+      _ => context.textPrimary,
+    };
   }
 
   String _kindLabel(String kind) => switch (kind) {
@@ -294,135 +626,4 @@ class WalletsScreen extends ConsumerWidget {
     'credit' => 'Credit card',
     _ => kind,
   };
-
-  String _walletIconKey(String kind) => switch (kind) {
-    'bank' => 'account_balance',
-    'ewallet' => 'smartphone',
-    'credit' => 'credit_card',
-    _ => 'wallet',
-  };
-
-  Future<void> _addWalletDialog(BuildContext context, WidgetRef ref) =>
-      showWalletFormSheet(context, ref);
-
-  /// Long-press peek: a compact sheet with the wallet's key figures,
-  /// popping in with a springy scale. Dismiss by tapping outside.
-  Future<void> _peekWallet(
-    BuildContext context,
-    Wallet w,
-    TransactionWithDetails? last,
-  ) {
-    Haptics.medium();
-    final color = colorFromHex(w.colorHex);
-    return showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.85, end: 1.0),
-          duration: AppMotion.normal,
-          curve: Curves.easeOutBack,
-          builder: (context, scale, child) =>
-              Transform.scale(scale: scale, child: child),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        iconForKey(_walletIconKey(w.kind)),
-                        color: onAccent(color),
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            w.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Text(
-                            _kindLabel(w.kind),
-                            style: TextStyle(
-                              color: context.textMuted,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Balance',
-                  style: TextStyle(color: context.textMuted, fontSize: 12),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  formatMoney(w.balance),
-                  style: AppTextStyles.displayBalance.copyWith(
-                    fontSize: 30,
-                    color: w.balance < 0
-                        ? AppColors.expense
-                        : context.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _peekRow('Initial amount', formatMoney(w.initialAmount)),
-                if (last != null)
-                  _peekRow(
-                    'Last transaction',
-                    '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _peekRow(String label, String value) {
-    return Builder(
-      builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: TextStyle(color: context.textMuted, fontSize: 13),
-            ),
-            Flexible(
-              child: Text(
-                value,
-                textAlign: TextAlign.end,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
