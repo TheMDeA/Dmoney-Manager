@@ -36,6 +36,8 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
     this.initialNote,
     this.initialDate,
     this.ocrFilled = false,
+    this.ocrCandidates = const [],
+    this.ocrRawText,
   });
 
   final String initialKind;
@@ -55,6 +57,13 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
   /// True when fields were pre-filled by receipt OCR: shows a
   /// "please verify" hint since OCR is best-effort.
   final bool ocrFilled;
+
+  /// Other plausible totals from the receipt, best first. Shown as
+  /// alternatives when the OCR-picked amount looks wrong.
+  final List<int> ocrCandidates;
+
+  /// Raw text read off the receipt, for the "what I read" expander.
+  final String? ocrRawText;
 
   @override
   ConsumerState<AddTransactionSheet> createState() =>
@@ -439,6 +448,34 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
             ],
           ),
+        if (widget.ocrFilled && widget.ocrCandidates.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Not the right amount?',
+            style: TextStyle(color: context.textMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in widget.ocrCandidates.take(4))
+                ActionChip(
+                  label: Text(formatMoney(c)),
+                  onPressed: () {
+                    Haptics.select();
+                    setState(() {
+                      _amountCtrl.text = formatAmountInput(c);
+                    });
+                  },
+                ),
+            ],
+          ),
+        ],
+        if (widget.ocrFilled && widget.ocrRawText != null) ...[
+          const SizedBox(height: 8),
+          _OcrRawTextExpander(rawText: widget.ocrRawText!),
+        ],
       ],
     );
   }
@@ -813,6 +850,69 @@ class _SuccessOverlay extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Expandable "what the OCR read" viewer: helps the user (and bug reports)
+/// see exactly what text the recognizer pulled off the receipt.
+class _OcrRawTextExpander extends StatefulWidget {
+  const _OcrRawTextExpander({required this.rawText});
+
+  final String rawText;
+
+  @override
+  State<_OcrRawTextExpander> createState() => _OcrRawTextExpanderState();
+}
+
+class _OcrRawTextExpanderState extends State<_OcrRawTextExpander> {
+  var _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () {
+            Haptics.light();
+            setState(() => _open = !_open);
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'What I read',
+                style: TextStyle(color: context.textMuted, fontSize: 12),
+              ),
+              Icon(
+                _open ? Icons.expand_less : Icons.expand_more,
+                size: 16,
+                color: context.textMuted,
+              ),
+            ],
+          ),
+        ),
+        if (_open) ...[
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: context.textMuted.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SelectableText(
+              widget.rawText,
+              style: TextStyle(
+                fontSize: 12,
+                color: context.textMuted,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

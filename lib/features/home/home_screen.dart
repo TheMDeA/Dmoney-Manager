@@ -133,7 +133,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Future<void> _scanReceipt() async {
     try {
-      final picked = await ImagePicker().pickImage(source: ImageSource.camera);
+      // Let the user pick camera or an existing photo.
+      final source = await showModalBottomSheet<ImageSource>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Take photo'),
+                onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('Choose from gallery'),
+                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !mounted) return;
+      final picked = await ImagePicker().pickImage(source: source);
       if (picked == null || !mounted) return;
       // Run on-device OCR while showing progress; falls back to manual
       // entry when nothing useful is read.
@@ -163,6 +185,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           initialNote: scan?.merchant,
           initialDate: scan?.date,
           ocrFilled: scan != null,
+          ocrCandidates: scan?.candidates ?? const [],
+          ocrRawText: scan?.rawText,
         ),
       );
     } catch (e) {

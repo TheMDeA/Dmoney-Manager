@@ -95,7 +95,16 @@ void main() {
         'Telp 081234567890',
         'TOTAL Rp 59.500',
       ];
-      expect(parseReceiptMerchant(lines), 'INDOMARET');
+      expect(parseReceiptMerchant(lines), 'Indomaret');
+    });
+
+    test('known merchant matched in messy line', () {
+      final lines = [
+        '*** ALFAMART ***',
+        'Jl. Sudirman',
+        'TOTAL Rp 25.000',
+      ];
+      expect(parseReceiptMerchant(lines), 'Alfamart');
     });
 
     test('skips receipt keywords', () {
@@ -105,6 +114,63 @@ void main() {
 
     test('empty lines', () {
       expect(parseReceiptMerchant(const []), isNull);
+    });
+  });
+
+  group('parseReceiptTotal payment-line exclusion', () {
+    test('tunai/kembali never beat the total in fallback', () {
+      final lines = [
+        'Mie Ayam 15.000',
+        'Es Teh 5.000',
+        // No "total" keyword: fallback must skip payment lines.
+        'TUNAI 100.000',
+        'KEMBALI 80.000',
+      ];
+      expect(parseReceiptTotal(lines), 15000);
+    });
+
+    test('total keyword still wins over payment lines', () {
+      final lines = [
+        'TOTAL Rp 59.500',
+        'TUNAI 100.000',
+        'KEMBALI 40.500',
+      ];
+      expect(parseReceiptTotal(lines), 59500);
+    });
+
+    test('new total variants recognized', () {
+      expect(parseReceiptTotal(['TAGIHAN 75.000']), 75000);
+      expect(parseReceiptTotal(['JUMLAH Rp 32.000']), 32000);
+      expect(parseReceiptTotal(['Total Belanja 18.500']), 18500);
+    });
+
+    test('qris/debit lines excluded from fallback', () {
+      final lines = [
+        'Kopi 20.000',
+        'QRIS 20.000',
+      ];
+      expect(parseReceiptTotal(lines), 20000);
+    });
+  });
+
+  group('receiptTotalCandidates', () {
+    test('best first, no duplicates', () {
+      final lines = [
+        'TOTAL Rp 59.500',
+        'TUNAI 100.000',
+        'KEMBALI 40.500',
+        'Parkir 5.000',
+      ];
+      final c = receiptTotalCandidates(lines);
+      expect(c.first, 59500);
+      expect(c, contains(5000));
+      expect(c, isNot(contains(100000)));
+      expect(c, isNot(contains(40500)));
+      expect(c.toSet().length, c.length);
+    });
+
+    test('empty when no amounts', () {
+      expect(receiptTotalCandidates(['hello world']), isEmpty);
     });
   });
 }

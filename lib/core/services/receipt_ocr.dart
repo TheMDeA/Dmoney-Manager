@@ -8,6 +8,7 @@ class ReceiptScan {
     this.total,
     this.date,
     required this.rawText,
+    this.candidates = const [],
   });
 
   /// Store/merchant name, e.g. "Indomaret".
@@ -20,6 +21,10 @@ class ReceiptScan {
   final DateTime? date;
 
   final String rawText;
+
+  /// Other plausible totals, best first (excluding [total]). Lets the user
+  /// cycle alternatives when the top pick is wrong.
+  final List<int> candidates;
 
   /// True when at least one useful field was extracted.
   bool get hasData => merchant != null || total != null || date != null;
@@ -47,11 +52,16 @@ class ReceiptOcr {
           .where((l) => l.isNotEmpty)
           .toList();
       if (lines.isEmpty) return null;
+      final total = parseReceiptTotal(lines);
+      final candidates = receiptTotalCandidates(
+        lines,
+      ).where((c) => c != total).toList();
       final scan = ReceiptScan(
         merchant: parseReceiptMerchant(lines),
-        total: parseReceiptTotal(lines),
+        total: total,
         date: parseReceiptDate(lines),
         rawText: result.text,
+        candidates: candidates,
       );
       return scan.hasData ? scan : null;
     } catch (e) {
@@ -124,11 +134,45 @@ List<int> amountsInLine(String line) {
   return out;
 }
 
+/// Lines that mention money changing hands (cash tendered, change given)
+/// — never the total. These must be excluded from the fallback so a
+/// "TUNAI 100.000" doesn't beat the real "TOTAL 59.500".
+bool _isPaymentLine(String line) {
+  final low = line.toLowerCase();
+  // NB: "total bayar"/"jumlah bayar" are total keywords, checked first —
+  // only bare payment words count here.
+  const words = [
+    'tunai',
+    'cash',
+    'kembali',
+    'kembalian',
+    'change',
+    'uang pas',
+    'non tunai',
+    'nontunai',
+    'debit',
+    'kredit',
+    'qris',
+    'e-money',
+    'emoney',
+  ];
+  return words.any((w) => RegExp(r'(^|[\s:])' + w + r'($|[\s:])').hasMatch(low));
+}
+
 /// Finds the receipt total: prefers lines mentioning "total" (grand total
 /// first), taking the last amount on the line; falls back to the largest
-/// amount anywhere on the receipt.
+/// amount on a non-payment line (so TUNAI/KEMBALI never win).
 int? parseReceiptTotal(List<String> lines) {
-  const keywords = ['grand total', 'total bayar', 'jumlah bayar', 'total'];
+  const keywords = [
+    'grand total',
+    'total bayar',
+    'jumlah bayar',
+    'total belanja',
+    'total pembelian',
+    'jumlah',
+    'tagihan',
+    'total',
+  ];
   for (final kw in keywords) {
     for (final line in lines) {
       if (!line.toLowerCase().contains(kw)) continue;
@@ -138,11 +182,52 @@ int? parseReceiptTotal(List<String> lines) {
   }
   int? best;
   for (final line in lines) {
+    if (_isPaymentLine(line)) continue;
     for (final a in amountsInLine(line)) {
       if (best == null || a > best) best = a;
     }
   }
   return best;
+}
+
+/// All plausible total candidates on the receipt, best first. Used by the
+/// UI so the user can cycle through alternatives when the top pick is wrong.
+List<int> receiptTotalCandidates(List<String> lines) {
+  final seen = <int>[];
+  void add(int v) {
+    if (!seen.contains(v)) seen.add(v);
+  }
+
+  const keywords = [
+    'grand total',
+    'total bayar',
+    'jumlah bayar',
+    'total belanja',
+    'total pembelian',
+    'jumlah',
+    'tagihan',
+    'total',
+  ];
+  for (final kw in keywords) {
+    for (final line in lines) {
+      if (!line.toLowerCase().contains(kw)) continue;
+      final amounts = amountsInLine(line);
+      if (amounts.isNotEmpty) add(amounts.last);
+    }
+  }
+  // Then every other non-payment amount, largest first.
+  final rest = <int>[];
+  for (final line in lines) {
+    if (_isPaymentLine(line)) continue;
+    for (final a in amountsInLine(line)) {
+      if (!seen.contains(a) && !rest.contains(a)) rest.add(a);
+    }
+  }
+  rest.sort((a, b) => b.compareTo(a));
+  for (final a in rest) {
+    add(a);
+  }
+  return seen;
 }
 
 bool _validDate(int y, int m, int d) {
@@ -233,9 +318,84 @@ DateTime? parseReceiptDate(List<String> lines) {
   return null;
 }
 
+/// Common Indonesian merchants: matched (case-insensitive, substring)
+/// against receipt lines so the name comes out clean even when the OCR'd
+/// header line has extra junk around it.
+const _knownMerchants = [
+  'Indomaret',
+  'Alfamart',
+  'Alfamidi',
+  'Lawson',
+  'FamilyMart',
+  'Circle K',
+  'Super Indo',
+  'Hypermart',
+  'Carrefour',
+  'Transmart',
+  'Lottemart',
+  'Giant',
+  'Hero',
+  'Ramayana',
+  'Matahari',
+  'Gramedia',
+  'Ace Hardware',
+  'Informa',
+  'Chatime',
+  'Kopi Kenangan',
+  'Janji Jiwa',
+  'Starbucks',
+  'JCO',
+  'BreadTalk',
+  'Roti O',
+  'KFC',
+  'McDonald',
+  "McDonald's",
+  'Pizza Hut',
+  'Domino',
+  'Burger King',
+  'HokBen',
+  'Hoka Hoka Bento',
+  'Sola ria',
+  'Soloria',
+  'Bakmi GM',
+  'Sate Khas Senayan',
+  'Warung Steak',
+  'Gacoan',
+  'Mie Gacoan',
+  'Richeese',
+  'Mixue',
+  'GoFood',
+  'GrabFood',
+  'ShopeeFood',
+  'Tokopedia',
+  'Shopee',
+  'Blibli',
+  'Lazada',
+  'Pertamina',
+  'Shell',
+  'BP-AKR',
+  'Vivo',
+  'Kimia Farma',
+  'Apotek K-24',
+  'Guardian',
+  'Watsons',
+  'Century',
+  'XXI',
+  'CGV',
+  'Cinepolis',
+];
+
 /// Merchant is usually the first meaningful text line: alphabetic,
 /// reasonably long, and not a receipt keyword (struk, kasir, npwp…).
+/// Known merchants are matched first for a clean name.
 String? parseReceiptMerchant(List<String> lines) {
+  // Known merchant first: cleaner than whatever the header line says.
+  for (final line in lines) {
+    final low = line.toLowerCase();
+    for (final m in _knownMerchants) {
+      if (low.contains(m.toLowerCase())) return m;
+    }
+  }
   const skip = [
     'struk',
     'receipt',
