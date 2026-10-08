@@ -13,16 +13,11 @@ import 'transaction_tile.dart';
 /// Transfers stay neutral in the daily net. Shared by the transaction
 /// history, wallet transactions, and wallet category screens.
 ///
-/// Insertions animate in via [Entrance] — only ids that appeared in a data
-/// update play it, so scrolling never replays animations. Removals collapse
-/// out: rows deleted from [items] are kept rendered for one
-/// [AppMotion.normal] beat inside [_CollapseOut], then the list swaps to the
-/// new data. Wholesale changes (e.g. switching months) swap immediately
-/// without the exit choreography.
-///
-/// Rows build lazily via [SliverChildBuilderDelegate] from precomputed
-/// per-day index ranges, so a 10k-row history only instantiates visible
-/// tiles instead of building (and animating) every row up front.
+/// Insertions animate in via [Entrance] (stable keys mean only newcomers
+/// play it). Removals collapse out: rows deleted from [items] are kept
+/// rendered for one [AppMotion.normal] beat inside [_CollapseOut], then
+/// the list swaps to the new data. Wholesale changes (e.g. switching
+/// months) swap immediately without the exit choreography.
 class GroupedTransactionList extends StatefulWidget {
   const GroupedTransactionList({
     super.key,
@@ -46,86 +41,22 @@ class GroupedTransactionList extends StatefulWidget {
   final void Function(int id)? onToggleSelected;
 
   @override
-  State<GroupedTransactionList> createState() => _GroupedTransactionListState();
-}
-
-/// One day's slice of the list: an index range plus the precomputed net
-/// total. Metadata only — rows themselves build lazily.
-class _DayGroup {
-  const _DayGroup({
-    required this.day,
-    required this.start,
-    required this.end,
-    required this.net,
-  });
-
-  final DateTime day;
-
-  /// Index into the item list, inclusive.
-  final int start;
-
-  /// Index into the item list, exclusive.
-  final int end;
-  final int net;
+  State<GroupedTransactionList> createState() =>
+      _GroupedTransactionListState();
 }
 
 class _GroupedTransactionListState extends State<GroupedTransactionList> {
   late List<TransactionWithDetails> _shown = widget.items;
   final Set<int> _exiting = {};
-
-  /// Ids that appeared in a data update and haven't been presented yet:
-  /// these (and only these) play the [Entrance] animation. Everything else
-  /// renders plain, so scrolling never replays animations and animation
-  /// controllers stay bounded by real insertions, not list size.
-  final Set<int> _entering = {};
   bool _exitScheduled = false;
-  var _groups = const <_DayGroup>[];
-
-  @override
-  void initState() {
-    super.initState();
-    _regroup();
-  }
-
-  /// Slices [_shown] into per-day index ranges. O(n) over cheap date
-  /// comparisons — no widgets are built here.
-  void _regroup() {
-    final items = _shown;
-    final groups = <_DayGroup>[];
-    var i = 0;
-    while (i < items.length) {
-      final d0 = items[i].transaction.date;
-      final day = DateTime(d0.year, d0.month, d0.day);
-      var j = i;
-      var net = 0;
-      while (j < items.length) {
-        final t = items[j].transaction;
-        if (t.date.year != day.year ||
-            t.date.month != day.month ||
-            t.date.day != day.day) {
-          break;
-        }
-        net += t.kind == 'income'
-            ? t.amount
-            : (t.kind == 'expense' ? -t.amount : 0);
-        j++;
-      }
-      groups.add(_DayGroup(day: day, start: i, end: j, net: net));
-      i = j;
-    }
-    _groups = groups;
-  }
 
   @override
   void didUpdateWidget(covariant GroupedTransactionList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (identical(widget.items, oldWidget.items)) return;
-    final prevIds = {for (final d in _shown) d.transaction.id};
-    final newIds = {for (final d in widget.items) d.transaction.id};
-    // Rows that appeared: animate only these on next build.
-    _entering.addAll(newIds.difference(prevIds));
-    // Rows that vanished entirely: drop stale animation flags.
-    _entering.removeWhere((id) => !newIds.contains(id));
+    final newIds = {
+      for (final d in widget.items) d.transaction.id,
+    };
     // Undo brings rows back: stop their exit immediately.
     _exiting.removeWhere(newIds.contains);
     final removedIds = {
@@ -136,15 +67,12 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
     };
     if (removedIds.isEmpty) {
       _shown = widget.items;
-      _regroup();
       return;
     }
     if (removedIds.length * 2 > _shown.length) {
-      // Wholesale change — swap with no choreography at all.
+      // Wholesale change — swap without exit choreography.
       _shown = widget.items;
       _exiting.clear();
-      _entering.clear();
-      _regroup();
       return;
     }
     _exiting.addAll(removedIds);
@@ -156,7 +84,6 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
         setState(() {
           _shown = widget.items;
           _exiting.clear();
-          _regroup();
         });
       });
     }
@@ -164,56 +91,73 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
 
   @override
   Widget build(BuildContext context) {
+    final slivers = <Widget>[];
+    var i = 0;
+    while (i < _shown.length) {
+      final d0 = _shown[i].transaction.date;
+      final day = DateTime(d0.year, d0.month, d0.day);
+      var j = i;
+      var net = 0;
+      while (j < _shown.length) {
+        final t = _shown[j].transaction;
+        if (t.date.year != day.year ||
+            t.date.month != day.month ||
+            t.date.day != day.day) {
+          break;
+        }
+        net += t.kind == 'income'
+            ? t.amount
+            : (t.kind == 'expense' ? -t.amount : 0);
+        j++;
+      }
+      final tiles = <Widget>[];
+      for (var k = i; k < j; k++) {
+        final d = _shown[k];
+        final tile = TransactionTile(
+          details: d,
+          selectionMode: widget.selectedIds.isNotEmpty,
+          selected: widget.selectedIds.contains(d.transaction.id),
+          onToggleSelected: widget.onToggleSelected == null
+              ? null
+              : () => widget.onToggleSelected!(d.transaction.id),
+        );
+        if (_exiting.contains(d.transaction.id)) {
+          tiles.add(_CollapseOut(
+            key: ValueKey('exit-${d.transaction.id}'),
+            child: tile,
+          ));
+        } else {
+          tiles.add(
+            Entrance(
+              key: ValueKey('tx-${d.transaction.id}'),
+              delay:
+                  Duration(milliseconds: (40 * (k - i)).clamp(0, 320)),
+              child: tile,
+            ),
+          );
+        }
+      }
+      slivers.add(
+        SliverStickyHeader(
+          header: Container(
+            // Solid backdrop so rows slide under the pinned header.
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: DateGroupHeader(day: day, net: net),
+          ),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(tiles),
+          ),
+        ),
+      );
+      i = j;
+    }
     return CustomScrollView(
       controller: widget.controller,
       slivers: [
-        for (final g in _groups)
-          SliverStickyHeader(
-            header: Container(
-              // Solid backdrop so rows slide under the pinned header.
-              color: Theme.of(context).scaffoldBackgroundColor,
-              child: DateGroupHeader(day: g.day, net: g.net),
-            ),
-            sliver: SliverList(
-              // Builder delegate: only visible rows are instantiated.
-              // The old list delegate built (and animated) every tile up
-              // front — that was the 10k-row All-view crash.
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _buildTile(g.start + index, index),
-                childCount: g.end - g.start,
-              ),
-            ),
-          ),
+        ...slivers,
         const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
     );
-  }
-
-  /// Builds one row. Only ids in [_entering] play [Entrance]; everything
-  /// else renders plain via a keyed subtree so tile state survives
-  /// rebuilds and scrolls.
-  Widget _buildTile(int k, int dayOffset) {
-    final d = _shown[k];
-    final id = d.transaction.id;
-    final tile = TransactionTile(
-      details: d,
-      selectionMode: widget.selectedIds.isNotEmpty,
-      selected: widget.selectedIds.contains(id),
-      onToggleSelected: widget.onToggleSelected == null
-          ? null
-          : () => widget.onToggleSelected!(id),
-    );
-    if (_exiting.contains(id)) {
-      return _CollapseOut(key: ValueKey('exit-$id'), child: tile);
-    }
-    if (_entering.contains(id)) {
-      return Entrance(
-        key: ValueKey('tx-$id'),
-        delay: Duration(milliseconds: (40 * dayOffset).clamp(0, 320)),
-        child: tile,
-      );
-    }
-    return KeyedSubtree(key: ValueKey('tx-$id'), child: tile);
   }
 }
 
@@ -230,10 +174,9 @@ class _CollapseOut extends StatefulWidget {
 
 class _CollapseOutState extends State<_CollapseOut>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: AppMotion.normal,
-  )..forward();
+  late final AnimationController _controller =
+      AnimationController(vsync: this, duration: AppMotion.normal)
+        ..forward();
 
   @override
   void dispose() {
@@ -243,7 +186,8 @@ class _CollapseOutState extends State<_CollapseOut>
 
   @override
   Widget build(BuildContext context) {
-    final anim = CurvedAnimation(parent: _controller, curve: AppMotion.exit);
+    final anim =
+        CurvedAnimation(parent: _controller, curve: AppMotion.exit);
     return SizeTransition(
       sizeFactor: Tween(begin: 1.0, end: 0.0).animate(anim),
       child: FadeTransition(

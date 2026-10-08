@@ -70,19 +70,16 @@ class _DateScrubberState extends State<DateScrubber> {
     if (fraction != _fraction) setState(() => _fraction = fraction);
   }
 
-  /// Coalesced scroll target: drag events fire faster than frames, so jumps
-  /// are deferred to at most one per frame instead of layout-storming on
-  /// every pointer event.
-  double? _pendingFraction;
-  var _jumpScheduled = false;
-
   void _scrubTo(Offset globalPosition) {
-    final box = _stripKey.currentContext?.findRenderObject() as RenderBox?;
+    final box =
+        _stripKey.currentContext?.findRenderObject() as RenderBox?;
     final controller = widget.controller;
     if (box == null || !controller.hasClients) return;
     final local = box.globalToLocal(globalPosition);
     final fraction = (local.dy / box.size.height).clamp(0.0, 1.0);
-    _scheduleJump(fraction);
+    final max = controller.position.maxScrollExtent;
+    if (max <= 0) return;
+    controller.jumpTo(fraction * max);
     final dates = widget.itemDates;
     if (dates.isNotEmpty) {
       final raw = dates[(fraction * (dates.length - 1)).round()];
@@ -92,22 +89,6 @@ class _DateScrubberState extends State<DateScrubber> {
         Haptics.select();
       }
     }
-  }
-
-  void _scheduleJump(double fraction) {
-    _pendingFraction = fraction;
-    if (_jumpScheduled) return;
-    _jumpScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _jumpScheduled = false;
-      final target = _pendingFraction;
-      _pendingFraction = null;
-      final controller = widget.controller;
-      if (target == null || !controller.hasClients) return;
-      final max = controller.position.maxScrollExtent;
-      if (max > 0) controller.jumpTo(target * max);
-    });
   }
 
   void _onStart(DragStartDetails d) {
@@ -139,7 +120,8 @@ class _DateScrubberState extends State<DateScrubber> {
             onVerticalDragStart: _onStart,
             onVerticalDragUpdate: _onUpdate,
             onVerticalDragEnd: _onEnd,
-            onVerticalDragCancel: () => setState(() => _scrubbing = false),
+            onVerticalDragCancel: () =>
+                setState(() => _scrubbing = false),
             child: Align(
               // -1 = top, 1 = bottom: the thumb tracks the scroll position.
               alignment: Alignment(0, _fraction * 2 - 1),
@@ -150,8 +132,7 @@ class _DateScrubberState extends State<DateScrubber> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(2),
                   color: context.textMuted.withValues(
-                    alpha: _scrubbing ? 0.55 : 0.25,
-                  ),
+                      alpha: _scrubbing ? 0.55 : 0.25),
                 ),
               ),
             ),
@@ -168,9 +149,7 @@ class _DateScrubberState extends State<DateScrubber> {
               alignment: Alignment(0, _fraction * 2 - 1),
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
+                    horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: context.accent,
                   borderRadius: BorderRadius.circular(10),

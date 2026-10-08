@@ -3,10 +3,6 @@
 ### Changed
 - Hiding the home balance now also hides the income and expense totals.
 
-### Fixed
-- Fixed the app slowing down or crashing when opening All Transactions with a large history: the list now only builds visible rows, and only newly added transactions animate.
-- Scrubbing through dates in All Transactions is now smooth: scroll jumps are limited to one per frame.
-
 ## [2.4.7] - 2026-10-07
 
 ### Changed
