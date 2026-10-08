@@ -32,12 +32,29 @@ class AddTransactionSheet extends ConsumerStatefulWidget {
     this.existing,
     this.attachedPhotoPath,
     this.initialWalletId,
+    this.initialAmount,
+    this.initialNote,
+    this.initialDate,
+    this.ocrFilled = false,
   });
 
   final String initialKind;
   final TransactionWithDetails? existing;
   final String? attachedPhotoPath;
   final int? initialWalletId;
+
+  /// Whole-IDR amount prefill, e.g. from receipt OCR.
+  final int? initialAmount;
+
+  /// Description prefill, e.g. the merchant name from receipt OCR.
+  final String? initialNote;
+
+  /// Date prefill, e.g. the receipt date from OCR.
+  final DateTime? initialDate;
+
+  /// True when fields were pre-filled by receipt OCR: shows a
+  /// "please verify" hint since OCR is best-effort.
+  final bool ocrFilled;
 
   @override
   ConsumerState<AddTransactionSheet> createState() =>
@@ -55,10 +72,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   /// Shows a snackbar *inside* the sheet.
   void _snack(String message) {
-    _messengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
   }
+
   late String _kind;
   int? _categoryId;
   int? _walletId;
@@ -104,6 +120,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     } else {
       _kind = widget.initialKind;
       _walletId = widget.initialWalletId;
+      // Receipt OCR prefill (best-effort — the user reviews everything).
+      if (widget.initialAmount != null) {
+        _amountCtrl.text = formatAmountInput(widget.initialAmount!);
+      }
+      if (widget.initialNote != null) {
+        _descCtrl.text = widget.initialNote!;
+      }
+      if (widget.initialDate != null) {
+        _date = widget.initialDate!;
+        _time = TimeOfDay.fromDateTime(widget.initialDate!);
+      }
+      if (widget.ocrFilled) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _snack('Filled from receipt — please verify the details.');
+        });
+      }
     }
     _descCtrl.addListener(_onDescChanged);
     _amountCtrl.addListener(_onAmountChanged);
@@ -133,8 +165,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       if (_suggestedId != null) setState(() => _suggestedId = null);
       return;
     }
-    _suggestTimer =
-        Timer(const Duration(milliseconds: 400), _runSuggestion);
+    _suggestTimer = Timer(const Duration(milliseconds: 400), _runSuggestion);
   }
 
   void _onAmountChanged() {
@@ -182,165 +213,162 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       child: Stack(
         children: [
           FormSheet(
-          title: _editing
-              ? 'Edit record'
-              : (_kind == 'income' ? 'Add income' : 'Add expense'),
-          actionLabel: _editing ? 'Save changes' : 'Save',
-          onAction: _save,
-          busy: _saving,
-          children: [
-            SlidingSegmented<String>(
-              values: const ['expense', 'income'],
-              labels: const ['Expense', 'Income'],
-              selected: _kind,
-              onChanged: (v) {
-                setState(() {
-                  _kind = v;
-                  _categoryId = null;
-                  _suggestedId = null;
-                });
-                // The description didn't change, but the kind did: re-suggest.
-                _runSuggestion();
-              },
-            ),
-            const SizedBox(height: 16),
-            _templateRow(context, db),
-            const SizedBox(height: 16),
-            Shaker(
-              controller: _amountShake,
-              child: FormAmountEntry(controller: _amountCtrl),
-            ),
-            _fieldError(_amountError),
-            const SizedBox(height: 16),
-            const FormSectionLabel('Description *'),
-            const SizedBox(height: 8),
-            Shaker(
-              controller: _descShake,
-              child: TextField(
-                controller: _descCtrl,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText: 'What was this for?',
-                  errorText: _descError,
-                ),
+            title: _editing
+                ? 'Edit record'
+                : (_kind == 'income' ? 'Add income' : 'Add expense'),
+            actionLabel: _editing ? 'Save changes' : 'Save',
+            onAction: _save,
+            busy: _saving,
+            children: [
+              SlidingSegmented<String>(
+                values: const ['expense', 'income'],
+                labels: const ['Expense', 'Income'],
+                selected: _kind,
+                onChanged: (v) {
+                  setState(() {
+                    _kind = v;
+                    _categoryId = null;
+                    _suggestedId = null;
+                  });
+                  // The description didn't change, but the kind did: re-suggest.
+                  _runSuggestion();
+                },
               ),
-            ),
-            const SizedBox(height: 16),
-            Shaker(
-              controller: _categoryShake,
-              child: CategoryPickerSection(
-                kind: _kind,
-                selectedId: _categoryId,
-                suggestedId: _suggestedId,
-                onSelected: (c) => setState(() {
-                  _kind = c.kind;
-                  _categoryId = c.id;
-                  _categoryError = null;
-                }),
-              ),
-            ),
-            _fieldError(_categoryError),
-            const SizedBox(height: 16),
-            const FormSectionLabel('Wallet'),
-            StreamBuilder<List<Wallet>>(
-              // In edit mode the transaction's own wallet must stay
-              // selectable even when it sits outside the active scope.
-              stream: db.watchWallets(
-                  accountId:
-                      _editing ? null : ref.watch(selectedAccountProvider)),
-              builder: (context, snap) {
-                final wallets = snap.data ?? const <Wallet>[];
-                if (_walletId == null ||
-                    wallets.every((w) => w.id != _walletId)) {
-                  _walletId = wallets.isNotEmpty ? wallets.first.id : null;
-                }
-                return Shaker(
-                  controller: _walletShake,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final w in wallets)
-                        ChoiceChip(
-                          label: Text(w.name),
-                          selected: _walletId == w.id,
-                          selectedColor: context.accent,
-                          showCheckmark: false,
-                          labelStyle: TextStyle(
-                            color: _walletId == w.id
-                                ? onAccent(context.accent)
-                                : Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          onSelected: (_) => setState(() {
-                            _walletId = w.id;
-                            _walletError = null;
-                          }),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            _fieldError(_walletError),
-            const SizedBox(height: 16),
-            const FormSectionLabel('Date & time'),
-            Row(
-              children: [
-                Expanded(
-                  child: FormDatePill(
-                    date: _date,
-                    placeholder: 'Pick a date',
-                    onTap: () async {
-                      Haptics.select();
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _date,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      if (picked != null) setState(() => _date = picked);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FormDatePill(
-                    date: _date,
-                    placeholder: '',
-                    icon: Icons.schedule_outlined,
-                    text:
-                        '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
-                    onTap: () async {
-                      Haptics.select();
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: _time,
-                      );
-                      if (picked != null) setState(() => _time = picked);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const FormSectionLabel('Memo (optional)'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _memoCtrl,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                hintText: 'Extra details…',
-              ),
-            ),
-            if (!_editing) ...[
               const SizedBox(height: 16),
-              _receiptSection(),
+              _templateRow(context, db),
+              const SizedBox(height: 16),
+              Shaker(
+                controller: _amountShake,
+                child: FormAmountEntry(controller: _amountCtrl),
+              ),
+              _fieldError(_amountError),
+              const SizedBox(height: 16),
+              const FormSectionLabel('Description *'),
+              const SizedBox(height: 8),
+              Shaker(
+                controller: _descShake,
+                child: TextField(
+                  controller: _descCtrl,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    hintText: 'What was this for?',
+                    errorText: _descError,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Shaker(
+                controller: _categoryShake,
+                child: CategoryPickerSection(
+                  kind: _kind,
+                  selectedId: _categoryId,
+                  suggestedId: _suggestedId,
+                  onSelected: (c) => setState(() {
+                    _kind = c.kind;
+                    _categoryId = c.id;
+                    _categoryError = null;
+                  }),
+                ),
+              ),
+              _fieldError(_categoryError),
+              const SizedBox(height: 16),
+              const FormSectionLabel('Wallet'),
+              StreamBuilder<List<Wallet>>(
+                // In edit mode the transaction's own wallet must stay
+                // selectable even when it sits outside the active scope.
+                stream: db.watchWallets(
+                  accountId: _editing
+                      ? null
+                      : ref.watch(selectedAccountProvider),
+                ),
+                builder: (context, snap) {
+                  final wallets = snap.data ?? const <Wallet>[];
+                  if (_walletId == null ||
+                      wallets.every((w) => w.id != _walletId)) {
+                    _walletId = wallets.isNotEmpty ? wallets.first.id : null;
+                  }
+                  return Shaker(
+                    controller: _walletShake,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final w in wallets)
+                          ChoiceChip(
+                            label: Text(w.name),
+                            selected: _walletId == w.id,
+                            selectedColor: context.accent,
+                            showCheckmark: false,
+                            labelStyle: TextStyle(
+                              color: _walletId == w.id
+                                  ? onAccent(context.accent)
+                                  : Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            onSelected: (_) => setState(() {
+                              _walletId = w.id;
+                              _walletError = null;
+                            }),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              _fieldError(_walletError),
+              const SizedBox(height: 16),
+              const FormSectionLabel('Date & time'),
+              Row(
+                children: [
+                  Expanded(
+                    child: FormDatePill(
+                      date: _date,
+                      placeholder: 'Pick a date',
+                      onTap: () async {
+                        Haptics.select();
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _date,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                        );
+                        if (picked != null) setState(() => _date = picked);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FormDatePill(
+                      date: _date,
+                      placeholder: '',
+                      icon: Icons.schedule_outlined,
+                      text:
+                          '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
+                      onTap: () async {
+                        Haptics.select();
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: _time,
+                        );
+                        if (picked != null) setState(() => _time = picked);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const FormSectionLabel('Memo (optional)'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _memoCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(hintText: 'Extra details…'),
+              ),
+              if (!_editing) ...[const SizedBox(height: 16), _receiptSection()],
+              const SizedBox(height: 8),
             ],
-            const SizedBox(height: 8),
-          ],
-        ),
-        if (_success) const _SuccessOverlay(),
+          ),
+          if (_success) const _SuccessOverlay(),
         ],
       ),
     );
@@ -377,8 +405,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                       height: 96,
                       color: context.raised,
                       alignment: Alignment.center,
-                      child: Icon(Icons.broken_image_outlined,
-                          color: context.textMuted),
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: context.textMuted,
+                      ),
                     ),
                   ),
                 ),
@@ -388,11 +418,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Receipt attached',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    Text('Tap to preview',
-                        style: TextStyle(
-                            color: context.textMuted, fontSize: 12)),
+                    const Text(
+                      'Receipt attached',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'Tap to preview',
+                      style: TextStyle(color: context.textMuted, fontSize: 12),
+                    ),
                   ],
                 ),
               ),
@@ -482,8 +515,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 tooltip: 'Close',
                 icon: const Icon(Icons.close),
                 color: Colors.white,
-                style: IconButton.styleFrom(
-                    backgroundColor: Colors.black54),
+                style: IconButton.styleFrom(backgroundColor: Colors.black54),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
@@ -512,8 +544,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: GestureDetector(
-                        onLongPress: () =>
-                            _confirmDeleteTemplate(db, t),
+                        onLongPress: () => _confirmDeleteTemplate(db, t),
                         child: ChoiceChip(
                           label: Text(t.name),
                           selected: false,
@@ -555,9 +586,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
     Haptics.medium();
     final nameCtrl = TextEditingController(
-        text: _descCtrl.text.trim().isEmpty
-            ? formatMoney(amount)
-            : _descCtrl.text.trim());
+      text: _descCtrl.text.trim().isEmpty
+          ? formatMoney(amount)
+          : _descCtrl.text.trim(),
+    );
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -566,8 +598,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           controller: nameCtrl,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration:
-              const InputDecoration(labelText: 'Template name'),
+          decoration: const InputDecoration(labelText: 'Template name'),
         ),
         actions: [
           TextButton(
@@ -575,8 +606,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.pop(context, nameCtrl.text.trim()),
+            onPressed: () => Navigator.pop(context, nameCtrl.text.trim()),
             child: const Text('Save'),
           ),
         ],
@@ -599,7 +629,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _confirmDeleteTemplate(
-      AppDatabase db, TransactionTemplate t) async {
+    AppDatabase db,
+    TransactionTemplate t,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -612,9 +644,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.expense,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
             child: const Text('Delete'),
           ),
         ],
@@ -633,8 +663,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     // no snackbar needed.
     final descError = desc.isEmpty ? 'Please describe this transaction' : null;
     final amountError = amount <= 0 ? 'Please enter an amount' : null;
-    final categoryError =
-        _categoryId == null ? 'Please select a category' : null;
+    final categoryError = _categoryId == null
+        ? 'Please select a category'
+        : null;
     final walletError = _walletId == null ? 'Please select a wallet' : null;
     setState(() {
       _descError = descError;
@@ -695,14 +726,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       if (_editing) {
         final e = widget.existing!.transaction;
         if (e.note != newNote || e.categoryId != _categoryId) {
-          unawaited(
-              suggester.unlearn(note: e.note, categoryId: e.categoryId));
-          unawaited(
-              suggester.learn(note: newNote, categoryId: _categoryId!));
+          unawaited(suggester.unlearn(note: e.note, categoryId: e.categoryId));
+          unawaited(suggester.learn(note: newNote, categoryId: _categoryId!));
         }
       } else {
-        unawaited(
-            suggester.learn(note: newNote, categoryId: _categoryId!));
+        unawaited(suggester.learn(note: newNote, categoryId: _categoryId!));
       }
     }
     if (!mounted) return;
@@ -747,10 +775,7 @@ class _SuccessOverlay extends StatelessWidget {
               curve: Curves.easeOut,
               builder: (context, scale, child) => Transform.scale(
                 scale: scale,
-                child: Opacity(
-                  opacity: (1.6 - scale) / 1.1,
-                  child: child,
-                ),
+                child: Opacity(opacity: (1.6 - scale) / 1.1, child: child),
               ),
               child: Container(
                 width: 88,
@@ -778,8 +803,11 @@ class _SuccessOverlay extends StatelessWidget {
                   color: context.accent,
                   shape: BoxShape.circle,
                 ),
-                child:
-                    Icon(Icons.check, color: onAccent(context.accent), size: 44),
+                child: Icon(
+                  Icons.check,
+                  color: onAccent(context.accent),
+                  size: 44,
+                ),
               ),
             ),
           ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/sliding_segmented.dart';
+import '../../core/services/receipt_ocr.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -134,10 +135,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       final picked = await ImagePicker().pickImage(source: ImageSource.camera);
       if (picked == null || !mounted) return;
+      // Run on-device OCR while showing progress; falls back to manual
+      // entry when nothing useful is read.
+      final scan = await _readReceipt(picked.path);
+      if (!mounted) return;
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (_) => AddTransactionSheet(attachedPhotoPath: picked.path),
+        builder: (_) => AddTransactionSheet(
+          attachedPhotoPath: picked.path,
+          initialAmount: scan?.total,
+          initialNote: scan?.merchant,
+          initialDate: scan?.date,
+          ocrFilled: scan != null,
+        ),
       );
     } catch (e) {
       if (mounted) {
@@ -145,6 +156,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('Could not open camera: $e')));
       }
+    }
+  }
+
+  /// Shows a blocking "reading receipt" indicator while OCR runs.
+  /// Returns the parsed scan, or null on failure/empty.
+  Future<ReceiptScan?> _readReceipt(String path) async {
+    if (!mounted) return null;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Dialog(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Reading receipt…'),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      return await ReceiptOcr.scan(path);
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
     }
   }
 
