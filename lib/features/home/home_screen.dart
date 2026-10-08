@@ -165,11 +165,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       } on ReceiptOcrException catch (e) {
         // Text recognition itself broke — tell the user instead of
         // failing silently, then continue with manual entry.
+        // The raw details stay in the log; the snackbar stays readable.
+        debugPrint('Receipt OCR failed: ${e.message}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text(
-                'Could not read the receipt (${e.message}). You can enter it manually.',
+                'Could not read the receipt. You can enter it manually.',
               ),
             ),
           );
