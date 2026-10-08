@@ -30,6 +30,9 @@ class Wallets extends Table {
   IntColumn get balance => integer().withDefault(const Constant(0))(); // whole IDR
   IntColumn get initialAmount => integer().withDefault(const Constant(0))();
   TextColumn get colorHex => text().withDefault(const Constant('#C6FF4A'))();
+  /// Brand logo template id ('bca', 'gopay', …) or null for the generic
+  /// kind-based mark. v12.
+  TextColumn get logoTemplate => text().nullable()();
 }
 
 /// Expense / income categories; parentId == null means top-level.
@@ -238,7 +241,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -321,6 +324,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 11) {
             await m.addColumn(transactions, transactions.memo);
+          }
+          if (from < 12) {
+            await m.addColumn(wallets, wallets.logoTemplate);
           }
         },
       );
@@ -911,6 +917,7 @@ class AppDatabase extends _$AppDatabase {
     required String kind,
     int initialAmount = 0,
     String colorHex = '#C6FF4A',
+    String? logoTemplate,
   }) =>
       into(wallets).insert(WalletsCompanion.insert(
         accountId: accountId,
@@ -919,6 +926,7 @@ class AppDatabase extends _$AppDatabase {
         balance: Value(initialAmount),
         initialAmount: Value(initialAmount),
         colorHex: Value(colorHex),
+        logoTemplate: Value(logoTemplate),
       ));
 
   Future<void> updateWallet({
@@ -926,12 +934,16 @@ class AppDatabase extends _$AppDatabase {
     required String name,
     required String kind,
     String? colorHex,
+    String? logoTemplate,
   }) =>
       (update(wallets)..where((w) => w.id.equals(id))).write(
         WalletsCompanion(
           name: Value(name),
           kind: Value(kind),
           colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
+          // The form sheet always knows the current template, so a null
+          // here genuinely means "no template" and is written as such.
+          logoTemplate: Value(logoTemplate),
         ),
       );
 
