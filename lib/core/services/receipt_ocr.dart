@@ -26,8 +26,13 @@ class ReceiptScan {
 }
 
 /// On-device receipt OCR (Google ML Kit, Latin script — no network, no
-/// cost). Takes a photo path, returns parsed receipt fields, or null when
-/// nothing useful could be read.
+/// cost). Takes a photo path, returns parsed receipt fields.
+///
+/// Returns null when the photo was read fine but nothing useful could be
+/// extracted (caller falls back to manual entry silently).
+/// Throws [ReceiptOcrException] when text recognition itself failed
+/// (missing/broken native model, unreadable file, ...), so the caller can
+/// tell the user instead of failing silently.
 class ReceiptOcr {
   ReceiptOcr._();
 
@@ -49,14 +54,21 @@ class ReceiptOcr {
         rawText: result.text,
       );
       return scan.hasData ? scan : null;
-    } catch (_) {
-      // Model download failed, bad image, etc. — caller falls back to
-      // manual entry.
-      return null;
+    } catch (e) {
+      throw ReceiptOcrException('Text recognition failed: $e');
     } finally {
       await recognizer.close();
     }
   }
+}
+
+/// Text recognition itself broke (as opposed to "photo had no usable text").
+class ReceiptOcrException implements Exception {
+  const ReceiptOcrException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 // ---------------------------------------------------------------------------

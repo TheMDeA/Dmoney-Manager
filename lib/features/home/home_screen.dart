@@ -137,7 +137,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (picked == null || !mounted) return;
       // Run on-device OCR while showing progress; falls back to manual
       // entry when nothing useful is read.
-      final scan = await _readReceipt(picked.path);
+      ReceiptScan? scan;
+      try {
+        scan = await _readReceipt(picked.path);
+      } on ReceiptOcrException catch (e) {
+        // Text recognition itself broke — tell the user instead of
+        // failing silently, then continue with manual entry.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not read the receipt (${e.message}). You can enter it manually.',
+              ),
+            ),
+          );
+        }
+      }
       if (!mounted) return;
       await showModalBottomSheet(
         context: context,
@@ -160,7 +175,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   /// Shows a blocking "reading receipt" indicator while OCR runs.
-  /// Returns the parsed scan, or null on failure/empty.
+  /// Returns the parsed scan, null when nothing useful was read.
+  /// Throws [ReceiptOcrException] when recognition itself failed.
+  /// The indicator stays up for at least ~700ms so it's always perceptible
+  /// (a fast failure used to pop it before it ever painted).
   Future<ReceiptScan?> _readReceipt(String path) async {
     if (!mounted) return null;
     showDialog(
@@ -180,9 +198,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+    final shownAt = DateTime.now();
     try {
       return await ReceiptOcr.scan(path);
     } finally {
+      // Keep the indicator visible briefly even on instant failure.
+      final elapsed = DateTime.now().difference(shownAt);
+      if (elapsed < const Duration(milliseconds: 700)) {
+        await Future.delayed(const Duration(milliseconds: 700) - elapsed);
+      }
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
     }
   }

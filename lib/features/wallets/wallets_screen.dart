@@ -220,10 +220,15 @@ class _WalletStack extends ConsumerStatefulWidget {
 }
 
 class _WalletStackState extends ConsumerState<_WalletStack> {
+  // Fan: each card shows a clean compact header in its visible strip.
+  // The card is taller than the peek so it tucks behind the next one.
   static const _cardH = 188.0;
-  static const _peek = 88.0;
-  static const _focusedH = 420.0;
-  static const _tuck = 54.0;
+  static const _peek = 104.0;
+  // Focused: the open card plus tucked headers below it. Tucked cards fit
+  // the fan header (~81px) plus padding with margin.
+  static const _focusedH = 480.0;
+  static const _tuckH = 120.0;
+  static const _tuckGap = 8.0;
 
   int? _focusedId;
 
@@ -236,57 +241,67 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
         : wallets.indexWhere((w) => w.id == _focusedId);
     final focused = focusedIndex >= 0;
 
-    // Paint order: bottom cards first so the front card paints last.
-    final order = <int>[];
+    // Geometry per wallet id, computed up front so the AnimatedPositioned
+    // widgets below can carry stable ValueKeys directly (no Builder in
+    // between). That keeps the element identity across focus switches, so
+    // position/size changes animate instead of jumping.
+    //
+    // Z-order: later cards paint in front, so every card's visible strip is
+    // its TOP (the compact header) peeking out above the next card — never a
+    // slice through the middle of its content.
+    final tops = <int, double>{};
+    final heights = <int, double>{};
+    // Paint order: back cards first so the front card paints last.
+    final paintOrder = <int>[];
     if (!focused) {
-      for (var i = n - 1; i >= 0; i--) {
-        order.add(i);
+      for (var i = 0; i < n; i++) {
+        final id = wallets[i].id;
+        tops[id] = 8 + i * _peek;
+        heights[id] = _cardH;
+        paintOrder.add(id);
       }
     } else {
-      for (var i = n - 1; i >= 0; i--) {
-        if (i != focusedIndex) order.add(i);
+      var k = 0;
+      for (var i = 0; i < n; i++) {
+        if (i == focusedIndex) continue;
+        final id = wallets[i].id;
+        tops[id] = 8 + _focusedH + 16 + k * (_tuckH + _tuckGap);
+        heights[id] = _tuckH;
+        paintOrder.add(id);
+        k++;
       }
-      order.add(focusedIndex);
+      final fid = wallets[focusedIndex].id;
+      tops[fid] = 8;
+      heights[fid] = _focusedH;
+      paintOrder.add(fid);
     }
 
-    var tuckOrder = 0;
     final stackH = focused
-        ? 8 + _focusedH + 16 + _tuck * (n - 1) + 76
-        : 8 + _cardH + _peek * (n - 1) + 20;
+        ? 8 + _focusedH + 16 + (_tuckH + _tuckGap) * (n - 1) + 24
+        : 8 + _cardH + _peek * (n - 1) + 24;
 
     return SizedBox(
       height: stackH,
       child: Stack(
         clipBehavior: Clip.hardEdge,
         children: [
-          for (final i in order)
-            Builder(
-              builder: (context) {
-                final w = wallets[i];
-                final isFocused = focused && i == focusedIndex;
-                final double top;
-                if (!focused) {
-                  top = 8 + i * _peek;
-                } else if (isFocused) {
-                  top = 8;
-                } else {
-                  top = 8 + _focusedH + 16 + (tuckOrder++) * _tuck;
-                }
-                return AnimatedPositioned(
-                  key: ValueKey(w.id),
-                  duration: AppMotion.slow,
-                  curve: AppMotion.enter,
-                  top: top,
-                  left: 0,
-                  right: 0,
-                  height: isFocused ? _focusedH : _cardH,
-                  child: AnimatedOpacity(
-                    duration: AppMotion.normal,
-                    opacity: focused && !isFocused ? 0.55 : 1.0,
-                    child: _stackCard(context, w, isFocused),
-                  ),
-                );
-              },
+          for (final id in paintOrder)
+            AnimatedPositioned(
+              key: ValueKey(id),
+              duration: AppMotion.slow,
+              curve: AppMotion.enter,
+              top: tops[id],
+              left: 0,
+              right: 0,
+              height: heights[id],
+              // Cards stay fully opaque: dimmed overlapping cards blend
+              // their text into an unreadable jumble, so depth comes from
+              // position alone.
+              child: _stackCard(
+                context,
+                wallets.firstWhere((w) => w.id == id),
+                id == _focusedId,
+              ),
             ),
         ],
       ),
@@ -300,9 +315,6 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
       logoTemplate: w.logoTemplate,
       kind: w.kind,
     );
-    final negative = w.balance < 0;
-    final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
-    final last = recent.isNotEmpty ? recent.first : null;
 
     return GestureDetector(
       onTap: () {
@@ -363,161 +375,232 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 16, 18, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      w.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 18,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  if (focused) ...[
-                                    const SizedBox(width: 4),
-                                    _editButton(w),
-                                  ],
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _kindLabel(w.kind),
-                                style: TextStyle(
-                                  color: context.textMuted,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Hero(
-                          tag: 'wallet-${w.id}',
-                          child: WalletBadge(brand: brand),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    CountUpMoney(
-                      amount: w.balance,
-                      style: AppTextStyles.amount(size: 26).copyWith(
-                        color: negative
-                            ? AppColors.expense
-                            : context.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    if (last != null)
-                      Text(
-                        '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
-                        style: TextStyle(
-                          color: context.textMuted,
-                          fontSize: 11.5,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                child: focused
+                    ? SingleChildScrollView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: _focusedContent(context, w, brand, color, isDark),
                       )
-                    else
-                      Text(
-                        'No transactions yet',
-                        style: TextStyle(
-                          color: context.textMuted,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                    if (focused) ...[
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          _action(
-                            context,
-                            icon: Icons.swap_horiz,
-                            label: 'Transfer',
-                            onTap: () => _transfer(w),
-                          ),
-                          const SizedBox(width: 10),
-                          _action(
-                            context,
-                            icon: Icons.add_card_outlined,
-                            label: 'Top up',
-                            onTap: () => _topUp(w),
-                          ),
-                          const SizedBox(width: 10),
-                          _action(
-                            context,
-                            icon: Icons.history,
-                            label: 'History',
-                            onTap: () => _history(w),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        height: 1,
-                        color: context.textMuted.withValues(alpha: 0.18),
-                      ),
-                      const SizedBox(height: 4),
-                      for (final d in recent)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 7),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      d.transaction.note.isEmpty
-                                          ? d.category.name
-                                          : d.transaction.note,
-                                      style: const TextStyle(
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Text(
-                                      formatDate(d.transaction.date),
-                                      style: TextStyle(
-                                        color: context.textMuted,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Text(
-                                formatMoney(_signedAmount(d)),
-                                style: AppTextStyles.amount(size: 13.5)
-                                    .copyWith(
-                                      color: _amountColor(d),
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ],
-                ),
+                    : _fanContent(context, w, brand, color, isDark),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Compact header for the fan (and the tucked strips): name + badge,
+  /// balance, one meta line. Sized (~100px) to sit fully inside the peek
+  /// strip so text is never sliced mid-glyph by the card above.
+  Widget _fanContent(
+    BuildContext context,
+    Wallet w,
+    WalletBrand brand,
+    Color color,
+    bool isDark,
+  ) {
+    final negative = w.balance < 0;
+    final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
+    final last = recent.isNotEmpty ? recent.first : null;
+    final meta = last != null
+        ? '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}'
+        : 'No transactions yet';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                w.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Hero(
+              tag: 'wallet-${w.id}',
+              child: WalletBadge(brand: brand, height: 28),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        CountUpMoney(
+          amount: w.balance,
+          style: AppTextStyles.amount(size: 23).copyWith(
+            color: negative ? AppColors.expense : context.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          '${_kindLabel(w.kind)} · $meta',
+          style: TextStyle(color: context.textMuted, fontSize: 11.5),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  /// Full card: header, big balance, actions, recent transactions.
+  Widget _focusedContent(
+    BuildContext context,
+    Wallet w,
+    WalletBrand brand,
+    Color color,
+    bool isDark,
+  ) {
+    final negative = w.balance < 0;
+    final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
+    final last = recent.isNotEmpty ? recent.first : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          w.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      _editButton(w),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _kindLabel(w.kind),
+                    style: TextStyle(
+                      color: context.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Hero(
+              tag: 'wallet-${w.id}',
+              child: WalletBadge(brand: brand),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        CountUpMoney(
+          amount: w.balance,
+          style: AppTextStyles.amount(size: 26).copyWith(
+            color: negative ? AppColors.expense : context.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        if (last != null)
+          Text(
+            '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
+            style: TextStyle(
+              color: context.textMuted,
+              fontSize: 11.5,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          )
+        else
+          Text(
+            'No transactions yet',
+            style: TextStyle(
+              color: context.textMuted,
+              fontSize: 11.5,
+            ),
+          ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            _action(
+              context,
+              icon: Icons.swap_horiz,
+              label: 'Transfer',
+              onTap: () => _transfer(w),
+            ),
+            const SizedBox(width: 10),
+            _action(
+              context,
+              icon: Icons.add_card_outlined,
+              label: 'Top up',
+              onTap: () => _topUp(w),
+            ),
+            const SizedBox(width: 10),
+            _action(
+              context,
+              icon: Icons.history,
+              label: 'History',
+              onTap: () => _history(w),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          height: 1,
+          color: context.textMuted.withValues(alpha: 0.18),
+        ),
+        const SizedBox(height: 4),
+        for (final d in recent)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        d.transaction.note.isEmpty
+                            ? d.category.name
+                            : d.transaction.note,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        formatDate(d.transaction.date),
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  formatMoney(_signedAmount(d)),
+                  style: AppTextStyles.amount(size: 13.5).copyWith(
+                    color: _amountColor(d),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
