@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app_prefs.dart';
+
 /// In-app update check against the public GitHub releases feed, plus
 /// in-app APK download and install (no browser involved).
 ///
@@ -348,4 +350,29 @@ Future<void> downloadAndInstall(
     await downloadApk(apkUrl, version, onProgress: onProgress);
   }
   await installApk(await _apkFile(version));
+}
+
+/// Automatic update check: runs at most once per day, silently.
+/// Returns the [UpdateInfo] when a newer version is available and the user
+/// hasn't dismissed it — the caller decides how to surface it (snackbar,
+/// never a blocking dialog). Returns null when disabled, throttled,
+/// dismissed, up-to-date, or on any failure.
+///
+/// Call after the first frame (e.g. from AppShell's initState).
+Future<UpdateInfo?> maybeAutoCheckUpdate() async {
+  if (!AppPrefs.autoCheckUpdate) return null;
+  final now = DateTime.now().millisecondsSinceEpoch;
+  if (now - AppPrefs.lastUpdateCheck <
+      const Duration(days: 1).inMilliseconds) {
+    return null;
+  }
+  await AppPrefs.setLastUpdateCheck(now);
+  try {
+    final info = await checkForUpdate();
+    if (info == null) return null;
+    if (info.version == AppPrefs.dismissedUpdateVersion) return null;
+    return info;
+  } catch (_) {
+    return null; // Silent: offline or GitHub hiccup.
+  }
 }

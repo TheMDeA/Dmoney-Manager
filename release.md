@@ -1,4 +1,8 @@
-## [2.5.2] - 2026-10-08
+## [2.5.3] - 2026-10-10
+
+### Added
+- Receipt scanning now also fills in the transaction time when the receipt shows it (e.g. "08/10/2026 14:30").
+- New installs start with a full set of default categories (9 income, 14 expense) with matching icons, like popular money manager apps.
 
 ### Fixed
-- Fixed receipt scanning crashing on release builds (the text recognizer was being stripped by the code shrinker).
+- Receipt scanning no longer mistakes a SUBTOTAL line for the total when a receipt prints both — the grand total wins.

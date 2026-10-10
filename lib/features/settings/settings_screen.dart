@@ -288,6 +288,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         : const Icon(Icons.chevron_right),
                     onTap: _checkForUpdates,
                   ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.autorenew_outlined),
+                    title: const Text('Auto-check for updates'),
+                    subtitle: Text(
+                      'Check once a day on app start',
+                      style: TextStyle(color: context.textMuted, fontSize: 12),
+                    ),
+                    value: AppPrefs.autoCheckUpdate,
+                    onChanged: (v) async {
+                      await AppPrefs.setAutoCheckUpdate(v);
+                      if (mounted) setState(() {});
+                    },
+                  ),
                   _tile(
                     context,
                     icon: Icons.explore_outlined,

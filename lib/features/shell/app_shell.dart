@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/update_service.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/utils/haptics.dart';
 import '../budgets/budgets_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../home/home_screen.dart';
 import '../settings/settings_screen.dart';
+import '../settings/update_sheet.dart';
 import '../stats/stats_screen.dart';
 import '../transactions/add_transaction_sheet.dart';
 import '../tour/feature_tour_screen.dart';
 import '../wallets/wallets_screen.dart';
+import '../../core/services/app_prefs.dart';
 import '../../state/providers.dart';
 
 /// Bottom navigation with a center-docked FAB opening the add-transaction sheet.
@@ -55,6 +58,33 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (FeatureTourScreen.pendingFromOnboarding) {
         FeatureTourScreen.pendingFromOnboarding = false;
         if (mounted) FeatureTourScreen.show(context);
+      }
+      // Silent daily update check; a dismissible snackbar on new versions.
+      _autoCheckUpdate();
+    });
+  }
+
+  /// Runs the daily auto update check and surfaces a new version with a
+  /// snackbar (never a blocking dialog). Failures stay silent.
+  Future<void> _autoCheckUpdate() async {
+    final info = await maybeAutoCheckUpdate();
+    if (info == null || !mounted) return;
+    final controller = ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Update available: v${info.version}'),
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () {
+            if (mounted) showUpdateSheet(context, info);
+          },
+        ),
+        duration: const Duration(seconds: 8),
+      ),
+    );
+    // Don't nag: swiping away or timing out snoozes this version.
+    controller.closed.then((reason) {
+      if (reason != SnackBarClosedReason.action) {
+        AppPrefs.setDismissedUpdateVersion(info.version);
       }
     });
   }
