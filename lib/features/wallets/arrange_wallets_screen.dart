@@ -61,8 +61,9 @@ class ArrangeWalletsScreen extends ConsumerWidget {
     );
   }
 
-  /// Mini wallet card: brand color edge stripe, name + balance, logo
-  /// badge, and a drag handle. Mirrors the card-stack aesthetic.
+  /// Mini wallet card: drag handle, brand color edge stripe, name +
+  /// balance, and a compact logo badge. Explicit Row layout (no ListTile)
+  /// so the badge can never squeeze the name out.
   Widget _walletRow(BuildContext context, Wallet w, int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = colorFromHex(w.colorHex);
@@ -94,50 +95,62 @@ class ArrangeWalletsScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Brand edge stripe, like the stack cards.
-          Container(
-            width: 5,
-            height: 64,
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: const BorderRadius.horizontal(
-                right: Radius.circular(3),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              title: Text(
-                w.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(
-                formatMoney(w.balance),
-                style: TextStyle(
-                  color: context.textMuted,
-                  fontSize: 13,
-                ),
-              ),
-              trailing: WalletBadge(brand: brand, height: 32),
-            ),
-          ),
           ReorderableDragStartListener(
             index: index,
             child: Padding(
-              padding: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.only(left: 8),
               child: Icon(
                 Icons.drag_indicator,
                 color: context.textMuted,
               ),
             ),
+          ),
+          // Brand edge stripe, like the stack cards.
+          Container(
+            width: 5,
+            height: 56,
+            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(3),
+                left: Radius.circular(3),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    w.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    formatMoney(w.balance),
+                    style: TextStyle(
+                      color: context.textMuted,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: WalletBadge(brand: brand, height: 28),
           ),
         ],
       ),
