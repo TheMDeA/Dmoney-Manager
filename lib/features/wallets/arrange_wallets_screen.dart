@@ -54,7 +54,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
               );
             },
             itemBuilder: (context, i) =>
-                _walletRow(context, wallets[i], i),
+                _walletRow(context, db, wallets[i], i),
           );
         },
       ),
@@ -64,7 +64,8 @@ class ArrangeWalletsScreen extends ConsumerWidget {
   /// Mini wallet card: drag handle, brand color edge stripe, name +
   /// balance, and a compact logo badge. Explicit Row layout (no ListTile)
   /// so the badge can never squeeze the name out.
-  Widget _walletRow(BuildContext context, Wallet w, int index) {
+  Widget _walletRow(
+      BuildContext context, AppDatabase db, Wallet w, int index) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = colorFromHex(w.colorHex);
     final brand = walletBrandForWallet(
@@ -149,11 +150,57 @@ class ArrangeWalletsScreen extends ConsumerWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 8),
             child: WalletBadge(brand: brand, height: 28),
+          ),
+          IconButton(
+            tooltip: 'Delete wallet',
+            onPressed: () => _confirmDelete(context, db, w),
+            icon: Icon(
+              Icons.delete_outline,
+              color: AppColors.expense,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(
+      BuildContext context, AppDatabase db, Wallet w) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete wallet?'),
+        content: const Text(
+            'Wallets with transactions cannot be deleted. An empty wallet will be removed permanently.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
+            style:
+                FilledButton.styleFrom(backgroundColor: AppColors.expense),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
+    if (confirmed != true || !context.mounted) return;
+    final ok = await db.deleteWallet(w.id);
+    if (!context.mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text(
+                'This wallet has transactions and cannot be deleted.')),
+      );
+    }
+    // On success the stream rebuilds and the row vanishes — no pop needed.
   }
 }
