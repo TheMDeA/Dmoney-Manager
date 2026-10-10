@@ -28,16 +28,19 @@ class SlidingSegmented<T> extends StatelessWidget {
     final index = values.indexOf(selected).clamp(0, values.length - 1);
     final accent = context.accent;
     final disabled = MediaQuery.of(context).disableAnimations;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final segWidth = constraints.maxWidth / values.length;
-        return Container(
-          decoration: BoxDecoration(
-            color: context.raised,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.all(3),
-          child: Stack(
+    // NB: the LayoutBuilder must sit *inside* the padding so segWidth
+    // matches the Row's actual segment width. Outside, the 3px padding
+    // makes the pill overflow and clip on the last segment.
+    return Container(
+      decoration: BoxDecoration(
+        color: context.raised,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(3),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final segWidth = constraints.maxWidth / values.length;
+          return Stack(
             children: [
               AnimatedPositioned(
                 duration: disabled ? Duration.zero : AppMotion.normal,
@@ -82,9 +85,9 @@ class SlidingSegmented<T> extends StatelessWidget {
                 ],
               ),
             ],
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

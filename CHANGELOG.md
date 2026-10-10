@@ -7,6 +7,7 @@
 
 ### Fixed
 - Receipt scanning no longer mistakes a SUBTOTAL line for the total when a receipt prints both — the grand total wins.
+- Fixed the selected pill in segmented controls (Day/Week/Month) having its corners clipped on the last option.
 
 ## [2.5.2] - 2026-10-08
 
