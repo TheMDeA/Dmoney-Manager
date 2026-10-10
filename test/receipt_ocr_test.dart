@@ -85,6 +85,41 @@ void main() {
     test('rejects invalid dates', () {
       expect(parseReceiptDate(['32/13/2026']), isNull);
     });
+
+    test('captures time after numeric date', () {
+      final dt = parseReceiptDate(['08/10/2026 14:30']);
+      expect(dt, isNotNull);
+      expect(dt!.hour, 14);
+      expect(dt.minute, 30);
+    });
+
+    test('captures time with seconds', () {
+      final dt = parseReceiptDate(['08-10-2026 09:05:25']);
+      expect(dt, isNotNull);
+      expect(dt!.hour, 9);
+      expect(dt.minute, 5);
+    });
+
+    test('captures time after month-name date', () {
+      final dt = parseReceiptDate(['8 Okt 2026 18:45']);
+      expect(dt, isNotNull);
+      expect(dt!.hour, 18);
+      expect(dt.minute, 45);
+    });
+
+    test('date without time defaults to midnight', () {
+      final dt = parseReceiptDate(['08/10/2026']);
+      expect(dt, isNotNull);
+      expect(dt!.hour, 0);
+      expect(dt.minute, 0);
+    });
+
+    test('invalid time keeps the date, drops the time', () {
+      final dt = parseReceiptDate(['08/10/2026 25:99']);
+      expect(dt, isNotNull);
+      expect(dt!.hour, 0);
+      expect(dt.minute, 0);
+    });
   });
 
   group('parseReceiptMerchant', () {
@@ -153,6 +188,31 @@ void main() {
     });
   });
 
+  group('parseReceiptTotal subtotal handling', () {
+    test('subtotal printed above the total does not win', () {
+      final lines = [
+        'SUBTOTAL 25.000',
+        'TOTAL 27.500',
+        'TUNAI 30.000',
+      ];
+      expect(parseReceiptTotal(lines), 27500);
+    });
+
+    test('subtotal alone still counts when there is no grand total', () {
+      final lines = [
+        'Kopi 20.000',
+        'SUBTOTAL 20.000',
+        'TUNAI 20.000',
+      ];
+      expect(parseReceiptTotal(lines), 20000);
+    });
+
+    test('total still matches with colon or surrounding marks', () {
+      expect(parseReceiptTotal(['TOTAL: 59.500']), 59500);
+      expect(parseReceiptTotal(['* TOTAL 59.500 *']), 59500);
+    });
+  });
+
   group('receiptTotalCandidates', () {
     test('best first, no duplicates', () {
       final lines = [
@@ -171,6 +231,15 @@ void main() {
 
     test('empty when no amounts', () {
       expect(receiptTotalCandidates(['hello world']), isEmpty);
+    });
+
+    test('subtotal does not outrank the grand total', () {
+      final lines = [
+        'SUBTOTAL 25.000',
+        'TOTAL 27.500',
+      ];
+      final c = receiptTotalCandidates(lines);
+      expect(c.first, 27500);
     });
   });
 }

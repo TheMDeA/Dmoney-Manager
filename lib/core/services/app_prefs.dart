@@ -44,6 +44,22 @@ class AppPrefs {
   static Future<void> setKeywordBackfillDone(bool v) =>
       _p.setBool('keywordBackfillDone', v);
 
+  // --------------------------- auto update check --------------------------
+  static bool get autoCheckUpdate => _p.getBool('autoCheckUpdate') ?? true;
+  static Future<void> setAutoCheckUpdate(bool v) =>
+      _p.setBool('autoCheckUpdate', v);
+
+  /// Last auto-check timestamp (ms since epoch). Throttles to once/day.
+  static int get lastUpdateCheck => _p.getInt('lastUpdateCheck') ?? 0;
+  static Future<void> setLastUpdateCheck(int v) =>
+      _p.setInt('lastUpdateCheck', v);
+
+  /// Version the user dismissed the auto-check nudge for — don't nag again.
+  static String get dismissedUpdateVersion =>
+      _p.getString('dismissedUpdateVersion') ?? '';
+  static Future<void> setDismissedUpdateVersion(String v) =>
+      _p.setString('dismissedUpdateVersion', v);
+
   static String _hashPin(String pin) =>
       sha256.convert(utf8.encode('dmoney::$pin')).toString();
 

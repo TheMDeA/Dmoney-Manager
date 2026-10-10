@@ -1589,12 +1589,32 @@ class AppDatabase extends _$AppDatabase {
     // Fresh installs only get categories. Accounts and wallets are
     // created by the onboarding flow; sample transactions/budgets/
     // goals/debts are no longer seeded so new users start clean.
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Food',
-      iconKey: const Value('food'),
-      colorHex: const Value('#FB923C'),
-      kind: 'expense',
-    ));
+    Future<void> cat(String name, String icon, String color, String kind) =>
+        into(categories).insert(CategoriesCompanion.insert(
+          name: name,
+          iconKey: Value(icon),
+          colorHex: Value(color),
+          kind: kind,
+        ));
+
+    // Income (reference order).
+    await cat('Allowance', 'payments', '#38BDF8', 'income');
+    await cat('Award', 'award', '#2DD4BF', 'income');
+    await cat('Bonus', 'paid', '#14B8A6', 'income');
+    await cat('Dividend', 'trending_up', '#FACC15', 'income');
+    await cat('Investment', 'savings', '#FB923C', 'income');
+    await cat('Lottery', 'lottery', '#F04444', 'income');
+    await cat('Salary', 'salary', '#EC4899', 'income');
+    await cat('Tips', 'tips', '#A78BFA', 'income');
+    await cat('Others', 'other', '#8B5CF6', 'income');
+
+    // Expense (reference order).
+    await cat('Bills', 'bills', '#38BDF8', 'expense');
+    await cat('Clothing', 'clothing', '#3B82F6', 'expense');
+    await cat('Education', 'education', '#2DD4BF', 'expense');
+    await cat('Entertainment', 'entertainment', '#14B8A6', 'expense');
+    await cat('Fitness', 'fitness', '#84CC16', 'expense');
+    await cat('Food', 'food', '#FACC15', 'expense');
     await into(categories).insert(CategoriesCompanion.insert(
       name: 'Coffee',
       iconKey: const Value('coffee'),
@@ -1602,48 +1622,15 @@ class AppDatabase extends _$AppDatabase {
       kind: 'expense',
       parentId: Value(await _categoryIdByName('Food')),
     ));
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Transport',
-      iconKey: const Value('transport'),
-      colorHex: const Value('#38BDF8'),
-      kind: 'expense',
-    ));
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Shopping',
-      iconKey: const Value('shopping'),
-      colorHex: const Value('#F472B6'),
-      kind: 'expense',
-    ));
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Bills',
-      iconKey: const Value('bills'),
-      colorHex: const Value('#FACC15'),
-      kind: 'expense',
-    ));
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Health',
-      iconKey: const Value('health'),
-      colorHex: const Value('#34D399'),
-      kind: 'expense',
-    ));
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Entertainment',
-      iconKey: const Value('entertainment'),
-      colorHex: const Value('#A78BFA'),
-      kind: 'expense',
-    ));
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Salary',
-      iconKey: const Value('salary'),
-      colorHex: const Value('#22C55E'),
-      kind: 'income',
-    ));
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Other',
-      iconKey: const Value('other'),
-      colorHex: const Value('#9CA3AF'),
-      kind: 'expense',
-    ));
+    await cat('Gifts', 'gift', '#FB923C', 'expense');
+    await cat('Health', 'health', '#F04444', 'expense');
+    await cat('Furniture', 'furniture', '#D946EF', 'expense');
+    await cat('Pet', 'pets', '#8B5CF6', 'expense');
+    await cat('Shopping', 'shopping', '#A78BFA', 'expense');
+    await cat('Transportation', 'bus', '#EC4899', 'expense');
+    await cat('Travel', 'travel', '#A16207', 'expense');
+    await cat('Other', 'other', '#9CA3AF', 'expense');
+
     // Hidden category used by wallet-to-wallet transfers (kind 'transfer').
     await into(categories).insert(CategoriesCompanion.insert(
       name: 'Transfer',

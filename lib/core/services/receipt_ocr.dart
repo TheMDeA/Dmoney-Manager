@@ -159,6 +159,14 @@ bool _isPaymentLine(String line) {
   return words.any((w) => RegExp(r'(^|[\s:])' + w + r'($|[\s:])').hasMatch(low));
 }
 
+/// True when [keyword] appears in [line] as a standalone word or phrase —
+/// 'total' matches "TOTAL 27.500" but not "SUBTOTAL 25.000", so a subtotal
+/// printed above the grand total can't steal the match.
+bool _lineMatchesKeyword(String line, String keyword) {
+  return RegExp(r'\b' + RegExp.escape(keyword) + r'\b')
+      .hasMatch(line.toLowerCase());
+}
+
 /// Finds the receipt total: prefers lines mentioning "total" (grand total
 /// first), taking the last amount on the line; falls back to the largest
 /// amount on a non-payment line (so TUNAI/KEMBALI never win).
@@ -175,7 +183,7 @@ int? parseReceiptTotal(List<String> lines) {
   ];
   for (final kw in keywords) {
     for (final line in lines) {
-      if (!line.toLowerCase().contains(kw)) continue;
+      if (!_lineMatchesKeyword(line, kw)) continue;
       final amounts = amountsInLine(line);
       if (amounts.isNotEmpty) return amounts.last;
     }
@@ -210,7 +218,7 @@ List<int> receiptTotalCandidates(List<String> lines) {
   ];
   for (final kw in keywords) {
     for (final line in lines) {
-      if (!line.toLowerCase().contains(kw)) continue;
+      if (!_lineMatchesKeyword(line, kw)) continue;
       final amounts = amountsInLine(line);
       if (amounts.isNotEmpty) add(amounts.last);
     }
@@ -274,48 +282,73 @@ const _monthNames = {
   'december': 12,
 };
 
-DateTime? _saneDate(int y, int m, int d) {
-  if (!_validDate(y, m, d)) return null;
-  final dt = DateTime(y, m, d);
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  // Receipts are never from the future nor older than 5 years.
-  if (dt.isAfter(today)) return null;
-  if (dt.isBefore(today.subtract(const Duration(days: 365 * 5)))) {
-    return null;
-  }
-  return dt;
-}
-
 /// Finds a receipt date: numeric dd/mm/yyyy first, then "dd MMM yyyy"
-/// with Indonesian/English month names.
+/// with Indonesian/English month names. An optional trailing time
+/// (HH:MM or HH:MM:SS, as printed on most receipts) is captured too —
+/// the sheet uses it to prefill the transaction time.
 DateTime? parseReceiptDate(List<String> lines) {
+  // Optional trailing time: "14:30" or "14:30:25".
+  const timePart = r'(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?';
   for (final line in lines) {
     final m = RegExp(
-      r'(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})',
+      r'(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})' + timePart,
     ).firstMatch(line);
     if (m != null) {
       var y = int.parse(m.group(3)!);
       if (y < 100) y += 2000;
-      final dt = _saneDate(y, int.parse(m.group(2)!), int.parse(m.group(1)!));
+      final dt = _saneDateTime(
+        y,
+        int.parse(m.group(2)!),
+        int.parse(m.group(1)!),
+        m.group(4),
+        m.group(5),
+      );
       if (dt != null) return dt;
     }
     final m2 = RegExp(
-      r'(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})',
+      r'(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})' + timePart,
     ).firstMatch(line);
     if (m2 != null) {
       final mo = _monthNames[m2.group(2)!.toLowerCase()];
       if (mo != null) {
-        final dt = _saneDate(
+        final dt = _saneDateTime(
           int.parse(m2.group(3)!),
           mo,
           int.parse(m2.group(1)!),
+          m2.group(4),
+          m2.group(5),
         );
         if (dt != null) return dt;
       }
     }
   }
   return null;
+}
+
+/// Validates the date and applies an optional HH:MM from the receipt.
+/// Out-of-range times are ignored (date kept, time dropped) rather than
+/// rejecting the whole date.
+DateTime? _saneDateTime(int y, int m, int d, String? hh, String? mm) {
+  if (!_validDate(y, m, d)) return null;
+  var hour = 0;
+  var minute = 0;
+  if (hh != null && mm != null) {
+    final h = int.parse(hh);
+    final mi = int.parse(mm);
+    if (h >= 0 && h <= 23 && mi >= 0 && mi <= 59) {
+      hour = h;
+      minute = mi;
+    }
+  }
+  final dt = DateTime(y, m, d, hour, minute);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  // Receipts are never from the future nor older than 5 years.
+  if (dt.isAfter(today.add(const Duration(days: 1)))) return null;
+  if (dt.isBefore(today.subtract(const Duration(days: 365 * 5)))) {
+    return null;
+  }
+  return dt;
 }
 
 /// Common Indonesian merchants: matched (case-insensitive, substring)

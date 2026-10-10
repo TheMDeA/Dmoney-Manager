@@ -27,6 +27,7 @@ const Map<String, IconData> categoryIconMap = {
   'pets': Icons.pets,
   'phone': Icons.phone_android,
   'receipt': Icons.receipt,
+  'clothing': Icons.checkroom,
   // Food & drinks.
   'fastfood': Icons.fastfood,
   'cake': Icons.cake,
@@ -46,6 +47,7 @@ const Map<String, IconData> categoryIconMap = {
   'cleaning': Icons.cleaning_services,
   'garage': Icons.garage,
   'garden': Icons.yard,
+  'furniture': Icons.weekend,
   // Transport.
   'train': Icons.train,
   'bus': Icons.directions_bus,
@@ -65,6 +67,9 @@ const Map<String, IconData> categoryIconMap = {
   'paid': Icons.paid,
   'cash': Icons.attach_money,
   'tune': Icons.tune,
+  'award': Icons.emoji_events,
+  'lottery': Icons.confirmation_number,
+  'tips': Icons.tips_and_updates,
   // Health & fitness.
   'medical': Icons.medical_services,
   'fitness': Icons.fitness_center,
@@ -100,6 +105,7 @@ const List<({String title, List<({String key, IconData icon})> entries})>
       (key: 'education', icon: Icons.school),
       (key: 'pets', icon: Icons.pets),
       (key: 'phone', icon: Icons.phone_android),
+      (key: 'clothing', icon: Icons.checkroom),
     ],
   ),
   (
@@ -129,6 +135,7 @@ const List<({String title, List<({String key, IconData icon})> entries})>
       (key: 'cleaning', icon: Icons.cleaning_services),
       (key: 'garage', icon: Icons.garage),
       (key: 'garden', icon: Icons.yard),
+      (key: 'furniture', icon: Icons.weekend),
     ],
   ),
   (
@@ -165,6 +172,9 @@ const List<({String title, List<({String key, IconData icon})> entries})>
       (key: 'paid', icon: Icons.paid),
       (key: 'trending_up', icon: Icons.trending_up),
       (key: 'currency', icon: Icons.currency_exchange),
+      (key: 'award', icon: Icons.emoji_events),
+      (key: 'lottery', icon: Icons.confirmation_number),
+      (key: 'tips', icon: Icons.tips_and_updates),
     ],
   ),
   (
