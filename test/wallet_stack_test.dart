@@ -81,9 +81,11 @@ void main() {
     // Tap the second card's header (visible strip is the card top).
     await tester.tap(find.text('BCA'));
     await tester.pump();
+    // Stagger delays (up to 2*45ms here) must fire before cards move.
+    await tester.pump(const Duration(milliseconds: 120));
     // Mid-animation the card must be BETWEEN fan and focused geometry:
     // animating, not jumping.
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 200));
     // BCA travels from +104 (fan) to -496 (focused, above Cash): mid-flight
     // it must be strictly between, proving it animates instead of jumping.
     final midTop = renderedTop(ids[1]) - renderedTop(ids[0]);
@@ -112,7 +114,9 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     await tester.tap(find.text('GoPay'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    // Stagger delays first, then measure mid-flight.
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pump(const Duration(milliseconds: 200));
     final midHeight2 = renderedHeight(ids[2]);
     expect(midHeight2, greaterThan(120));
     expect(midHeight2, lessThan(480));
@@ -120,6 +124,22 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(renderedHeight(ids[2]), 480);
     expect(renderedHeight(ids[1]), 120);
+
+    // Stagger: tapping Cash (index 0) moves Cash first; GoPay (index 2,
+    // tucked) must still be at its focused height right after Cash starts.
+    await tester.ensureVisible(find.text('Cash'));
+    await tester.tap(find.text('Cash'));
+    await tester.pump();
+    // 0ms/45ms timers fire; Cash + neighbor start. GoPay (90ms) hasn't.
+    await tester.pump(const Duration(milliseconds: 60));
+    // Let the started animations progress; GoPay's timer fires now.
+    await tester.pump(const Duration(milliseconds: 50));
+    // Cash (distance 0) is mid-flight growing from tucked 120;
+    // GoPay (distance 2) only just started shrinking from 480.
+    expect(renderedHeight(ids[0]), greaterThan(120));
+    expect(renderedHeight(ids[2]), 480);
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.takeException(), isNull);
 
     await db.close();
   });

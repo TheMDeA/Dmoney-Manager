@@ -232,20 +232,37 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
 
   int? _focusedId;
 
-  @override
-  Widget build(BuildContext context) {
+  /// Rendered card geometry. Updated with a per-card stagger on focus
+  /// changes so the cards cascade instead of moving all at once.
+  /// Keyed by wallet id; always in sync with [_tops]/[_heights] targets
+  /// after animations settle.
+  final _tops = <int, double>{};
+  final _heights = <int, double>{};
+
+  /// Bumps on every focus change; stale delayed stagger callbacks check
+  /// this and bail so rapid tapping can't leave cards stranded mid-flight.
+  int _staggerGen = 0;
+
+  /// Stagger delay between cards in the focus cascade.
+  static const _staggerMs = 45;
+
+  /// Computes target geometry for a focus state. Returns the per-card
+  /// tops/heights, the stack height, paint order, and the cascade order
+  /// (cards sorted by distance from the tapped card, tapped first).
+  ({
+    Map<int, double> tops,
+    Map<int, double> heights,
+    double stackH,
+    List<int> paintOrder,
+    List<int> cascadeOrder,
+  }) _geometry(int? focusedId) {
     final wallets = widget.wallets;
     final n = wallets.length;
-    final focusedIndex = _focusedId == null
+    final focusedIndex = focusedId == null
         ? -1
-        : wallets.indexWhere((w) => w.id == _focusedId);
+        : wallets.indexWhere((w) => w.id == focusedId);
     final focused = focusedIndex >= 0;
 
-    // Geometry per wallet id, computed up front so the AnimatedPositioned
-    // widgets below can carry stable ValueKeys directly (no Builder in
-    // between). That keeps the element identity across focus switches, so
-    // position/size changes animate instead of jumping.
-    //
     // Z-order: later cards paint in front, so every card's visible strip is
     // its TOP (the compact header) peeking out above the next card — never a
     // slice through the middle of its content.
@@ -280,20 +297,88 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
         ? 8 + _focusedH + 16 + (_tuckH + _tuckGap) * (n - 1) + 24
         : 8 + _cardH + _peek * (n - 1) + 24;
 
+    // Cascade order: tapped card first, then neighbors rippling outward.
+    // When unfocusing, ripple out from the previously focused card.
+    final anchor = focusedIndex >= 0 ? focusedIndex : 0;
+    final cascadeOrder = List<int>.generate(n, (i) => wallets[i].id)
+      ..sort((a, b) {
+        final ia = wallets.indexWhere((w) => w.id == a);
+        final ib = wallets.indexWhere((w) => w.id == b);
+        return (ia - anchor).abs().compareTo((ib - anchor).abs());
+      });
+
+    return (
+      tops: tops,
+      heights: heights,
+      stackH: stackH,
+      paintOrder: paintOrder,
+      cascadeOrder: cascadeOrder,
+    );
+  }
+
+  /// Focuses (or unfocuses) a card with a staggered cascade. The focused
+  /// card leads; neighbors follow rippling outward.
+  void _setFocus(int? id) {
+    final gen = ++_staggerGen;
+    final g = _geometry(id);
+    // Content + tap logic switch immediately; geometry cascades below.
+    setState(() => _focusedId = id);
+    for (var i = 0; i < g.cascadeOrder.length; i++) {
+      final cardId = g.cascadeOrder[i];
+      Future.delayed(Duration(milliseconds: i * _staggerMs), () {
+        if (!mounted || gen != _staggerGen) return;
+        setState(() {
+          _tops[cardId] = g.tops[cardId]!;
+          _heights[cardId] = g.heights[cardId]!;
+        });
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Initial geometry: unfocused fan, no animation on first build.
+    final g = _geometry(null);
+    _tops.addAll(g.tops);
+    _heights.addAll(g.heights);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final wallets = widget.wallets;
+
+    // Geometry per wallet id is rendered from [_tops]/[_heights], which
+    // _setFocus updates with a stagger. The target layout (for the stack
+    // height) comes from the current focus state. Cards added after the
+    // last stagger fall back to the target geometry so they never sit at
+    // 0,0.
+    final g = _geometry(_focusedId);
+    for (final id in g.tops.keys) {
+      _tops.putIfAbsent(id, () => g.tops[id]!);
+      _heights.putIfAbsent(id, () => g.heights[id]!);
+    }
+    // Drop ids for wallets that no longer exist.
+    _tops.removeWhere((id, _) => !g.tops.containsKey(id));
+    _heights.removeWhere((id, _) => !g.heights.containsKey(id));
+
     return SizedBox(
-      height: stackH,
+      height: g.stackH,
       child: Stack(
         clipBehavior: Clip.hardEdge,
         children: [
-          for (final id in paintOrder)
+          for (final id in g.paintOrder)
             AnimatedPositioned(
+              // Stable keys directly on the AnimatedPositioned (no Builder
+              // in between): keeps element identity across focus switches
+              // so position/size changes animate instead of jumping.
               key: ValueKey(id),
               duration: AppMotion.slow,
               curve: AppMotion.enter,
-              top: tops[id],
+              top: _tops[id],
               left: 0,
               right: 0,
-              height: heights[id],
+              height: _heights[id],
               // Cards stay fully opaque: dimmed overlapping cards blend
               // their text into an unreadable jumble, so depth comes from
               // position alone.
@@ -319,7 +404,8 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     return GestureDetector(
       onTap: () {
         Haptics.select();
-        setState(() => _focusedId = focused ? null : w.id);
+        // Cascades the card geometry; content crossfades below.
+        _setFocus(focused ? null : w.id);
       },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -375,12 +461,39 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 16, 18, 16),
-                child: focused
-                    ? SingleChildScrollView(
-                        physics: const NeverScrollableScrollPhysics(),
-                        child: _focusedContent(context, w, brand, color, isDark),
-                      )
-                    : _fanContent(context, w, brand, color, isDark),
+                // Crossfade between the compact header and the expanded
+                // content so the inside melts into place while the card
+                // shell glides (instead of popping mid-animation).
+                child: AnimatedSwitcher(
+                  duration: AppMotion.normal,
+                  switchInCurve: AppMotion.enter,
+                  switchOutCurve: Curves.easeOut,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.97, end: 1.0).animate(
+                        animation,
+                      ),
+                      child: child,
+                    ),
+                  ),
+                  child: focused
+                      ? SingleChildScrollView(
+                          key: ValueKey('focused-${w.id}'),
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: _focusedContent(
+                            context,
+                            w,
+                            brand,
+                            color,
+                            isDark,
+                          ),
+                        )
+                      : KeyedSubtree(
+                          key: ValueKey('fan-${w.id}'),
+                          child: _fanContent(context, w, brand, color, isDark),
+                        ),
+                ),
               ),
             ],
           ),
