@@ -33,6 +33,8 @@ class Wallets extends Table {
   /// Brand logo template id ('bca', 'gopay', …) or null for the generic
   /// kind-based mark. v12.
   TextColumn get logoTemplate => text().nullable()();
+  /// Manual ordering for the Arrange Wallets screen. v13.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }
 
 /// Expense / income categories; parentId == null means top-level.
@@ -241,7 +243,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -327,6 +329,17 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 12) {
             await m.addColumn(wallets, wallets.logoTemplate);
+          }
+          if (from < 13) {
+            await m.addColumn(wallets, wallets.sortOrder);
+            // Preserve the current (insertion) order as the initial
+            // manual order.
+            final all = await select(wallets).get();
+            all.sort((a, b) => a.id.compareTo(b.id));
+            for (var i = 0; i < all.length; i++) {
+              await (update(wallets)..where((w) => w.id.equals(all[i].id)))
+                  .write(WalletsCompanion(sortOrder: Value(i)));
+            }
           }
         },
       );
@@ -470,6 +483,10 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<Wallet>> watchWallets({int? accountId}) {
     final q = select(wallets);
     if (accountId != null) q.where((w) => w.accountId.equals(accountId));
+    q.orderBy([
+      (w) => OrderingTerm.asc(w.sortOrder),
+      (w) => OrderingTerm.asc(w.id),
+    ]);
     return q.watch();
   }
 
@@ -862,6 +879,16 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Persists a manual wallet order (Arrange Wallets screen).
+  Future<void> reorderWallets(List<int> orderedIds) {
+    return transaction(() async {
+      for (var i = 0; i < orderedIds.length; i++) {
+        await (update(wallets)..where((w) => w.id.equals(orderedIds[i])))
+            .write(WalletsCompanion(sortOrder: Value(i)));
+      }
+    });
+  }
+
   /// Attaches a photo to a transaction.
   ///
   /// The source file (e.g. the image_picker cache copy) is copied into the
@@ -911,6 +938,7 @@ class AppDatabase extends _$AppDatabase {
   Future<int> addWallet(WalletsCompanion entry) => into(wallets).insert(entry);
 
   /// Creates a wallet with its opening balance recorded as the initial amount.
+  /// New wallets append at the end of the manual order.
   Future<int> createWallet({
     required int accountId,
     required String name,
@@ -918,16 +946,24 @@ class AppDatabase extends _$AppDatabase {
     int initialAmount = 0,
     String colorHex = '#C6FF4A',
     String? logoTemplate,
-  }) =>
-      into(wallets).insert(WalletsCompanion.insert(
-        accountId: accountId,
-        name: name,
-        kind: kind,
-        balance: Value(initialAmount),
-        initialAmount: Value(initialAmount),
-        colorHex: Value(colorHex),
-        logoTemplate: Value(logoTemplate),
-      ));
+  }) async {
+    // Append after the current max so a fresh wallet never collides with
+    // an existing manual order (default 0 would tie with the first card).
+    final maxOrder = await (selectOnly(wallets)
+          ..addColumns([wallets.sortOrder.max()]))
+        .map((r) => r.read(wallets.sortOrder.max()))
+        .getSingleOrNull();
+    return into(wallets).insert(WalletsCompanion.insert(
+      accountId: accountId,
+      name: name,
+      kind: kind,
+      balance: Value(initialAmount),
+      initialAmount: Value(initialAmount),
+      colorHex: Value(colorHex),
+      logoTemplate: Value(logoTemplate),
+      sortOrder: Value((maxOrder ?? -1) + 1),
+    ));
+  }
 
   Future<void> updateWallet({
     required int id,

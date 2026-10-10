@@ -18,6 +18,7 @@ import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/add_transaction_sheet.dart';
+import 'arrange_wallets_screen.dart';
 import 'wallet_brands.dart';
 import 'wallet_detail_screen.dart';
 import 'wallet_form_sheet.dart';
@@ -42,13 +43,26 @@ class WalletsScreen extends ConsumerWidget {
             ScreenHeader(
               title: 'Wallets',
               tabIndex: 1,
-              action: IconButton(
-                tooltip: 'Add wallet',
-                onPressed: () {
-                  Haptics.select();
-                  _addWalletDialog(context, ref);
-                },
-                icon: const Icon(Icons.add),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Arrange wallets',
+                    onPressed: () {
+                      Haptics.select();
+                      ArrangeWalletsScreen.open(context);
+                    },
+                    icon: const Icon(Icons.reorder),
+                  ),
+                  IconButton(
+                    tooltip: 'Add wallet',
+                    onPressed: () {
+                      Haptics.select();
+                      _addWalletDialog(context, ref);
+                    },
+                    icon: const Icon(Icons.add),
+                  ),
+                ],
               ),
             ),
             Expanded(
