@@ -7,6 +7,7 @@
 
 ### Changed
 - Wallet card stack now cascades when focusing: the tapped card leads and neighbors follow rippling outward, and the card content crossfades instead of popping.
+- Stats page now replays its section cascade (overview, insights, charts) when switching months instead of only animating the overview numbers.
 
 ### Fixed
 - Receipt scanning no longer mistakes a SUBTOTAL line for the total when a receipt prints both — the grand total wins.

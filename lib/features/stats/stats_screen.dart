@@ -278,6 +278,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   children: [
                     const SectionHeader(title: 'Balance'),
                     Entrance(
+                      // Keyed by month so the cascade replays on month
+                      // change, not just first build.
+                      key: ValueKey('stats-balance-$_month'),
                       child: GlassCard(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
@@ -309,6 +312,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     ),
                     const SectionHeader(title: 'Overview'),
                     Entrance(
+                      key: ValueKey('stats-overview-$_month'),
                       delay: const Duration(milliseconds: 80),
                       child: GlassCard(
                         child: Column(
@@ -601,7 +605,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               children: [
                 for (var i = 0; i < insights.length; i++)
                   Entrance(
-                    delay: Duration(milliseconds: 60 * i),
+                    key: ValueKey('stats-insight-$i-$_month'),
+                    delay: Duration(milliseconds: 120 + 60 * i),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Row(
@@ -698,7 +703,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     if (_touchedDonutIndex >= slices.length) _touchedDonutIndex = -1;
     final touched = _touchedDonutIndex >= 0 ? slices[_touchedDonutIndex] : null;
 
-    return GlassCard(
+    return Entrance(
+      key: ValueKey('stats-donut-$_month'),
+      delay: const Duration(milliseconds: 200),
+      child: GlassCard(
       child: Column(
         children: [
           SizedBox(
@@ -783,6 +791,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ),
         ],
       ),
+    ),
     );
   }
 
@@ -906,9 +915,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       );
     }
 
-    return GlassCard(
-      child: SizedBox(
-        height: 210,
+    return Entrance(
+      key: ValueKey('stats-bars-$_month'),
+      delay: const Duration(milliseconds: 280),
+      child: GlassCard(
+        child: SizedBox(
+          height: 210,
         child: BarChart(
           BarChartData(
             maxY: maxY * 1.15,
@@ -978,6 +990,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           curve: _animCurve,
         ),
       ),
+    ),
     );
   }
 
@@ -1038,10 +1051,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final minY = dataMin - pad;
     final maxY = dataMax + pad;
 
-    return GlassCard(
-      child: SizedBox(
-        height: 180,
-        child: LineChart(
+    return Entrance(
+      key: ValueKey('stats-trend-$_month'),
+      delay: const Duration(milliseconds: 360),
+      child: GlassCard(
+        child: SizedBox(
+          height: 180,
+          child: LineChart(
           LineChartData(
             minY: minY,
             maxY: maxY,
@@ -1150,6 +1166,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           curve: _animCurve,
         ),
       ),
+    ),
     );
   }
 
