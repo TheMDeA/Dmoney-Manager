@@ -481,7 +481,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                 child: AnimatedSwitcher(
                   duration: AppMotion.normal,
                   switchInCurve: AppMotion.enter,
-                  switchOutCurve: Curves.easeOut,
+                  switchOutCurve: AppMotion.exit,
                   transitionBuilder: (child, animation) => FadeTransition(
                     opacity: animation,
                     child: ScaleTransition(

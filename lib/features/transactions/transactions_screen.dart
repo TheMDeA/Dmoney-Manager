@@ -8,6 +8,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/skeleton.dart';
 import '../../core/utils/haptics.dart';
+import '../../core/theme/app_colors.dart';
 import '../categories/select_category_screen.dart';
 import 'add_transaction_sheet.dart';
 import '../../data/database/app_database.dart';
@@ -115,14 +116,18 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete')),
+          FilledButton(
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
+            style:
+                FilledButton.styleFrom(backgroundColor: AppColors.expense),
+            child: const Text('Delete')),
         ],
       ),
     );
     if (confirmed != true || !mounted) return;
-    Haptics.medium();
     final messenger = ScaffoldMessenger.of(context);
     // Snapshot everything first so undo can restore it all.
     final backup = <({Transaction t, List<TransactionPhoto> photos})>[];

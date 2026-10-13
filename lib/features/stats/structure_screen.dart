@@ -221,7 +221,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
         outerR: _hole + (_touched == i ? _ringTouched : _ringBase),
         color: slices[i].color,
         label:
-            '${(share * 100).toStringAsFixed(1).replaceAll('.', ',')}%',
+            formatPercent(share * 100),
       ));
     }
 
@@ -293,7 +293,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                 ),
                 if (touched != null)
                   Text(
-                    '${(touched.amount / total * 100).toStringAsFixed(1).replaceAll('.', ',')}%',
+                    formatPercent(touched.amount / total * 100),
                     style: TextStyle(
                       color: context.accent,
                       fontSize: 12,
@@ -346,7 +346,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${pct.toStringAsFixed(1).replaceAll('.', ',')}%',
+                      formatPercent(pct),
                       style: TextStyle(
                           color: context.textMuted, fontSize: 12),
                     ),

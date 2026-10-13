@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/haptics.dart';
+import '../../core/theme/app_colors.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'add_transaction_sheet.dart';
@@ -65,14 +66,17 @@ Future<void> deleteTransactionFlow(
         TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel')),
-        TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete')),
+        FilledButton(
+          onPressed: () {
+            Haptics.medium();
+            Navigator.pop(context, true);
+          },
+          style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
+          child: const Text('Delete')),
       ],
     ),
   );
   if (confirmed != true || !context.mounted) return;
-  Haptics.medium();
   // Capture the messenger before [afterDelete] potentially pops this page.
   final messenger = ScaffoldMessenger.of(context);
   final photos = await db.watchPhotos(t.id).first;
