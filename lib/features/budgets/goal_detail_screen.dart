@@ -138,7 +138,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                   ),
                   Center(
                     child: Text(
-                      '${(ratio * 100).toStringAsFixed(2).replaceAll('.', ',')}%',
+                      formatPercent(ratio * 100, 2),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -348,7 +348,10 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () {
+                  Haptics.medium();
+                  Navigator.pop(context, true);
+                },
                 style: FilledButton.styleFrom(
                     backgroundColor: AppColors.expense),
                 child: const Text('Delete'),
@@ -551,7 +554,10 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
             child: const Text('Delete'),

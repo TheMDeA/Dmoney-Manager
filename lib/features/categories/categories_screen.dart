@@ -196,12 +196,14 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel')),
-          TextButton(
-              onPressed: () {
-                Haptics.medium();
-                Navigator.pop(context, true);
-              },
-              child: const Text('Delete')),
+          FilledButton(
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
+            style:
+                FilledButton.styleFrom(backgroundColor: AppColors.expense),
+            child: const Text('Delete')),
         ],
       ),
     );

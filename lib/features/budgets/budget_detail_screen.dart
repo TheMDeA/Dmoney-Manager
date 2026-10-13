@@ -178,7 +178,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                   ),
                   Center(
                     child: Text(
-                      '${(ratio * 100).toStringAsFixed(2).replaceAll('.', ',')}%',
+                      formatPercent(ratio * 100, 2),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,

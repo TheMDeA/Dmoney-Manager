@@ -42,6 +42,11 @@ AppCurrency currencyByCode(String code) => supportedCurrencies.firstWhere(
 String formatMoney(int amount) =>
     formatMoneyWith(AppPrefs.currencyCode, amount);
 
+/// Formats a percentage with the Indonesian comma decimal separator,
+/// e.g. 12.5 -> "12,5%".
+String formatPercent(double value, [int fractionDigits = 1]) =>
+    '${value.toStringAsFixed(fractionDigits).replaceAll('.', ',')}%';
+
 /// Same as [formatMoney] but with an explicit currency code (used during
 /// onboarding, before the choice is saved).
 String formatMoneyWith(String code, int amount) {

@@ -10,6 +10,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -176,7 +177,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   ),
                   Center(
                     child: Text(
-                      '${(ratio * 100).toStringAsFixed(2).replaceAll('.', ',')}%',
+                      formatPercent(ratio * 100, 2),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -281,7 +282,10 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () {
+                  Haptics.medium();
+                  Navigator.pop(context, true);
+                },
                 style: FilledButton.styleFrom(
                     backgroundColor: AppColors.expense),
                 child: const Text('Delete'),
@@ -400,7 +404,10 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
             child: const Text('Delete'),

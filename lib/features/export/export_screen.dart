@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 
@@ -36,8 +37,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          Text('Format', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
+          const SectionHeader(title: 'Format'),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'csv', label: Text('CSV')),
@@ -47,9 +47,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             showSelectedIcon: false,
             onSelectionChanged: (s) => setState(() => _format = s.first),
           ),
-          const SizedBox(height: 20),
-          Text('Date range', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
+          const SectionHeader(title: 'Date range'),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'month', label: Text('This month')),
@@ -60,8 +58,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             showSelectedIcon: false,
             onSelectionChanged: (s) => setState(() => _range = s.first),
           ),
-          const SizedBox(height: 20),
-          Text('Include', style: Theme.of(context).textTheme.labelLarge),
+          const SectionHeader(title: 'Include'),
           SwitchListTile(
             value: _includeTransactions,
             onChanged: (v) => setState(() => _includeTransactions = v),

@@ -228,7 +228,10 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Haptics.medium();
+              Navigator.pop(context, true);
+            },
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.expense,
             ),

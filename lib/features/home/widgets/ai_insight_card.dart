@@ -496,7 +496,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       final ratio = (weekendTotal / weekendDays) / (weekdayTotal / weekdayDays);
       if (ratio >= 1.5) {
         out.add((
-          'Weekends cost you ${ratio.toStringAsFixed(1)}× weekdays.',
+          'Weekends cost you ${ratio.toStringAsFixed(1).replaceAll('.', ',')}× weekdays.',
           '${formatMoney((weekendTotal / weekendDays).round())} per weekend day '
               'vs ${formatMoney((weekdayTotal / weekdayDays).round())} on weekdays.',
         ));
