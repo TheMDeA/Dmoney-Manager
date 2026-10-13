@@ -1339,7 +1339,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${up ? '+' : ''}${formatMoney(delta.toInt())} (${up ? '+' : ''}${pct.toStringAsFixed(1)}%)',
+                  '${up ? '+' : ''}${formatMoney(delta.toInt())} (${up ? '+' : ''}${formatPercent(pct)})',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
