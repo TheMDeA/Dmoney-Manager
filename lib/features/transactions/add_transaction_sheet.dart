@@ -74,6 +74,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _amountCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _memoCtrl = TextEditingController();
+  final _descFocus = FocusNode();
   // The bottom-sheet route has no ScaffoldMessenger of its own, so without
   // this every snackbar would render behind the modal barrier and only
   // become visible after the sheet closes.
@@ -106,6 +107,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   int? _suggestedId;
   Timer? _suggestTimer;
   int _suggestSeq = 0;
+
+  /// Description autocomplete: past descriptions matching the typed text,
+  /// shown while the description field is focused.
+  List<DescriptionSuggestion> _descSuggestions = const [];
 
   bool get _editing => widget.existing != null;
 
@@ -148,6 +153,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
     _descCtrl.addListener(_onDescChanged);
     _amountCtrl.addListener(_onAmountChanged);
+    // Rebuild when the description field gains/loses focus so the
+    // autocomplete list shows and hides at the right time.
+    _descFocus.addListener(() {
+      if (mounted) setState(() {});
+    });
     // Suggest for a prefilled description (edit mode) once the sheet settles.
     if (_descCtrl.text.trim().isNotEmpty && AppPrefs.smartSuggestions) {
       Future.microtask(_runSuggestion);
@@ -162,6 +172,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _amountCtrl.dispose();
     _descCtrl.dispose();
     _memoCtrl.dispose();
+    _descFocus.dispose();
     super.dispose();
   }
 
@@ -171,7 +182,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _suggestTimer?.cancel();
     if (_descError != null) setState(() => _descError = null);
     if (!AppPrefs.smartSuggestions || _descCtrl.text.trim().isEmpty) {
-      if (_suggestedId != null) setState(() => _suggestedId = null);
+      if (_suggestedId != null || _descSuggestions.isNotEmpty) {
+        setState(() {
+          _suggestedId = null;
+          _descSuggestions = const [];
+        });
+      }
       return;
     }
     _suggestTimer = Timer(const Duration(milliseconds: 400), _runSuggestion);
@@ -196,13 +212,68 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     );
   }
 
+  /// Autocomplete dropdown under the description field: past descriptions
+  /// matching the typed text. Tapping one refills the whole form.
+  Widget _descAutocompleteList() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        color: AppColors.bgRaised,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _descSuggestions.length; i++) ...[
+            if (i > 0)
+              Divider(
+                  height: 1,
+                  color: scheme.outlineVariant.withValues(alpha: 0.4)),
+            InkWell(
+              onTap: () => _applyDescriptionSuggestion(_descSuggestions[i]),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(Icons.history,
+                        size: 18, color: context.textMuted),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _descSuggestions[i].note,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<void> _runSuggestion() async {
     final seq = ++_suggestSeq;
     final note = _descCtrl.text.trim();
     if (note.isEmpty || !AppPrefs.smartSuggestions) return;
-    final suggester = CategorySuggester(ref.read(databaseProvider));
+    final db = ref.read(databaseProvider);
+    final suggester = CategorySuggester(db);
     await suggester.ensureBackfilled();
     final s = await suggester.suggest(note: note, kind: _kind);
+    if (!mounted || seq != _suggestSeq) return;
+    // Past descriptions containing the typed text, for autocomplete.
+    // Runs after the (slower) keyword backfill so a stale frame can't
+    // overwrite a newer keystroke's results.
+    final matches = await db.suggestDescriptions(note, kind: _kind);
     if (!mounted || seq != _suggestSeq) return;
     setState(() {
       _suggestedId = s?.categoryId;
@@ -211,7 +282,34 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       if (s != null && s.autoSelect && _categoryId == null) {
         _categoryId = s.categoryId;
       }
+      // Echoing back the exact text already typed is noise.
+      _descSuggestions = matches
+          .where((m) => m.note.toLowerCase() != note.toLowerCase())
+          .toList();
     });
+  }
+
+  /// Fill the form from a tapped description suggestion: the text plus the
+  /// category and wallet it was last used with.
+  void _applyDescriptionSuggestion(DescriptionSuggestion s) {
+    Haptics.light();
+    // Detach the listener so the programmatic fill doesn't restart the
+    // debounce; the category suggester runs once below for the new text.
+    _descCtrl.removeListener(_onDescChanged);
+    _descCtrl.text = s.note;
+    _descCtrl.selection =
+        TextSelection.collapsed(offset: s.note.length);
+    _descCtrl.addListener(_onDescChanged);
+    setState(() {
+      _categoryId = s.categoryId;
+      _walletId = s.walletId;
+      _suggestedId = null;
+      _descSuggestions = const [];
+      _descError = null;
+      _categoryError = null;
+    });
+    _descFocus.unfocus();
+    _runSuggestion();
   }
 
   @override
@@ -258,6 +356,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 controller: _descShake,
                 child: TextField(
                   controller: _descCtrl,
+                  focusNode: _descFocus,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
                     hintText: 'What was this for?',
@@ -265,6 +364,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   ),
                 ),
               ),
+              if (_descFocus.hasFocus && _descSuggestions.isNotEmpty)
+                _descAutocompleteList(),
               const SizedBox(height: 16),
               Shaker(
                 controller: _categoryShake,
