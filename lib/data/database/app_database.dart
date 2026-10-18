@@ -205,6 +205,14 @@ class TransactionWithDetails {
 typedef CategoryTotal = ({int categoryId, int total});
 typedef CategoryStat = ({int categoryId, int total, int count});
 
+/// A past description for autocomplete. [categoryId]/[walletId] come from
+/// its most recent use, so tapping the suggestion can refill the form.
+typedef DescriptionSuggestion = ({
+  String note,
+  int categoryId,
+  int walletId,
+});
+
 /// Per-month, per-kind total (bar chart + savings trend).
 /// [month] is 'yyyy-MM', [kind] is 'income' | 'expense'.
 typedef MonthlyTotal = ({String month, String kind, int total});
@@ -734,6 +742,67 @@ class AppDatabase extends _$AppDatabase {
       }
       return id;
     });
+  }
+
+  /// Distinct past descriptions containing [query] (case-insensitive),
+  /// ranked by use frequency then recency. Each row carries the
+  /// category/wallet of its most recent use so a tap can refill the form.
+  /// Dangling categories/wallets are filtered out. Backs description
+  /// autocomplete in the add-transaction sheet.
+  Future<List<DescriptionSuggestion>> suggestDescriptions(
+    String query, {
+    required String kind,
+    int limit = 6,
+  }) async {
+    final q = query.trim();
+    if (q.isEmpty) return const [];
+    // Escape LIKE wildcards so typed %/_ match literally.
+    final pattern =
+        '%${q.replaceAll(r'\', r'\\').replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
+    final rows = await customSelect(
+      '''
+      SELECT note, cat_id, wallet_id FROM (
+        SELECT t.note AS note,
+          (SELECT t2.category_id FROM transactions t2
+           WHERE t2.kind = t.kind AND t2.note = t.note
+           ORDER BY t2.date DESC LIMIT 1) AS cat_id,
+          (SELECT t2.wallet_id FROM transactions t2
+           WHERE t2.kind = t.kind AND t2.note = t.note
+           ORDER BY t2.date DESC LIMIT 1) AS wallet_id,
+          COUNT(*) AS c, MAX(t.date) AS d
+        FROM transactions t
+        WHERE t.kind = ? AND t.note LIKE ? ESCAPE '\\' AND t.note <> ''
+        GROUP BY t.note
+      )
+      WHERE cat_id IS NOT NULL
+        AND EXISTS (SELECT 1 FROM categories WHERE id = cat_id)
+        AND EXISTS (SELECT 1 FROM wallets WHERE id = wallet_id)
+      ORDER BY c DESC, d DESC
+      LIMIT ?
+      ''',
+      variables: [
+        Variable.withString(kind),
+        Variable.withString(pattern),
+        Variable.withInt(limit * 2), // over-fetch: prefix matches first below
+      ],
+      readsFrom: {transactions, categories, wallets},
+    ).get();
+    final lower = q.toLowerCase();
+    final suggestions = rows
+        .map((r) => (
+              note: r.read<String>('note'),
+              categoryId: r.read<int>('cat_id'),
+              walletId: r.read<int>('wallet_id'),
+            ))
+        .toList();
+    // Prefix matches feel like true autocomplete; keep the
+    // frequency/recency order stable inside each partition.
+    suggestions.sort((a, b) {
+      final ap = a.note.toLowerCase().startsWith(lower) ? 0 : 1;
+      final bp = b.note.toLowerCase().startsWith(lower) ? 0 : 1;
+      return ap.compareTo(bp);
+    });
+    return suggestions.take(limit).toList();
   }
 
   /// Records a wallet-to-wallet transfer and moves the balances.
