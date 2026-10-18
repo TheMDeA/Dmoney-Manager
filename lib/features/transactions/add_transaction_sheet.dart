@@ -110,7 +110,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   /// Description autocomplete: past descriptions matching the typed text,
   /// shown while the description field is focused.
-  List<DescriptionSuggestion> _descSuggestions = const [];
+  List<String> _descSuggestions = const [];
 
   bool get _editing => widget.existing != null;
 
@@ -245,7 +245,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        _descSuggestions[i].note,
+                        _descSuggestions[i],
                         style: Theme.of(context).textTheme.bodyLarge,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -284,29 +284,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       }
       // Echoing back the exact text already typed is noise.
       _descSuggestions = matches
-          .where((m) => m.note.toLowerCase() != note.toLowerCase())
+          .where((m) => m.toLowerCase() != note.toLowerCase())
           .toList();
     });
   }
 
-  /// Fill the form from a tapped description suggestion: the text plus the
-  /// category and wallet it was last used with.
-  void _applyDescriptionSuggestion(DescriptionSuggestion s) {
+  /// Fill the description field from a tapped autocomplete suggestion.
+  void _applyDescriptionSuggestion(String note) {
     Haptics.light();
     // Detach the listener so the programmatic fill doesn't restart the
     // debounce; the category suggester runs once below for the new text.
     _descCtrl.removeListener(_onDescChanged);
-    _descCtrl.text = s.note;
-    _descCtrl.selection =
-        TextSelection.collapsed(offset: s.note.length);
+    _descCtrl.text = note;
+    _descCtrl.selection = TextSelection.collapsed(offset: note.length);
     _descCtrl.addListener(_onDescChanged);
     setState(() {
-      _categoryId = s.categoryId;
-      _walletId = s.walletId;
-      _suggestedId = null;
       _descSuggestions = const [];
       _descError = null;
-      _categoryError = null;
     });
     _descFocus.unfocus();
     _runSuggestion();
