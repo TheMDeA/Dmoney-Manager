@@ -270,7 +270,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     await suggester.ensureBackfilled();
     final s = await suggester.suggest(note: note, kind: _kind);
     if (!mounted || seq != _suggestSeq) return;
-    // Past descriptions containing the typed text, for autocomplete.
+    // Past descriptions starting with the typed text, for autocomplete.
     // Runs after the (slower) keyword backfill so a stale frame can't
     // overwrite a newer keystroke's results.
     final matches = await db.suggestDescriptions(note, kind: _kind);
