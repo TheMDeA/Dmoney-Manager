@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dmoney_manager/data/database/app_database.dart';
 
-/// Description autocomplete: distinct past descriptions matching the typed
-/// text, ranked by frequency then recency.
+/// Description autocomplete: distinct past descriptions *starting with* the
+/// typed text (case-insensitive), ranked by frequency then recency.
 void main() {
   late AppDatabase db;
   late int wallet;
@@ -27,9 +27,9 @@ void main() {
   tearDown(() => db.close());
 
   Future<void> tx(String note, String kind, int categoryId,
-          {int? walletId, int daysAgo = 0}) =>
+          {int daysAgo = 0}) =>
       db.addTransaction(TransactionsCompanion.insert(
-        walletId: walletId ?? wallet,
+        walletId: wallet,
         categoryId: categoryId,
         kind: kind,
         amount: 100,
@@ -43,50 +43,47 @@ void main() {
     expect(await db.suggestDescriptions('   ', kind: 'expense'), isEmpty);
   });
 
-  test('matches case-insensitively on contains', () async {
+  test('only prefix matches are suggested', () async {
+    await tx('Awa fried chicken', 'expense', food);
+    // Both merely contain 'aw' mid-string; neither starts with it.
+    await tx('soto Betawi', 'expense', food);
+    await tx('tws huawei', 'expense', food);
+    expect(await db.suggestDescriptions('aw', kind: 'expense'),
+        ['Awa fried chicken']);
+  });
+
+  test('matches case-insensitively', () async {
     await tx('Starbucks Coffee', 'expense', food);
-    final lower = await db.suggestDescriptions('star', kind: 'expense');
-    expect(lower, ['Starbucks Coffee']);
-    final upper = await db.suggestDescriptions('COFFEE', kind: 'expense');
-    expect(upper, ['Starbucks Coffee']);
+    expect(await db.suggestDescriptions('STAR', kind: 'expense'),
+        ['Starbucks Coffee']);
   });
 
   test('only matches the requested kind', () async {
     await tx('Payday', 'income', salary);
     expect(await db.suggestDescriptions('pay', kind: 'expense'), isEmpty);
-    final income = await db.suggestDescriptions('pay', kind: 'income');
-    expect(income, ['Payday']);
+    expect(await db.suggestDescriptions('pay', kind: 'income'), ['Payday']);
   });
 
   test('ignores empty notes', () async {
     await tx('', 'expense', food);
     await tx('Coffee', 'expense', food);
-    final out = await db.suggestDescriptions('o', kind: 'expense');
-    expect(out, ['Coffee']);
+    expect(await db.suggestDescriptions('c', kind: 'expense'), ['Coffee']);
   });
 
   test('ranks by frequency, then recency', () async {
-    await tx('Tea', 'expense', food, daysAgo: 0);
+    await tx('Cake', 'expense', food, daysAgo: 0);
     await tx('Coffee', 'expense', food, daysAgo: 5);
     await tx('Coffee', 'expense', food, daysAgo: 4);
     await tx('Coffee', 'expense', food, daysAgo: 3);
-    final out = await db.suggestDescriptions('e', kind: 'expense');
-    expect(out, ['Coffee', 'Tea']);
+    expect(
+        await db.suggestDescriptions('c', kind: 'expense'), ['Coffee', 'Cake']);
   });
 
   test('recency breaks frequency ties', () async {
-    await tx('Old Mart', 'expense', food, daysAgo: 9);
-    await tx('New Mart', 'expense', food, daysAgo: 1);
-    final out = await db.suggestDescriptions('mart', kind: 'expense');
-    expect(out, ['New Mart', 'Old Mart']);
-  });
-
-  test('prefix matches come before contains matches', () async {
-    await tx('Iced Coffee', 'expense', food, daysAgo: 0);
-    await tx('Iced Coffee', 'expense', food, daysAgo: 0);
-    await tx('Coffee Bean', 'expense', food, daysAgo: 0);
-    final out = await db.suggestDescriptions('cof', kind: 'expense');
-    expect(out.first, 'Coffee Bean');
+    await tx('Mart Old', 'expense', food, daysAgo: 9);
+    await tx('Mart New', 'expense', food, daysAgo: 1);
+    expect(await db.suggestDescriptions('mart', kind: 'expense'),
+        ['Mart New', 'Mart Old']);
   });
 
   test('respects the limit', () async {
@@ -101,7 +98,7 @@ void main() {
   test('LIKE wildcards in the query match literally', () async {
     await tx('100% juice', 'expense', food);
     await tx('1000 juice', 'expense', food);
-    final out = await db.suggestDescriptions('100%', kind: 'expense');
-    expect(out, ['100% juice']);
+    expect(await db.suggestDescriptions('100%', kind: 'expense'),
+        ['100% juice']);
   });
 }

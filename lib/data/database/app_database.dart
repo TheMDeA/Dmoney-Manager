@@ -736,7 +736,7 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Distinct past descriptions containing [query] (case-insensitive),
+  /// Distinct past descriptions starting with [query] (case-insensitive),
   /// ranked by use frequency then recency. Backs description autocomplete
   /// in the add-transaction sheet.
   Future<List<String>> suggestDescriptions(
@@ -748,7 +748,7 @@ class AppDatabase extends _$AppDatabase {
     if (q.isEmpty) return const [];
     // Escape LIKE wildcards so typed %/_ match literally.
     final pattern =
-        '%${q.replaceAll(r'\', r'\\').replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
+        '${q.replaceAll(r'\', r'\\').replaceAll('%', r'\%').replaceAll('_', r'\_')}%';
     final rows = await customSelect(
       '''
       SELECT note FROM transactions t
@@ -760,20 +760,11 @@ class AppDatabase extends _$AppDatabase {
       variables: [
         Variable.withString(kind),
         Variable.withString(pattern),
-        Variable.withInt(limit * 2), // over-fetch: prefix matches first below
+        Variable.withInt(limit),
       ],
       readsFrom: {transactions},
     ).get();
-    final lower = q.toLowerCase();
-    final notes = rows.map((r) => r.read<String>('note')).toList();
-    // Prefix matches feel like true autocomplete; keep the
-    // frequency/recency order stable inside each partition.
-    notes.sort((a, b) {
-      final ap = a.toLowerCase().startsWith(lower) ? 0 : 1;
-      final bp = b.toLowerCase().startsWith(lower) ? 0 : 1;
-      return ap.compareTo(bp);
-    });
-    return notes.take(limit).toList();
+    return rows.map((r) => r.read<String>('note')).toList();
   }
 
   /// Records a wallet-to-wallet transfer and moves the balances.
