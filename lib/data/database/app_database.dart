@@ -5,6 +5,8 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/utils/recurring_dates.dart';
+
 part 'app_database.g.dart';
 
 // ---------------------------------------------------------------------------
@@ -1494,21 +1496,8 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  DateTime _advanceRecurring(DateTime d, String frequency) {
-    switch (frequency) {
-      case 'daily':
-        return d.add(const Duration(days: 1));
-      case 'weekly':
-        return d.add(const Duration(days: 7));
-      case 'monthly':
-        // DateTime normalizes month overflow (Dec -> Jan next year).
-        return DateTime(d.year, d.month + 1, d.day, d.hour, d.minute);
-      case 'yearly':
-        return DateTime(d.year + 1, d.month, d.day, d.hour, d.minute);
-      default:
-        return d.add(const Duration(days: 30));
-    }
-  }
+  DateTime _advanceRecurring(DateTime d, String frequency) =>
+      advanceRecurringDate(d, frequency);
 
   // ------------------------- transaction templates -----------------------
 
