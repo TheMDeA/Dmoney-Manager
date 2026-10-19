@@ -10,13 +10,16 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/haptics.dart';
 import '../../core/widgets/app_page_route.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/widgets/month_selector.dart';
+import '../transactions/widgets/transaction_tile.dart';
 
 /// "Show more" drill-down behind Stats' Overview and Spending by category:
 /// income/expense for one month, broken down by category — a big donut with
@@ -315,10 +318,15 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     final pct = total == 0 ? 0.0 : s.total / total * 100;
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-          child: Row(
-            children: [
+        InkWell(
+          onTap: () {
+            Haptics.select();
+            _openCategory(s, c);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            child: Row(
+              children: [
               Container(
                 width: 48,
                 height: 48,
@@ -378,8 +386,102 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
             ],
           ),
         ),
+        ),
         if (!last) Divider(height: 1, color: context.hairline),
       ],
+    );
+  }
+
+  /// Drill-down: the category's transactions for the shown month.
+  void _openCategory(CategoryStat s, Category? c) {
+    final db = ref.read(databaseProvider);
+    final accountId = ref.read(selectedAccountProvider);
+    final from = DateTime(_month.year, _month.month);
+    final to =
+        DateTime(_month.year, _month.month + 1).subtract(const Duration(seconds: 1));
+    final name = c?.name ?? 'Unknown';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, controller) => Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: context.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  _isIncome
+                      ? Text(
+                          formatMoney(s.total),
+                          style: const TextStyle(
+                            color: AppColors.income,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        )
+                      : Text(
+                          '-${formatMoney(s.total)}',
+                          style: const TextStyle(
+                            color: AppColors.expense,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<List<TransactionWithDetails>>(
+                stream: db.watchTransactionsForCategory(
+                  s.categoryId,
+                  from,
+                  to,
+                  kind: _kind,
+                  accountId: accountId,
+                ),
+                builder: (context, snap) {
+                  final items = snap.data ?? const <TransactionWithDetails>[];
+                  if (items.isEmpty) {
+                    return const EmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      message: 'No transactions',
+                    );
+                  }
+                  return ListView.builder(
+                    controller: controller,
+                    padding: const EdgeInsets.only(bottom: 24),
+                    itemCount: items.length,
+                    itemBuilder: (_, i) =>
+                        TransactionTile(details: items[i]),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

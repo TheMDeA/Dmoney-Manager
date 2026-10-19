@@ -551,10 +551,13 @@ class AppDatabase extends _$AppDatabase {
   /// Transactions of one category inside [from, to]. Powers the budget
   /// detail screen (pass the month's first/last instant).
   Stream<List<TransactionWithDetails>> watchTransactionsForCategory(
-      int categoryId, DateTime from, DateTime to) {
+      int categoryId, DateTime from, DateTime to,
+      {String? kind, int? accountId}) {
     final q = _joinedTransactions()
       ..where(transactions.categoryId.equals(categoryId) &
           transactions.date.isBetweenValues(from, to));
+    if (kind != null) q.where(transactions.kind.equals(kind));
+    if (accountId != null) q.where(wallets.accountId.equals(accountId));
     return q.watch().map(_toDetails);
   }
 
