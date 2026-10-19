@@ -6,6 +6,7 @@ import '../../core/services/notification_service.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/wallet_resolve.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../core/widgets/shaker.dart';
 import '../../core/widgets/sliding_segmented.dart';
@@ -254,10 +255,10 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
           stream: db.watchWallets(),
           builder: (context, snap) {
             final wallets = snap.data ?? const <Wallet>[];
-            if (_walletId != null &&
-                wallets.every((w) => w.id != _walletId)) {
-              _walletId = null;
-            }
+            // Wallet is optional here: never wipe the id on the first
+            // frame, and never invent a fallback — null stays null.
+            _walletId =
+                resolveWalletId(wallets, _walletId, fallbackToFirst: false);
             return Shaker(
               controller: _walletShake,
               child: Wrap(

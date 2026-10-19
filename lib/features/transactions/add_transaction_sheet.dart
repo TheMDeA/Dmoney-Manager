@@ -14,6 +14,7 @@ import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/wallet_resolve.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../core/widgets/shaker.dart';
 import '../../core/widgets/sliding_segmented.dart';
@@ -25,20 +26,6 @@ import '../categories/category_picker_section.dart';
 /// Also used for editing: pass [existing] to prefill and update instead of
 /// inserting. [attachedPhotoPath] pre-attaches a receipt photo (e.g. from
 /// the scan flow); the sheet also lets the user attach one manually.
-/// Resolves which wallet id the form should use given the loaded [wallets]
-/// and the current [currentId] (preselected or edited).
-///
-/// While the wallet list is still loading (empty), the current id is kept
-/// as-is so a preselected wallet isn't wiped on the first frame. Once
-/// loaded, a missing/null id falls back to the first wallet.
-int? resolveWalletId(List<Wallet> wallets, int? currentId) {
-  if (wallets.isEmpty) return currentId;
-  if (currentId == null || wallets.every((w) => w.id != currentId)) {
-    return wallets.first.id;
-  }
-  return currentId;
-}
-
 class AddTransactionSheet extends ConsumerStatefulWidget {
   const AddTransactionSheet({
     super.key,

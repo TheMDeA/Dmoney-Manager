@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/wallet_resolve.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../core/widgets/shaker.dart';
 import '../../data/database/app_database.dart';
@@ -169,10 +170,10 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
           stream: db.watchWallets(),
           builder: (context, snap) {
             final wallets = snap.data ?? const <Wallet>[];
-            if (_walletId != null &&
-                wallets.every((w) => w.id != _walletId)) {
-              _walletId = null;
-            }
+            // The wallet came from the existing debt: keep it while the
+            // list loads instead of wiping it on the first frame.
+            _walletId =
+                resolveWalletId(wallets, _walletId, fallbackToFirst: false);
             return Wrap(
               spacing: 8,
               runSpacing: 8,
