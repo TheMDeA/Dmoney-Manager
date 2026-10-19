@@ -278,6 +278,7 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
                     ),
                     onSelected: (_) => setState(() {
                       _walletId = w.id;
+                      _noWallet = false;
                       _walletError = null;
                     }),
                   ),
