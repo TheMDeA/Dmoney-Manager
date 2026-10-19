@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/wallet_resolve.dart';
 import '../../core/widgets/amount_field.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -88,10 +89,9 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
         stream: db.watchWallets(),
         builder: (context, snap) {
           final wallets = snap.data ?? const <Wallet>[];
-          if (_walletId != null && wallets.every((w) => w.id != _walletId)) {
-            _walletId = null;
-          }
-          _walletId ??= wallets.isNotEmpty ? wallets.first.id : null;
+          // Keep the prefilled wallet while the list loads; fall back
+          // to the first wallet only once loaded and the id is gone.
+          _walletId = resolveWalletId(wallets, _walletId);
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             child: Column(
