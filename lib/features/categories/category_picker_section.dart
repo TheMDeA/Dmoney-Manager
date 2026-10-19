@@ -12,6 +12,17 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'select_category_screen.dart';
 
+/// Moves the category with [id] to the front of [cats] when it is present
+/// but not already first. Used for the smart suggestion and the selection
+/// so the interesting tile is always visible in the quick-pick grid.
+void moveCategoryToFront(List<Category> cats, int? id) {
+  if (id == null) return;
+  final i = cats.indexWhere((c) => c.id == id);
+  if (i > 0) {
+    cats.insert(0, cats.removeAt(i));
+  }
+}
+
 /// Compact category section for the form sheets: a two-column quick-pick
 /// grid with the first few top-level categories plus an "All" shortcut
 /// that opens the full-screen [SelectCategoryScreen]. Selecting there also
@@ -20,6 +31,9 @@ import 'select_category_screen.dart';
 ///
 /// When [suggestedId] is set (smart category suggestions), that category
 /// moves to the front of the grid and gets a sparkle badge.
+/// The selected category likewise always stays visible: if it isn't among
+/// the quick picks, it takes the first slot (the explicit choice wins over
+/// the suggestion).
 class CategoryPickerSection extends ConsumerWidget {
   const CategoryPickerSection({
     super.key,
@@ -71,13 +85,10 @@ class CategoryPickerSection extends ConsumerWidget {
           builder: (context, snap) {
             final cats = (snap.data ?? const <Category>[]).toList();
             // Suggested category jumps to the front so it's always visible.
-            if (suggestedId != null) {
-              final i = cats.indexWhere((c) => c.id == suggestedId);
-              if (i > 0) {
-                final s = cats.removeAt(i);
-                cats.insert(0, s);
-              }
-            }
+            moveCategoryToFront(cats, suggestedId);
+            // Selected category stays visible too. Applied after the
+            // suggestion move so the explicit choice wins.
+            moveCategoryToFront(cats, selectedId);
             final picks = cats.take(quickPickCount).toList();
             return GridView.count(
               crossAxisCount: 2,

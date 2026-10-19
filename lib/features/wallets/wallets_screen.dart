@@ -18,6 +18,8 @@ import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/add_transaction_sheet.dart';
+import '../transactions/transfer_sheet.dart';
+import '../../core/widgets/form_sheet.dart';
 import 'arrange_wallets_screen.dart';
 import 'wallet_brands.dart';
 import 'wallet_detail_screen.dart';
@@ -789,13 +791,9 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
   }
 
   void _transfer(Wallet w) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => AddTransactionSheet(
-        initialKind: 'transfer',
-        initialWalletId: w.id,
-      ),
+    showSnackSheet(
+      context,
+      (_) => TransferSheet(initialFromWalletId: w.id),
     );
   }
 

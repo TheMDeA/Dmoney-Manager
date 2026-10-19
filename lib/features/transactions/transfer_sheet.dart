@@ -13,7 +13,11 @@ import '../../state/providers.dart';
 
 /// Bottom sheet for moving money between two wallets.
 class TransferSheet extends ConsumerStatefulWidget {
-  const TransferSheet({super.key});
+  const TransferSheet({super.key, this.initialFromWalletId});
+
+  /// Preselects the source wallet (e.g. the wallet card the user tapped
+  /// Transfer on).
+  final int? initialFromWalletId;
 
   @override
   ConsumerState<TransferSheet> createState() => _TransferSheetState();
@@ -94,7 +98,10 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
               stream: db.watchWallets(),
               builder: (context, snap) {
                 final wallets = snap.data ?? const <Wallet>[];
-                _fromId ??= wallets.isNotEmpty ? wallets.first.id : null;
+                _fromId ??= wallets.any(
+                        (w) => w.id == widget.initialFromWalletId)
+                    ? widget.initialFromWalletId
+                    : (wallets.isNotEmpty ? wallets.first.id : null);
                 _toId ??= wallets.length > 1 ? wallets[1].id : null;
                 if (_toId == _fromId && wallets.length > 1) {
                   _toId = wallets.firstWhere((w) => w.id != _fromId).id;
