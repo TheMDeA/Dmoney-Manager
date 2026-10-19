@@ -5,3 +5,4 @@
 - The Transfer button on wallet cards now opens the transfer sheet (with the wallet preselected) instead of the add-expense form.
 - Tapping Top up on a wallet card now preselects that wallet instead of resetting to the first one.
 - Add debt: tapping a wallet chip now switches "Don't use wallet" off, so the selected wallet is actually used.
+- The keyboard no longer pops back up after closing the date/time picker or the full category list.

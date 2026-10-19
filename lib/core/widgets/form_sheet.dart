@@ -273,6 +273,10 @@ class FormDatePill extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: () {
               Haptics.light();
+              // Dismiss the keyboard first: otherwise the focused text
+              // field keeps focus behind the picker dialog, and the
+              // keyboard pops back up when the dialog closes.
+              FocusScope.of(context).unfocus();
               onTap();
             },
             icon: Icon(icon, size: 18),

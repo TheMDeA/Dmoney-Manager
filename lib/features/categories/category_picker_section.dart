@@ -176,6 +176,9 @@ class CategoryPickerSection extends ConsumerWidget {
     return InkWell(
       onTap: () {
         Haptics.light();
+        // Same as FormDatePill: don't let the keyboard pop back up when
+        // the full list closes.
+        FocusScope.of(context).unfocus();
         _openFullList(context);
       },
       borderRadius: BorderRadius.circular(16),
