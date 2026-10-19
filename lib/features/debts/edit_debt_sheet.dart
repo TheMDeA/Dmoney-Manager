@@ -210,9 +210,15 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Show in transaction history'),
-          subtitle: const Text('Record this debt as a transaction'),
-          value: _recordTx,
-          onChanged: (v) => setState(() => _recordTx = v),
+          subtitle: Text(_noWallet
+              ? 'Needs a wallet to record'
+              : 'Record this debt as a transaction'),
+          // Disabled while there's no wallet: the save path skips the
+          // transaction, so the toggle must not promise one. _recordTx
+          // is preserved underneath and restored when a wallet is used.
+          value: _noWallet ? false : _recordTx,
+          onChanged:
+              _noWallet ? null : (v) => setState(() => _recordTx = v),
         ),
       ],
     );
