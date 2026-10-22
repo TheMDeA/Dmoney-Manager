@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/services/app_prefs.dart';
+import '../core/services/drive_backup_service.dart';
 import '../data/database/app_database.dart';
 
 /// The database is created in main() and injected here.
 final databaseProvider = Provider<AppDatabase>(
   (ref) => throw UnimplementedError('databaseProvider must be overridden in main()'),
 );
+
+/// Google Drive backup (sign-in state lives inside the service).
+final driveBackupServiceProvider =
+    Provider<DriveBackupService>((ref) => DriveBackupService());
 
 class ThemeModeNotifier extends Notifier<ThemeMode> {
   @override
