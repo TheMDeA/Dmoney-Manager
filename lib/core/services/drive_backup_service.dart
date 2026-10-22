@@ -74,19 +74,30 @@ class DriveBackupService {
 
   static const _lastBackupKey = 'drive_last_backup_at';
   static const _autoBackupKey = 'drive_auto_backup';
+  static const _accountEmailKey = 'drive_account_email';
 
   GoogleSignInAccount? _account;
+  String? _persistedEmail;
   Future<void>? _initFuture;
   bool _autoRunning = false;
   DateTime? _lastAutoAt;
 
   GoogleSignInAccount? get currentAccount => _account;
-  bool get isSignedIn => _account != null;
 
-  /// One-time SDK setup + a silent restore of the previous sign-in, so
-  /// the Google Drive session survives the app being closed. Restoring
-  /// never shows auth UI — the sign-in prompt only ever appears when the
-  /// user taps the sign-in button. Safe to call repeatedly.
+  /// Email of the signed-in Google account — from this run's sign-in or
+  /// restored from the previous one. Null when signed out.
+  String? get signedInEmail => _account?.email ?? _persistedEmail;
+
+  bool get isSignedIn => signedInEmail != null;
+
+  /// One-time SDK setup + loading the persisted sign-in identity, so
+  /// the Google Drive session survives the app being closed. This never
+  /// shows auth UI and never calls the plugin's lightweight restore —
+  /// on Android that can fall back to an interactive account sheet,
+  /// which must only ever appear from the sign-in button. Drive calls
+  /// re-obtain authorization silently (see [_headers]); if that ever
+  /// fails, the Backup screen offers a reconnect. Safe to call
+  /// repeatedly.
   Future<void> init() {
     return _initFuture ??= _init();
   }
@@ -95,12 +106,8 @@ class DriveBackupService {
     await GoogleSignIn.instance.initialize(
       serverClientId: serverClientId.isEmpty ? null : serverClientId,
     );
-    try {
-      _account =
-          await GoogleSignIn.instance.attemptLightweightAuthentication();
-    } catch (_) {
-      _account = null;
-    }
+    final prefs = await SharedPreferences.getInstance();
+    _persistedEmail = prefs.getString(_accountEmailKey);
   }
 
   /// Whether the "Automatically backup" setting is on.
@@ -125,6 +132,11 @@ class DriveBackupService {
     _account = account;
     // Ask for the Drive scope right away so later calls stay silent.
     await account.authorizationClient.authorizeScopes(_scopes);
+    // Persist the identity so the session survives app restarts without
+    // the plugin's (possibly interactive) lightweight restore.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_accountEmailKey, account.email);
+    _persistedEmail = account.email;
     return account;
   }
 
@@ -132,17 +144,24 @@ class DriveBackupService {
     await init();
     await GoogleSignIn.instance.signOut();
     _account = null;
+    _persistedEmail = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_accountEmailKey);
   }
 
   /// Authorization headers for Drive calls. With
   /// [promptIfNecessary] the user may be shown a consent prompt, so only
   /// pass true from a user-initiated action.
   Future<Map<String, String>> _headers({bool promptIfNecessary = false}) async {
-    final account = _account;
-    if (account == null) {
+    if (!isSignedIn) {
       throw DriveException('Not signed in to Google.');
     }
-    final headers = await account.authorizationClient.authorizationHeaders(
+    // Prefer the account-bound client after a live sign-in; for a
+    // session restored from the persisted identity, the instance-level
+    // client re-authorizes silently from the earlier grant.
+    final client =
+        _account?.authorizationClient ?? GoogleSignIn.instance.authorizationClient;
+    final headers = await client.authorizationHeaders(
       _scopes,
       promptIfNecessary: promptIfNecessary,
     );
@@ -157,7 +176,8 @@ class DriveBackupService {
     await init();
     final file = await BackupService.createBackup(db);
     try {
-      final backup = await _createFile(file, backupFileName(DateTime.now()));
+      final backup = await _createFile(file, backupFileName(DateTime.now()),
+          prompt: true);
       await _markBackedUp(backup);
       await _prune();
       return backup;
@@ -212,14 +232,29 @@ class DriveBackupService {
         _lastBackupKey, backup.createdAt.toIso8601String());
   }
 
+  /// Whether Drive authorization is currently obtainable without any
+  /// user interaction. False means the Backup screen should offer a
+  /// reconnect (the interactive sign-in) for this restored session.
+  Future<bool> hasSilentAccess() async {
+    await init();
+    if (!isSignedIn) return false;
+    try {
+      await _headers();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<DateTime?> lastBackupAt() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_lastBackupKey);
     return raw == null ? null : DateTime.tryParse(raw);
   }
 
-  Future<DriveBackup> _createFile(File file, String name) async {
-    final headers = await _headers(promptIfNecessary: true);
+  Future<DriveBackup> _createFile(File file, String name,
+      {bool prompt = false}) async {
+    final headers = await _headers(promptIfNecessary: prompt);
     final bytes = await file.readAsBytes();
 
     const boundary = 'dmoney_backup_boundary';
@@ -275,7 +310,7 @@ class DriveBackupService {
   /// been granted yet (the upload path requests it interactively).
   Future<List<DriveBackup>> listBackups() async {
     await init();
-    if (_account == null) return [];
+    if (!isSignedIn) return [];
     final Map<String, String> headers;
     try {
       headers = await _headers();

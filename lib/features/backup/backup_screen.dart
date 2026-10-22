@@ -28,7 +28,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _busy = false;
   String? _status;
 
-  GoogleSignInAccount? _driveAccount;
+  String? _driveAccountEmail;
+  bool _driveNeedsReconnect = false;
   List<DriveBackup>? _driveBackups;
   DateTime? _lastDriveBackupAt;
   bool _driveLoading = true;
@@ -45,13 +46,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   Future<void> _loadDrive() async {
     try {
       await _drive.init();
-      final backups =
-          _drive.isSignedIn ? await _drive.listBackups() : null;
+      final signedIn = _drive.isSignedIn;
+      final backups = signedIn ? await _drive.listBackups() : null;
+      final silent = signedIn ? await _drive.hasSilentAccess() : true;
       final last = await _drive.lastBackupAt();
       final auto = await _drive.autoBackupEnabled();
       if (!mounted) return;
       setState(() {
-        _driveAccount = _drive.currentAccount;
+        _driveAccountEmail = _drive.signedInEmail;
+        _driveNeedsReconnect = signedIn && !silent;
         _driveBackups = backups;
         _lastDriveBackupAt = last;
         _autoBackup = auto;
@@ -200,7 +203,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Center(child: CircularProgressIndicator()),
           )
-        else if (_driveAccount == null) ...[
+        else if (_driveAccountEmail == null) ...[
           OutlinedButton.icon(
             onPressed: _busy ? null : () => _signInToDrive(db),
             icon: const Icon(Icons.login_outlined),
@@ -213,7 +216,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _driveAccount!.email,
+                  _driveAccountEmail!,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -224,6 +227,19 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             ],
           ),
           const SizedBox(height: 4),
+          if (_driveNeedsReconnect) ...[
+            Text(
+              'Drive access needs a quick reconnect.',
+              style: TextStyle(color: context.textMuted),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : () => _signInToDrive(db),
+              icon: const Icon(Icons.refresh_outlined),
+              label: const Text('Reconnect Google Drive'),
+            ),
+            const SizedBox(height: 8),
+          ],
           FilledButton.icon(
             onPressed: _busy ? null : () => _backUpToDrive(db),
             icon: const Icon(Icons.cloud_upload_outlined),
@@ -354,7 +370,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     await _drive.setAutoBackupEnabled(false);
     if (!mounted) return;
     setState(() {
-      _driveAccount = null;
+      _driveAccountEmail = null;
+      _driveNeedsReconnect = false;
       _driveBackups = null;
       _lastDriveBackupAt = null;
       _autoBackup = false;
