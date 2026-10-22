@@ -247,9 +247,16 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     try {
       await _drive.signIn();
       await _loadDrive();
+    } on DriveException catch (e) {
+      setState(() => _status = e.message);
     } on GoogleSignInException catch (e) {
       if (e.code != GoogleSignInExceptionCode.canceled) {
-        setState(() => _status = 'Sign-in failed. Please try again.');
+        // Show the real reason (e.g. a missing client ID or a SHA-1
+        // mismatch) instead of a generic failure.
+        final detail = e.description;
+        setState(() => _status = detail != null && detail.isNotEmpty
+            ? 'Sign-in failed: $detail'
+            : 'Sign-in failed. Please try again.');
       }
     } catch (_) {
       setState(() => _status = 'Sign-in failed. Please try again.');

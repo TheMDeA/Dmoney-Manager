@@ -55,6 +55,13 @@ class DriveBackupService {
   static const _apiBase = 'https://www.googleapis.com/drive/v3';
   static const _uploadBase = 'https://www.googleapis.com/upload/drive/v3';
 
+  /// The Web OAuth client ID from the Google Cloud project (Credentials →
+  /// OAuth client ID → Web application). Credential Manager sign-in on
+  /// Android requires it. A client ID is a public identifier, not a
+  /// secret — it ships inside the APK.
+  static const serverClientId =
+      '762584749177-fcu62fjiqs36e9adqht5e4q0jkop16p1.apps.googleusercontent.com';
+
   /// How many cloud backups to keep; older ones are pruned after upload.
   static const keepCount = 5;
 
@@ -73,7 +80,9 @@ class DriveBackupService {
   }
 
   Future<void> _init() async {
-    await GoogleSignIn.instance.initialize();
+    await GoogleSignIn.instance.initialize(
+      serverClientId: serverClientId.isEmpty ? null : serverClientId,
+    );
     try {
       _account =
           await GoogleSignIn.instance.attemptLightweightAuthentication();
@@ -84,6 +93,10 @@ class DriveBackupService {
 
   /// Interactive sign-in, including consent for Drive access.
   Future<GoogleSignInAccount> signIn() async {
+    if (serverClientId.isEmpty) {
+      throw DriveException(
+          'Google Drive is not configured in this build yet.');
+    }
     await init();
     final account = await GoogleSignIn.instance.authenticate();
     _account = account;
