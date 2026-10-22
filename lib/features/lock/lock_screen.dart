@@ -32,6 +32,18 @@ class _LockScreenState extends ConsumerState<LockScreen>
   );
 
   @override
+  void initState() {
+    super.initState();
+    // Offer biometric unlock as soon as the lock screen appears, like
+    // most finance apps; the fingerprint button below stays for retries.
+    // Silent: with no biometrics enrolled, an error snackbar over the
+    // passcode pad would just be noise.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _biometric(silent: true);
+    });
+  }
+
+  @override
   void dispose() {
     _shake.dispose();
     super.dispose();
@@ -66,11 +78,11 @@ class _LockScreenState extends ConsumerState<LockScreen>
     setState(() => _pin = _pin.substring(0, _pin.length - 1));
   }
 
-  Future<void> _biometric() async {
+  Future<void> _biometric({bool silent = false}) async {
     try {
       final auth = LocalAuthentication();
       if (!await auth.canCheckBiometrics) {
-        _msg('No biometrics enrolled on this device');
+        if (!silent) _msg('No biometrics enrolled on this device');
         return;
       }
       final ok = await auth.authenticate(
@@ -79,7 +91,7 @@ class _LockScreenState extends ConsumerState<LockScreen>
       );
       if (ok && mounted) ref.read(lockedProvider.notifier).unlock();
     } catch (_) {
-      _msg('Biometric unlock failed');
+      if (!silent) _msg('Biometric unlock failed');
     }
   }
 
