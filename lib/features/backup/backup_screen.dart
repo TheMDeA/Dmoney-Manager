@@ -32,6 +32,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   List<DriveBackup>? _driveBackups;
   DateTime? _lastDriveBackupAt;
   bool _driveLoading = true;
+  bool _autoBackup = false;
 
   DriveBackupService get _drive => ref.read(driveBackupServiceProvider);
 
@@ -47,11 +48,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       final backups =
           _drive.isSignedIn ? await _drive.listBackups() : null;
       final last = await _drive.lastBackupAt();
+      final auto = await _drive.autoBackupEnabled();
       if (!mounted) return;
       setState(() {
         _driveAccount = _drive.currentAccount;
         _driveBackups = backups;
         _lastDriveBackupAt = last;
+        _autoBackup = auto;
         _driveLoading = false;
       });
     } catch (_) {
@@ -151,9 +154,46 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         const SizedBox(height: 8),
         Text(
           'Backups are stored in a private app folder in your Drive — '
-          'only this app can see them. The 5 most recent are kept.',
+          'only this app can see them. The 3 most recent are kept.',
           style: TextStyle(color: context.textMuted, height: 1.5),
         ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Automatically backup',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Backup to Google Drive when entering and exiting '
+                    'the application.',
+                    style:
+                        TextStyle(color: context.textMuted, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: _autoBackup,
+              onChanged: _busy ? null : (v) => _setAutoBackup(db, v),
+            ),
+          ],
+        ),
+        if (_autoBackup) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Warning: This will overwrite the existing auto backup '
+            'file every time a backup occurs.',
+            style: TextStyle(color: context.textMuted, height: 1.4),
+          ),
+        ],
         const SizedBox(height: 12),
         if (_driveLoading)
           const Padding(
@@ -162,7 +202,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           )
         else if (_driveAccount == null) ...[
           OutlinedButton.icon(
-            onPressed: _busy ? null : _signInToDrive,
+            onPressed: _busy ? null : () => _signInToDrive(db),
             icon: const Icon(Icons.login_outlined),
             label: const Text('Sign in with Google'),
           ),
@@ -209,7 +249,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.folder_zip_outlined),
                   title: Text(formatDateTime(backup.createdAt.toLocal())),
-                  subtitle: Text(_formatSize(backup.sizeBytes)),
+                  subtitle: Text(
+                    backup.name == DriveBackupService.autoFileName
+                        ? 'Auto backup · ${_formatSize(backup.sizeBytes)}'
+                        : _formatSize(backup.sizeBytes),
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -242,11 +286,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
-  Future<void> _signInToDrive() async {
+  /// Signs in; returns false when the user cancels or it fails.
+  Future<bool> _signInToDrive(AppDatabase db) async {
     setState(() => _status = null);
     try {
       await _drive.signIn();
       await _loadDrive();
+      if (_autoBackup) await _runAutoBackupNow(db);
+      return true;
     } on DriveException catch (e) {
       setState(() => _status = e.message);
     } on GoogleSignInException catch (e) {
@@ -261,15 +308,56 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     } catch (_) {
       setState(() => _status = 'Sign-in failed. Please try again.');
     }
+    return false;
+  }
+
+  Future<void> _setAutoBackup(AppDatabase db, bool value) async {
+    if (value && !_drive.isSignedIn) {
+      // Auto backup needs a session: enabling it starts sign-in. If
+      // sign-in doesn't complete, the toggle stays off.
+      if (!await _signInToDrive(db)) return;
+    }
+    await _drive.setAutoBackupEnabled(value);
+    if (!mounted) return;
+    setState(() => _autoBackup = value);
+    if (value && _drive.isSignedIn) await _runAutoBackupNow(db);
+  }
+
+  /// Immediate auto backup with user feedback (the lifecycle-triggered
+  /// ones run silently in the service).
+  Future<void> _runAutoBackupNow(AppDatabase db) async {
+    setState(() {
+      _busy = true;
+      _status = 'Backing up to Google Drive…';
+    });
+    try {
+      final backup = await _drive.backUpAuto(db);
+      final backups = await _drive.listBackups();
+      if (!mounted) return;
+      setState(() {
+        _driveBackups = backups;
+        _lastDriveBackupAt = backup.createdAt;
+        _status = 'Backup saved to Google Drive.';
+      });
+    } on DriveException catch (e) {
+      setState(() => _status = e.message);
+    } catch (_) {
+      setState(() => _status = 'Drive backup failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _signOutOfDrive() async {
     await _drive.signOut();
+    // Signing out also ends auto backup — it needs the session.
+    await _drive.setAutoBackupEnabled(false);
     if (!mounted) return;
     setState(() {
       _driveAccount = null;
       _driveBackups = null;
       _lastDriveBackupAt = null;
+      _autoBackup = false;
       _status = null;
     });
   }

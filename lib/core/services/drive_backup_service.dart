@@ -30,9 +30,12 @@ class DriveBackup {
     return DriveBackup(
       id: json['id'] as String,
       name: json['name'] as String,
-      createdAt:
-          DateTime.tryParse(json['createdTime'] as String? ?? '') ??
-              DateTime.fromMillisecondsSinceEpoch(0),
+      // modifiedTime, not createdTime: an overwritten auto backup keeps
+      // its original createdTime but a fresh modifiedTime.
+      createdAt: DateTime.tryParse(json['modifiedTime'] as String? ??
+              json['createdTime'] as String? ??
+              '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
       sizeBytes: int.tryParse(json['size'] as String? ?? '') ?? 0,
     );
   }
@@ -63,18 +66,27 @@ class DriveBackupService {
       '762584749177-fcu62fjiqs36e9adqht5e4q0jkop16p1.apps.googleusercontent.com';
 
   /// How many cloud backups to keep; older ones are pruned after upload.
-  static const keepCount = 5;
+  static const keepCount = 3;
+
+  /// Fixed name of the auto-backup file. Auto backups overwrite this
+  /// single file instead of adding to the manual backup history.
+  static const autoFileName = 'dmoney-autobackup.zip';
 
   static const _lastBackupKey = 'drive_last_backup_at';
+  static const _autoBackupKey = 'drive_auto_backup';
 
   GoogleSignInAccount? _account;
   Future<void>? _initFuture;
+  bool _autoRunning = false;
+  DateTime? _lastAutoAt;
 
   GoogleSignInAccount? get currentAccount => _account;
   bool get isSignedIn => _account != null;
 
-  /// One-time SDK setup + a silent attempt to restore the previous
-  /// sign-in. Safe to call repeatedly.
+  /// One-time SDK setup + a silent restore of the previous sign-in, so
+  /// the Google Drive session survives the app being closed. Restoring
+  /// never shows auth UI — the sign-in prompt only ever appears when the
+  /// user taps the sign-in button. Safe to call repeatedly.
   Future<void> init() {
     return _initFuture ??= _init();
   }
@@ -89,6 +101,17 @@ class DriveBackupService {
     } catch (_) {
       _account = null;
     }
+  }
+
+  /// Whether the "Automatically backup" setting is on.
+  Future<bool> autoBackupEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_autoBackupKey) ?? false;
+  }
+
+  Future<void> setAutoBackupEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_autoBackupKey, value);
   }
 
   /// Interactive sign-in, including consent for Drive access.
@@ -134,15 +157,59 @@ class DriveBackupService {
     await init();
     final file = await BackupService.createBackup(db);
     try {
-      final backup = await _upload(file);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          _lastBackupKey, backup.createdAt.toIso8601String());
+      final backup = await _createFile(file, backupFileName(DateTime.now()));
+      await _markBackedUp(backup);
       await _prune();
       return backup;
     } finally {
       if (await file.exists()) await file.delete();
     }
+  }
+
+  /// Auto backup: uploads a fresh zip over the single fixed-name auto
+  /// file, overwriting the previous one.
+  Future<DriveBackup> backUpAuto(AppDatabase db) async {
+    await init();
+    final file = await BackupService.createBackup(db);
+    try {
+      final existing = findAutoBackup(await listBackups());
+      final backup = existing == null
+          ? await _createFile(file, autoFileName)
+          : await _updateFile(existing.id, file);
+      await _markBackedUp(backup);
+      return backup;
+    } finally {
+      if (await file.exists()) await file.delete();
+    }
+  }
+
+  /// Runs an auto backup when the setting is on and a Google session is
+  /// available; otherwise does nothing. Never prompts for auth and never
+  /// throws — auto backups must not disturb app startup or exit.
+  Future<void> maybeAutoBackup(AppDatabase db) async {
+    if (_autoRunning) return;
+    final last = _lastAutoAt;
+    if (last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 60)) {
+      return;
+    }
+    try {
+      await init();
+      if (!await autoBackupEnabled() || !isSignedIn) return;
+      _autoRunning = true;
+      await backUpAuto(db);
+      _lastAutoAt = DateTime.now();
+    } catch (_) {
+      // Silent by design.
+    } finally {
+      _autoRunning = false;
+    }
+  }
+
+  Future<void> _markBackedUp(DriveBackup backup) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        _lastBackupKey, backup.createdAt.toIso8601String());
   }
 
   Future<DateTime?> lastBackupAt() async {
@@ -151,9 +218,8 @@ class DriveBackupService {
     return raw == null ? null : DateTime.tryParse(raw);
   }
 
-  Future<DriveBackup> _upload(File file) async {
+  Future<DriveBackup> _createFile(File file, String name) async {
     final headers = await _headers(promptIfNecessary: true);
-    final name = backupFileName(DateTime.now());
     final bytes = await file.readAsBytes();
 
     const boundary = 'dmoney_backup_boundary';
@@ -174,12 +240,29 @@ class DriveBackupService {
 
     final response = await http.post(
       Uri.parse('$_uploadBase/files?uploadType=multipart'
-          '&fields=id,name,createdTime,size'),
+          '&fields=id,name,createdTime,modifiedTime,size'),
       headers: {
         ...headers,
         'Content-Type': 'multipart/related; boundary=$boundary',
       },
       body: body,
+    );
+    if (response.statusCode != 200) {
+      throw DriveException(_errorMessage(response, 'Upload failed'));
+    }
+    return DriveBackup.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  /// Replaces the contents of an existing Drive file (media upload).
+  Future<DriveBackup> _updateFile(String id, File file) async {
+    final headers = await _headers();
+    final bytes = await file.readAsBytes();
+    final response = await http.patch(
+      Uri.parse('$_uploadBase/files/$id?uploadType=media'
+          '&fields=id,name,createdTime,modifiedTime,size'),
+      headers: {...headers, 'Content-Type': 'application/zip'},
+      body: bytes,
     );
     if (response.statusCode != 200) {
       throw DriveException(_errorMessage(response, 'Upload failed'));
@@ -199,10 +282,11 @@ class DriveBackupService {
     } on DriveException {
       return [];
     }
-    final query = Uri.encodeQueryComponent("name contains 'dmoney-backup-'");
+    final query = Uri.encodeQueryComponent(
+        "name contains 'dmoney-backup-' or name = '$autoFileName'");
     final response = await http.get(
       Uri.parse('$_apiBase/files?spaces=appDataFolder&q=$query'
-          '&fields=files(id,name,createdTime,size)'
+          '&fields=files(id,name,createdTime,modifiedTime,size)'
           '&orderBy=createdTime desc'),
       headers: headers,
     );
@@ -249,13 +333,26 @@ class DriveBackupService {
 
   Future<void> _prune() async {
     final backups = await listBackups();
-    for (final old in backupsToPrune(backups)) {
+    // The auto backup file lives outside the manual history.
+    final manuals = [
+      for (final b in backups)
+        if (b.name != autoFileName) b,
+    ];
+    for (final old in backupsToPrune(manuals)) {
       try {
         await deleteBackup(old.id);
       } catch (_) {
         // Pruning is best-effort; the new backup is already safe.
       }
     }
+  }
+
+  /// The auto backup in [backups], or null when none exists yet.
+  static DriveBackup? findAutoBackup(List<DriveBackup> backups) {
+    for (final b in backups) {
+      if (b.name == autoFileName) return b;
+    }
+    return null;
   }
 
   /// Backups beyond the newest [keep] (input order doesn't matter).

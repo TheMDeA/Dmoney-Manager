@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/services/auto_backup_listener.dart';
 import 'core/services/quick_add.dart';
 import 'core/theme/app_accents.dart';
 import 'core/theme/app_theme.dart';
@@ -47,8 +48,10 @@ class MoneyManagerApp extends ConsumerWidget {
           builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
             value:
                 AppTheme.overlayStyle(Theme.of(context).brightness),
-            // Binds the launcher-shortcut / Quick Settings tile channel.
-            child: QuickAddListener(child: child!),
+            // Binds the launcher-shortcut / Quick Settings tile channel,
+            // and runs Drive auto backups on app enter/exit.
+            child: QuickAddListener(
+                child: AutoBackupListener(child: child!)),
           ),
           home: accounts.when(
             // No accounts yet -> first-launch onboarding. Existing installs that

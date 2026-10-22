@@ -36,6 +36,27 @@ void main() {
     });
   });
 
+  group('findAutoBackup', () {
+    test('finds the fixed-name auto file among manual backups', () {
+      final backups = [
+        _b('a', '2026-10-21'),
+        DriveBackup(
+          id: 'auto',
+          name: DriveBackupService.autoFileName,
+          createdAt: DateTime.parse('2026-10-22'),
+          sizeBytes: 10,
+        ),
+      ];
+      expect(DriveBackupService.findAutoBackup(backups)?.id, 'auto');
+    });
+
+    test('null when no auto file exists', () {
+      expect(
+          DriveBackupService.findAutoBackup([_b('a', '2026-10-21')]),
+          isNull);
+    });
+  });
+
   group('DriveBackup.fromJson', () {
     test('parses id, name, createdTime and string size', () {
       final b = DriveBackup.fromJson({
@@ -47,6 +68,16 @@ void main() {
       expect(b.id, 'xyz');
       expect(b.sizeBytes, 2048);
       expect(b.createdAt, DateTime.parse('2026-10-22T01:50:03.000Z'));
+    });
+
+    test('prefers modifiedTime over createdTime (overwritten files)', () {
+      final b = DriveBackup.fromJson({
+        'id': 'x',
+        'name': 'n',
+        'createdTime': '2026-10-20T01:00:00.000Z',
+        'modifiedTime': '2026-10-22T01:00:00.000Z',
+      });
+      expect(b.createdAt, DateTime.parse('2026-10-22T01:00:00.000Z'));
     });
 
     test('missing size and bad date fall back safely', () {
