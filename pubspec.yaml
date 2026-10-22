@@ -1,7 +1,7 @@
 name: dmoney_manager
 description: Dmoney Manager — a simple, modern money manager app (Flutter).
 publish_to: 'none'
-version: 2.6.3+54
+version: 2.6.4+55
 
 environment:
   sdk: ^3.8.0

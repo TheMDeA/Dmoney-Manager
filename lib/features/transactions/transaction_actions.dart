@@ -80,6 +80,13 @@ Future<void> deleteTransactionFlow(
   // Capture the messenger before [afterDelete] potentially pops this page.
   final messenger = ScaffoldMessenger.of(context);
   final photos = await db.watchPhotos(t.id).first;
+  // A transfer's fee rows are deleted with it — snapshot them (and their
+  // photos) so undo can bring them back too.
+  final feeRows =
+      t.kind == 'transfer' ? await db.transferFeeRows(t.id) : <Transaction>[];
+  final feePhotos = <int, List<TransactionPhoto>>{
+    for (final f in feeRows) f.id: await db.watchPhotos(f.id).first,
+  };
   await db.deleteTransaction(t.id);
   afterDelete?.call();
   // Don't let rapid deletes queue up a seemingly endless snackbar.
@@ -93,6 +100,9 @@ Future<void> deleteTransactionFlow(
         onPressed: () async {
           Haptics.light();
           await db.restoreTransaction(t, photos);
+          for (final f in feeRows) {
+            await db.restoreTransaction(f, feePhotos[f.id] ?? const []);
+          }
           messenger.clearSnackBars();
           messenger.showSnackBar(
             const SnackBar(

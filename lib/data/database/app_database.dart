@@ -56,6 +56,7 @@ class Categories extends Table {
 @TableIndex(name: 'idx_transactions_category', columns: {#categoryId})
 @TableIndex(name: 'idx_transactions_debt', columns: {#debtId})
 @TableIndex(name: 'idx_transactions_debt_payment', columns: {#debtPaymentId})
+@TableIndex(name: 'idx_transactions_transfer', columns: {#transferId})
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get walletId => integer().references(Wallets, #id)();
@@ -78,6 +79,9 @@ class Transactions extends Table {
   /// Set when this row was generated from a recurring rule.
   IntColumn get recurringId =>
       integer().nullable().references(RecurringTransactions, #id)();
+  /// For a transfer-fee expense row: the transfer it belongs to.
+  IntColumn get transferId =>
+      integer().nullable().references(Transactions, #id)();
 }
 
 /// Receipt / record photos attached to a transaction ("Save Photos").
@@ -245,7 +249,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -343,6 +347,10 @@ class AppDatabase extends _$AppDatabase {
                   .write(WalletsCompanion(sortOrder: Value(i)));
             }
           }
+          if (from < 14) {
+            await m.addColumn(transactions, transactions.transferId);
+            await m.createIndex(idxTransactionsTransfer);
+          }
         },
       );
 
@@ -367,6 +375,27 @@ class AppDatabase extends _$AppDatabase {
               .get())
           .first
           .id;
+
+  /// The expense category transfer fees are booked under. Created on
+  /// first use — existing installs never re-run the seed.
+  Future<int> get feeCategoryId async {
+    final existing = await (select(categories)
+          ..where((c) =>
+              c.kind.equals('expense') & c.name.equals('Transfer fee')))
+        .get();
+    if (existing.isNotEmpty) return existing.first.id;
+    return into(categories).insert(CategoriesCompanion.insert(
+      name: 'Transfer fee',
+      iconKey: const Value('receipt'),
+      colorHex: const Value('#9CA3AF'),
+      kind: 'expense',
+    ));
+  }
+
+  /// The fee expense rows linked to a transfer (usually zero or one).
+  Future<List<Transaction>> transferFeeRows(int transferId) =>
+      (select(transactions)..where((t) => t.transferId.equals(transferId)))
+          .get();
 
   /// Signed wallet delta for a debt's creation movement:
   /// lending (receivable) takes money out, borrowing (payable) brings it in.
@@ -774,26 +803,43 @@ class AppDatabase extends _$AppDatabase {
 
   /// Records a wallet-to-wallet transfer and moves the balances.
   /// The row uses the hidden "Transfer" category and kind 'transfer'.
+  /// A [fee] above zero is booked as an extra expense on the source
+  /// wallet (its own row, linked back via `transferId`) so it shows up
+  /// in expenses and is reversed together with the transfer.
   Future<int> addTransfer({
     required int fromWalletId,
     required int toWalletId,
     required int amount,
     String note = '',
     DateTime? date,
+    int fee = 0,
   }) {
     return transaction(() async {
       final catId = await transferCategoryId;
+      final when = date ?? DateTime.now();
       final id = await into(transactions).insert(TransactionsCompanion.insert(
         walletId: fromWalletId,
         categoryId: catId,
         kind: 'transfer',
         amount: amount,
         note: Value(note),
-        date: date ?? DateTime.now(),
+        date: when,
         toWalletId: Value(toWalletId),
       ));
       await adjustWalletBalance(fromWalletId, -amount);
       await adjustWalletBalance(toWalletId, amount);
+      if (fee > 0) {
+        await into(transactions).insert(TransactionsCompanion.insert(
+          walletId: fromWalletId,
+          categoryId: await feeCategoryId,
+          kind: 'expense',
+          amount: fee,
+          note: const Value('Transfer fee'),
+          date: when,
+          transferId: Value(id),
+        ));
+        await adjustWalletBalance(fromWalletId, -fee);
+      }
       return id;
     });
   }
@@ -817,6 +863,18 @@ class AppDatabase extends _$AppDatabase {
       final t = await (select(transactions)..where((e) => e.id.equals(id)))
           .getSingleOrNull();
       if (t == null) return;
+      // A transfer takes its fee expense rows with it, so the source
+      // wallet is made whole again.
+      if (t.kind == 'transfer') {
+        for (final feeRow in await transferFeeRows(id)) {
+          await _reverseBalanceEffect(feeRow);
+          await (delete(transactionPhotos)
+                ..where((p) => p.transactionId.equals(feeRow.id)))
+              .go();
+          await (delete(transactions)..where((e) => e.id.equals(feeRow.id)))
+              .go();
+        }
+      }
       await _reverseBalanceEffect(t);
       await (delete(transactionPhotos)..where((p) => p.transactionId.equals(id)))
           .go();

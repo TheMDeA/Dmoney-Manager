@@ -136,6 +136,17 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         t: d.transaction,
         photos: await db.watchPhotos(d.transaction.id).first,
       ));
+      // Transfers take their fee rows with them on delete; snapshot
+      // those too (right after the transfer, so undo restores the
+      // transfer before the rows that reference it).
+      if (d.transaction.kind == 'transfer') {
+        for (final f in await db.transferFeeRows(d.transaction.id)) {
+          backup.add((
+            t: f,
+            photos: await db.watchPhotos(f.id).first,
+          ));
+        }
+      }
     }
     for (final b in backup) {
       await db.deleteTransaction(b.t.id);

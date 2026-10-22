@@ -25,6 +25,7 @@ class TransferSheet extends ConsumerStatefulWidget {
 
 class _TransferSheetState extends ConsumerState<TransferSheet> {
   final _amountCtrl = TextEditingController();
+  final _feeCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   // A Scaffold inside the sheet route registers with the root
   // ScaffoldMessenger, so snackbars render on the front layer, above
@@ -39,6 +40,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
 
   int? _fromId;
   int? _toId;
+  bool _feeEnabled = false;
   int _swaps = 0; // drives the swap button's rotation animation
   bool _saving = false;
   bool _success = false;
@@ -73,6 +75,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   @override
   void dispose() {
     _amountCtrl.dispose();
+    _feeCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -214,6 +217,27 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                 labelText: 'Description (optional)',
               ),
             ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Expanded(child: FormSectionLabel('Fee')),
+                Switch(
+                  value: _feeEnabled,
+                  onChanged: (v) {
+                    Haptics.select();
+                    setState(() => _feeEnabled = v);
+                  },
+                ),
+              ],
+            ),
+            if (_feeEnabled) ...[
+              FormAmountEntry(controller: _feeCtrl),
+              const SizedBox(height: 6),
+              Text(
+                'Charged to the From wallet as an expense.',
+                style: TextStyle(color: context.textMuted, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 8),
           ],
         ),
@@ -229,6 +253,11 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
       _snack('Enter an amount and two different wallets');
       return;
     }
+    final fee = _feeEnabled ? parseAmountInput(_feeCtrl.text) : 0;
+    if (_feeEnabled && fee <= 0) {
+      _snack('Enter a fee amount, or turn the fee off');
+      return;
+    }
     Haptics.medium();
     setState(() => _saving = true);
     try {
@@ -239,6 +268,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
             toWalletId: _toId!,
             amount: amount,
             note: _noteCtrl.text.trim(),
+            fee: fee,
           );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -253,7 +283,10 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
     if (!mounted) return;
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Transferred ${formatMoney(amount)}')),
+      SnackBar(
+          content: Text(fee > 0
+              ? 'Transferred ${formatMoney(amount)} (fee ${formatMoney(fee)})'
+              : 'Transferred ${formatMoney(amount)}')),
     );
   }
 }
