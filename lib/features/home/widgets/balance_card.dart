@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/haptics.dart';
+import '../../../core/utils/home_range.dart';
 import '../../../core/widgets/count_up_balance.dart';
 import '../../../core/widgets/count_up_money.dart';
 import '../../../core/widgets/glass_card.dart';
@@ -188,16 +189,6 @@ class BalanceCard extends ConsumerWidget {
     );
   }
 
-  (DateTime, DateTime) _rangeBounds(String range) {
-    final now = DateTime.now();
-    final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
-    switch (range) {
-      case 'day':
-        return (DateTime(now.year, now.month, now.day), end);
-      case 'week':
-        return (end.subtract(const Duration(days: 7)), end);
-      default:
-        return (end.subtract(const Duration(days: 30)), end);
-    }
-  }
+  (DateTime, DateTime) _rangeBounds(String range) =>
+      homeRangeBounds(range, DateTime.now());
 }
