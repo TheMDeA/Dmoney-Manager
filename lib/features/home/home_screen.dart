@@ -121,7 +121,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             delay: Duration(
                               milliseconds: (i * 60).clamp(0, 300),
                             ),
-                            child: TransactionTile(details: items[i]),
+                            child: TransactionTile(
+                                details: items[i], showDate: true),
                           ),
                       ],
                     );

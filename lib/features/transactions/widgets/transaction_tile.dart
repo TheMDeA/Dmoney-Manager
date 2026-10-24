@@ -19,6 +19,9 @@ import '../../debts/debt_detail_screen.dart';
 /// and amount with the entry time (HH.mm).
 /// Transfers render with a "From → To" subtitle.
 /// Debt-linked entries show a debt badge and open the debt detail instead.
+/// With [showDate], the subtitle also carries the entry date
+/// ("24 Oct 2026 · Wallet") — used by Home recents, which has no date
+/// headers; the grouped lists leave it off.
 ///
 /// Swipe right to reveal Edit, swipe left to reveal Delete — tapping the
 /// revealed action runs it (two steps, so a stray swipe can't fire anything).
@@ -33,6 +36,7 @@ class TransactionTile extends ConsumerWidget {
     this.selectionMode = false,
     this.selected = false,
     this.onToggleSelected,
+    this.showDate = false,
   });
 
   final TransactionWithDetails details;
@@ -47,6 +51,9 @@ class TransactionTile extends ConsumerWidget {
   /// Toggles this row's selection. Used for tap (in selection mode) and
   /// long-press (enters selection mode).
   final VoidCallback? onToggleSelected;
+
+  /// Append the entry date to the subtitle line.
+  final bool showDate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -158,7 +165,9 @@ class TransactionTile extends ConsumerWidget {
                     _transferSubtitle(context, ref, t)
                   else
                     Text(
-                      details.wallet.name,
+                      showDate
+                          ? '${formatDate(t.date)} · ${details.wallet.name}'
+                          : details.wallet.name,
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context)
@@ -233,9 +242,12 @@ class TransactionTile extends ConsumerWidget {
         .colorScheme
         .onSurface
         .withValues(alpha: 0.55);
+    final prefix = showDate ? '${formatDate(t.date)} · ' : '';
     if (t.toWalletId == null) {
-      return Text(details.wallet.name,
-          style: TextStyle(fontSize: 12, color: muted));
+      return Text('$prefix${details.wallet.name}',
+          style: TextStyle(fontSize: 12, color: muted),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis);
     }
     return FutureBuilder<Wallet?>(
       future: ref
@@ -243,8 +255,10 @@ class TransactionTile extends ConsumerWidget {
           .getWalletById(t.toWalletId!),
       builder: (context, snap) {
         final to = snap.data?.name ?? '…';
-        return Text('${details.wallet.name} → $to',
-            style: TextStyle(fontSize: 12, color: muted));
+        return Text('$prefix${details.wallet.name} → $to',
+            style: TextStyle(fontSize: 12, color: muted),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis);
       },
     );
   }

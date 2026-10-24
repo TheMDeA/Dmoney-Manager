@@ -6,6 +6,8 @@
 
 - Hiding the Home balance now stays hidden when switching tabs, and across app restarts.
 
+- Recent transactions on Home now show the date next to the wallet name.
+
 ### Fixed
 
 - Deleting a category no longer hides its transactions: they are moved to Uncategorized instead, so they stay visible in every list.
