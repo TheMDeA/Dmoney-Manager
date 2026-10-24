@@ -191,7 +191,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
       builder: (_) => AlertDialog(
         title: Text('Delete "${c.name}"?'),
         content: const Text(
-            'Its subcategories are removed too. Transactions using it keep their history.'),
+            'Its subcategories are removed too. Transactions using it are moved to Uncategorized.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),

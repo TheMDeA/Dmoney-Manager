@@ -313,7 +313,7 @@ class _CategoryFormScreenState
       builder: (_) => AlertDialog(
         title: Text('Delete "${s.name}"?'),
         content:
-            const Text('Transactions using it keep their history.'),
+            const Text('Transactions using it are moved to Uncategorized.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),

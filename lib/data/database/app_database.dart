@@ -397,6 +397,26 @@ class AppDatabase extends _$AppDatabase {
       (select(transactions)..where((t) => t.transferId.equals(transferId)))
           .get();
 
+  /// Fallback category that transactions, budgets, rules and templates
+  /// are reassigned to when their category is deleted, so nothing
+  /// silently vanishes from the joined lists. Same hidden-category
+  /// pattern as Debt/Adjustment: pickers and Manage Categories filter
+  /// by kind 'income'/'expense', so kind 'uncategorized' keeps it out
+  /// of sight, while unfiltered maps (Stats, Structure, Budgets) still
+  /// resolve it to the name 'Uncategorized'.
+  Future<int> get uncategorizedCategoryId async {
+    final existing = await (select(categories)
+          ..where((c) => c.kind.equals('uncategorized')))
+        .get();
+    if (existing.isNotEmpty) return existing.first.id;
+    return into(categories).insert(CategoriesCompanion.insert(
+      name: 'Uncategorized',
+      iconKey: const Value('other'),
+      colorHex: const Value('#9CA3AF'),
+      kind: 'uncategorized',
+    ));
+  }
+
   /// Signed wallet delta for a debt's creation movement:
   /// lending (receivable) takes money out, borrowing (payable) brings it in.
   int _debtWalletEffect(String direction, int amount) =>
@@ -1117,8 +1137,41 @@ class AppDatabase extends _$AppDatabase {
 
   Future<int> addCategory(CategoriesCompanion entry) => into(categories).insert(entry);
 
+  /// Deletes a category and its subcategories. Every row that pointed
+  /// at them — transactions, budgets, recurring rules, templates — is
+  /// reassigned to the 'Uncategorized' fallback first, so the delete
+  /// can never orphan history out of the joined lists (the old code
+  /// deleted the rows and left orphans that inner joins dropped
+  /// silently). Learned keyword rows for the deleted categories are
+  /// dropped: they are derived data, and suggesting a dead category
+  /// would be worse than relearning. The fallback itself is immortal:
+  /// deleting it is a no-op, since reassigning to it and then deleting
+  /// it would orphan everything again.
   Future<void> deleteCategory(int id) {
     return transaction(() async {
+      final fallbackId = await uncategorizedCategoryId;
+      if (id == fallbackId) return;
+      final subIds = await (select(categories)
+            ..where((c) => c.parentId.equals(id)))
+          .map((c) => c.id)
+          .get();
+      final deadIds = [id, ...subIds];
+      await (update(transactions)
+            ..where((t) => t.categoryId.isIn(deadIds)))
+          .write(TransactionsCompanion(categoryId: Value(fallbackId)));
+      await (update(budgets)..where((b) => b.categoryId.isIn(deadIds)))
+          .write(BudgetsCompanion(categoryId: Value(fallbackId)));
+      await (update(recurringTransactions)
+            ..where((r) => r.categoryId.isIn(deadIds)))
+          .write(
+              RecurringTransactionsCompanion(categoryId: Value(fallbackId)));
+      await (update(transactionTemplates)
+            ..where((t) => t.categoryId.isIn(deadIds)))
+          .write(
+              TransactionTemplatesCompanion(categoryId: Value(fallbackId)));
+      await (delete(categoryKeywords)
+            ..where((k) => k.categoryId.isIn(deadIds)))
+          .go();
       await (delete(categories)..where((c) => c.parentId.equals(id))).go();
       await (delete(categories)..where((c) => c.id.equals(id))).go();
     });
