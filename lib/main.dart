@@ -28,7 +28,12 @@ Future<void> main() async {
     if (generated > 0) {
       await NotificationService.showRecurringGenerated(count: generated);
     }
-  } catch (_) {}
+  } catch (e, st) {
+    // Never fatal — but never silent either: a failure here means
+    // recurring transactions did not post, and that must be visible
+    // in the logs instead of vanishing.
+    debugPrint('Recurring generation failed: $e\n$st');
+  }
   runApp(
     ProviderScope(
       overrides: [databaseProvider.overrideWithValue(db)],

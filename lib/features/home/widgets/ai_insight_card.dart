@@ -106,8 +106,13 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
+    // The insight rules never look back more than two months, so don't
+    // stream the entire history — bound it to the start of that day
+    // (the rules apply their own precise cutoffs on top).
+    final now = DateTime.now();
+    final insightFrom = DateTime(now.year, now.month - 2, now.day);
     return StreamBuilder<List<TransactionWithDetails>>(
-      stream: db.watchTransactions(accountId: accountId),
+      stream: db.watchTransactions(accountId: accountId, from: insightFrom),
       builder: (context, snap) {
         final all = snap.data ?? const <TransactionWithDetails>[];
         final eligible = _eligibleInsights(all);
