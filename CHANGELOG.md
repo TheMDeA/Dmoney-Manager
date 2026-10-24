@@ -4,6 +4,8 @@
 
 - The Stats month selector stays pinned at the top while scrolling, so the month can be changed from anywhere on the screen.
 
+- Hiding the Home balance now stays hidden when switching tabs, and across app restarts.
+
 ### Fixed
 
 - Deleting a category no longer hides its transactions: they are moved to Uncategorized instead, so they stay visible in every list.

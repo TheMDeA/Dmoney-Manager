@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/services/app_prefs.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/sliding_segmented.dart';
 import '../../core/services/receipt_ocr.dart';
@@ -37,7 +38,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  bool _balanceHidden = false;
+  // Restored from prefs: plain screen state used to reset whenever the
+  // shell's PageView disposed Home after jumping to a distant tab.
+  bool _balanceHidden = AppPrefs.balanceHidden;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onToggleHidden: () {
                     Haptics.light();
                     setState(() => _balanceHidden = !_balanceHidden);
+                    AppPrefs.setBalanceHidden(_balanceHidden);
                   },
                 ),
                 const SizedBox(height: 12),

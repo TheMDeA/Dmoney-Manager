@@ -28,6 +28,15 @@ class AppPrefs {
   static Future<void> setLockEnabled(bool v) =>
       _p.setBool('lockEnabled', v);
 
+  // ------------------------------ balance --------------------------------
+  /// Whether the Home balance amounts are hidden. Persisted (not just
+  /// screen state) because the shell's PageView disposes tabs more
+  /// than one page away, which used to reset the eye toggle every
+  /// time the user visited Stats, Budgets or Settings and came back.
+  static bool get balanceHidden => _p.getBool('balanceHidden') ?? false;
+  static Future<void> setBalanceHidden(bool v) =>
+      _p.setBool('balanceHidden', v);
+
   // ------------------------------- haptics --------------------------------
   static bool get hapticsEnabled => _p.getBool('hapticsEnabled') ?? true;
   static Future<void> setHapticsEnabled(bool v) =>
