@@ -536,9 +536,10 @@ class AppDatabase extends _$AppDatabase {
       (select(categories)..where((c) => c.parentId.equals(parentId))).watch();
 
   Stream<List<TransactionWithDetails>> watchTransactions(
-      {int? limit, int? accountId}) {
+      {int? limit, int? accountId, DateTime? from}) {
     final q = _joinedTransactions();
     if (accountId != null) q.where(wallets.accountId.equals(accountId));
+    if (from != null) q.where(transactions.date.isBiggerOrEqualValue(from));
     if (limit != null) q.limit(limit);
     return q.watch().map(_toDetails);
   }
@@ -1519,42 +1520,55 @@ class AppDatabase extends _$AppDatabase {
   /// transactions (linked via transactions.recurringId) and advances each
   /// rule's nextDue. Returns the number of generated transactions.
   /// Called on app start; safe to call repeatedly.
-  Future<int> processDueRecurringTransactions() {
-    return transaction(() async {
-      final now = DateTime.now();
-      final rules = await (select(recurringTransactions)
-            ..where((r) => r.active.equals(true))
-            ..where((r) => r.nextDue.isSmallerOrEqualValue(now)))
-          .get();
-      var generated = 0;
-      for (final rule in rules) {
-        var due = rule.nextDue;
-        var guard = 0;
-        // Catch up on missed occurrences (guarded against runaway rules).
-        while (!due.isAfter(now) &&
-            (rule.endDate == null || !due.isAfter(rule.endDate!)) &&
-            guard < 36) {
-          await into(transactions).insert(TransactionsCompanion.insert(
-            walletId: rule.walletId,
-            categoryId: rule.categoryId,
-            kind: rule.kind,
-            amount: rule.amount,
-            note: Value(rule.note),
-            date: due,
-            recurringId: Value(rule.id),
-          ));
-          await adjustWalletBalance(
-              rule.walletId, rule.kind == 'income' ? rule.amount : -rule.amount);
-          generated++;
-          due = _advanceRecurring(due, rule.frequency);
-          guard++;
-        }
-        await (update(recurringTransactions)
-              ..where((r) => r.id.equals(rule.id)))
-            .write(RecurringTransactionsCompanion(nextDue: Value(due)));
+  ///
+  /// Each rule runs in its own transaction: one broken rule (e.g. pointing
+  /// at a wallet that no longer exists) is logged and skipped — it used to
+  /// abort the shared transaction, silently blocking every other rule on
+  /// every launch. A failed rule keeps its nextDue, so it is retried (and
+  /// re-logged) on the next launch.
+  Future<int> processDueRecurringTransactions() async {
+    final now = DateTime.now();
+    final rules = await (select(recurringTransactions)
+          ..where((r) => r.active.equals(true))
+          ..where((r) => r.nextDue.isSmallerOrEqualValue(now)))
+        .get();
+    var generated = 0;
+    for (final rule in rules) {
+      try {
+        generated += await transaction(() async {
+          var due = rule.nextDue;
+          var count = 0;
+          var guard = 0;
+          // Catch up on missed occurrences (guarded against runaway rules).
+          while (!due.isAfter(now) &&
+              (rule.endDate == null || !due.isAfter(rule.endDate!)) &&
+              guard < 36) {
+            await into(transactions).insert(TransactionsCompanion.insert(
+              walletId: rule.walletId,
+              categoryId: rule.categoryId,
+              kind: rule.kind,
+              amount: rule.amount,
+              note: Value(rule.note),
+              date: due,
+              recurringId: Value(rule.id),
+            ));
+            await adjustWalletBalance(rule.walletId,
+                rule.kind == 'income' ? rule.amount : -rule.amount);
+            count++;
+            due = _advanceRecurring(due, rule.frequency);
+            guard++;
+          }
+          await (update(recurringTransactions)
+                ..where((r) => r.id.equals(rule.id)))
+              .write(RecurringTransactionsCompanion(nextDue: Value(due)));
+          return count;
+        });
+      } catch (e, st) {
+        debugPrint(
+            'processDueRecurringTransactions: rule ${rule.id} failed: $e\n$st');
       }
-      return generated;
-    });
+    }
+    return generated;
   }
 
   DateTime _advanceRecurring(DateTime d, String frequency) =>
