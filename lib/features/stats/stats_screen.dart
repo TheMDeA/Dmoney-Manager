@@ -102,6 +102,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const ScreenHeader(title: 'Stats', tabIndex: 3),
+            // Pinned above the scroll view so the month can be changed
+            // from anywhere on the screen, not just at the top.
+            _monthSelector(context),
             Expanded(
               child: StreamBuilder<List<CategoryTotal>>(
                 stream: _donutStream,
@@ -152,7 +155,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _monthSelector(context),
                                     _overviewSection(context),
                                     SectionHeader(
                                       title: 'Spending by category',
