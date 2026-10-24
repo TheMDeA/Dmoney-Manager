@@ -136,13 +136,6 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                       monthEnd,
                                       accountId,
                                     ),
-                                    const SectionHeader(title: 'Insights'),
-                                    _insightsCard(
-                                      context,
-                                      donutTotals,
-                                      prevTotals,
-                                      cats,
-                                    ),
                                     SectionHeader(
                                       title: 'Spending by category',
                                       action: TextButton(
@@ -157,6 +150,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                       ),
                                     ),
                                     _donut(context, donutTotals, cats),
+                                    const SectionHeader(title: 'Insights'),
+                                    _insightsCard(
+                                      context,
+                                      donutTotals,
+                                      prevTotals,
+                                      cats,
+                                    ),
                                     const SectionHeader(title: 'Last 6 months'),
                                     _bars(context, monthlyTotals),
                                     SectionHeader(
