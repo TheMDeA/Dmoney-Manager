@@ -162,7 +162,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Entrance(child: _donutCard(stats, cats, total)),
+          _donutCard(stats, cats, total),
           const SizedBox(height: 8),
           if (total == 0)
             Entrance(
