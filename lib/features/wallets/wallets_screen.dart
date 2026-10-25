@@ -420,7 +420,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     return GestureDetector(
       onTap: () {
         Haptics.select();
-        // Cascades the card geometry; content crossfades below.
+        // Cascades the card geometry; content fades in below.
         _setFocus(focused ? null : w.id);
       },
       child: ClipRRect(
@@ -477,13 +477,17 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(22, 16, 18, 16),
-                // Crossfade between the compact header and the expanded
-                // content so the inside melts into place while the card
-                // shell glides (instead of popping mid-animation).
+                // No cross-fade here: the compact and expanded layouts
+                // share the wallet name and balance, so fading one out
+                // over the other doubles the text mid-animation (the
+                // ghosting in the focus video). Only the incoming child
+                // is rendered; it fades/scales in while the card shell
+                // glides to its new size.
                 child: AnimatedSwitcher(
                   duration: AppMotion.normal,
                   switchInCurve: AppMotion.enter,
-                  switchOutCurve: AppMotion.exit,
+                  layoutBuilder: (currentChild, _) =>
+                      currentChild ?? const SizedBox.shrink(),
                   transitionBuilder: (child, animation) => FadeTransition(
                     opacity: animation,
                     child: ScaleTransition(
