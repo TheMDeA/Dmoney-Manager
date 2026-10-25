@@ -104,6 +104,18 @@ class AppPrefs {
   static Future<void> setDebtReminders(bool v) =>
       _p.setBool('notifDebtReminders', v);
 
+  static bool get paylaterReminders =>
+      _p.getBool('notifPaylaterReminders') ?? true;
+  static Future<void> setPaylaterReminders(bool v) =>
+      _p.setBool('notifPaylaterReminders', v);
+
+  // ------------------------------ paylater --------------------------------
+  /// Self-imposed paylater freeze: while true, the add-transaction sheet
+  /// blocks new expenses on paylater wallets until the user unfreezes.
+  static bool get paylaterFrozen => _p.getBool('paylaterFrozen') ?? false;
+  static Future<void> setPaylaterFrozen(bool v) =>
+      _p.setBool('paylaterFrozen', v);
+
   /// Fingerprints of subscription detections the user dismissed or
   /// already converted into rules, so the scanner doesn't resurface them.
   static List<String> get dismissedDetections =>

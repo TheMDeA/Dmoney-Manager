@@ -37,6 +37,26 @@ class Wallets extends Table {
   TextColumn get logoTemplate => text().nullable()();
   /// Manual ordering for the Arrange Wallets screen. v13.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// Credit limit for paylater wallets (whole IDR). v15. Named
+  /// `creditLimit` rather than `limit`: `limit` is a SQLite reserved word
+  /// and would make drift generate broken SQL.
+  IntColumn get creditLimit => integer().nullable()();
+
+  /// Day of the month the statement closes (1-31). v15.
+  IntColumn get statementDay => integer().nullable()();
+
+  /// Day of the month payment is due (1-31). v15.
+  IntColumn get dueDay => integer().nullable()();
+
+  /// Monthly interest/fee rate in percent (e.g. 2.5 means 2.5%/month). v15.
+  /// This is a paylater cost rate — never a savings growth rate.
+  RealColumn get interestRateMonthly => real().nullable()();
+
+  /// Annual interest rate in percent (e.g. 4.0 means 4%/year). v16.
+  /// Savings growth for bank/ewallet wallets only; kept separate from
+  /// the paylater monthly cost rate above on purpose.
+  RealColumn get interestRateAnnual => real().nullable()();
 }
 
 /// Expense / income categories; parentId == null means top-level.
@@ -192,6 +212,20 @@ class CategoryKeywords extends Table {
   Set<Column> get primaryKey => {keyword, categoryId};
 }
 
+/// A multi-month paylater purchase: total split into [totalCount] monthly
+/// installments of [installmentAmount]. v15. Progress is tracked by
+/// [paidCount] only — installments are not auto-posted as transactions.
+class InstallmentPlans extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get walletId => integer().references(Wallets, #id)();
+  TextColumn get name => text()();
+  IntColumn get totalAmount => integer()();
+  IntColumn get installmentAmount => integer()();
+  IntColumn get totalCount => integer()();
+  IntColumn get paidCount => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 // ---------------------------------------------------------------------------
 // Joined view model
 // ---------------------------------------------------------------------------
@@ -240,6 +274,7 @@ typedef HourlyTotal = ({String hour, String kind, int total});
   RecurringTransactions,
   TransactionTemplates,
   CategoryKeywords,
+  InstallmentPlans,
 ])
 
 class AppDatabase extends _$AppDatabase {
@@ -249,7 +284,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -350,6 +385,16 @@ class AppDatabase extends _$AppDatabase {
           if (from < 14) {
             await m.addColumn(transactions, transactions.transferId);
             await m.createIndex(idxTransactionsTransfer);
+          }
+          if (from < 15) {
+            await m.addColumn(wallets, wallets.creditLimit);
+            await m.addColumn(wallets, wallets.statementDay);
+            await m.addColumn(wallets, wallets.dueDay);
+            await m.addColumn(wallets, wallets.interestRateMonthly);
+            await m.createTable(installmentPlans);
+          }
+          if (from < 16) {
+            await m.addColumn(wallets, wallets.interestRateAnnual);
           }
         },
       );
@@ -1061,6 +1106,11 @@ class AppDatabase extends _$AppDatabase {
     int initialAmount = 0,
     String colorHex = '#C6FF4A',
     String? logoTemplate,
+    int? creditLimit,
+    int? statementDay,
+    int? dueDay,
+    double? interestRateMonthly,
+    double? interestRateAnnual,
   }) async {
     // Append after the current max so a fresh wallet never collides with
     // an existing manual order (default 0 would tie with the first card).
@@ -1077,6 +1127,11 @@ class AppDatabase extends _$AppDatabase {
       colorHex: Value(colorHex),
       logoTemplate: Value(logoTemplate),
       sortOrder: Value((maxOrder ?? -1) + 1),
+      creditLimit: Value(creditLimit),
+      statementDay: Value(statementDay),
+      dueDay: Value(dueDay),
+      interestRateMonthly: Value(interestRateMonthly),
+      interestRateAnnual: Value(interestRateAnnual),
     ));
   }
 
@@ -1086,6 +1141,13 @@ class AppDatabase extends _$AppDatabase {
     required String kind,
     String? colorHex,
     String? logoTemplate,
+    // Absent means "don't touch"; an explicit Value(null) clears the field.
+    // The wallet form always passes all five, so edits there are exact.
+    Value<int?> creditLimit = const Value.absent(),
+    Value<int?> statementDay = const Value.absent(),
+    Value<int?> dueDay = const Value.absent(),
+    Value<double?> interestRateMonthly = const Value.absent(),
+    Value<double?> interestRateAnnual = const Value.absent(),
   }) =>
       (update(wallets)..where((w) => w.id.equals(id))).write(
         WalletsCompanion(
@@ -1095,8 +1157,49 @@ class AppDatabase extends _$AppDatabase {
           // The form sheet always knows the current template, so a null
           // here genuinely means "no template" and is written as such.
           logoTemplate: Value(logoTemplate),
+          creditLimit: creditLimit,
+          statementDay: statementDay,
+          dueDay: dueDay,
+          interestRateMonthly: interestRateMonthly,
+          interestRateAnnual: interestRateAnnual,
         ),
       );
+
+  // ------------------------- installment plans -------------------------
+
+  Future<int> addInstallmentPlan({
+    required int walletId,
+    required String name,
+    required int totalAmount,
+    required int installmentAmount,
+    required int totalCount,
+  }) =>
+      into(installmentPlans).insert(InstallmentPlansCompanion.insert(
+        walletId: walletId,
+        name: name,
+        totalAmount: totalAmount,
+        installmentAmount: installmentAmount,
+        totalCount: totalCount,
+      ));
+
+  /// Advances a plan by one paid installment, capped at [totalCount].
+  /// No-op for unknown or already-complete plans.
+  Future<void> markInstallmentPaid(int id) async {
+    final plan = await (select(installmentPlans)
+          ..where((p) => p.id.equals(id)))
+        .getSingleOrNull();
+    if (plan == null || plan.paidCount >= plan.totalCount) return;
+    await (update(installmentPlans)..where((p) => p.id.equals(id)))
+        .write(InstallmentPlansCompanion(paidCount: Value(plan.paidCount + 1)));
+  }
+
+  Future<void> deleteInstallmentPlan(int id) =>
+      (delete(installmentPlans)..where((p) => p.id.equals(id))).go();
+
+  Stream<List<InstallmentPlan>> watchInstallmentPlans() =>
+      (select(installmentPlans)
+            ..orderBy([(p) => OrderingTerm.desc(p.createdAt)]))
+          .watch();
 
   /// Deletes a wallet. Returns false when it still has transactions —
   /// those must be moved or deleted first.

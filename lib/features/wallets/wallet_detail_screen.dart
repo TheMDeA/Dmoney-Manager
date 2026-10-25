@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'dart:math' as math;
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +10,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
+import '../../core/utils/interest_projection.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/month_scrubber.dart';
 import '../../core/widgets/skeleton.dart';
@@ -228,6 +231,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               '${transfer.length} transaction${transfer.length == 1 ? '' : 's'}',
               null,
               () => _openTransactions(context, wallet, 'transfer')),
+          if (showGrowthProjection(wallet)) _growthSection(context, wallet),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -290,6 +294,130 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: row,
+    );
+  }
+
+  /// Growth projection for savings wallets with an annual rate set.
+  /// Never rendered for an unset rate (see [showGrowthProjection]), and
+  /// every figure is labeled projected: the model assumes the balance
+  /// and the rate stay unchanged for the whole year, which is an
+  /// estimate, not a promise. No "interest earned this year" actual
+  /// row: the app has no interest income category, so no actual figure
+  /// exists to show — only the projected one.
+  Widget _growthSection(BuildContext context, Wallet wallet) {
+    final rate = wallet.interestRateAnnual!;
+    final curve = projectionCurve(
+      balance: wallet.balance,
+      annualRatePct: rate,
+    );
+    final spots = [
+      for (var i = 0; i < curve.length; i++)
+        FlSpot(i.toDouble(), curve[i].toDouble()),
+    ];
+    final dataMin = curve.reduce(math.min).toDouble();
+    final dataMax = curve.reduce(math.max).toDouble();
+    var pad = (dataMax - dataMin) * 0.12;
+    if (pad <= 0) {
+      pad = dataMax.abs() * 0.1;
+      if (pad <= 0) pad = 1;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Text(
+          'Growth projection',
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: context.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        _statRow('Annual rate', formatAnnualRate(rate), null, null),
+        _statRow(
+            'In 6 months (projected)', formatMoney(curve[6]), null, null),
+        _statRow(
+            'In 12 months (projected)', formatMoney(curve[12]), null, null),
+        _statRow(
+            'Interest in a year (projected)',
+            formatMoney(projectedYearInterest(
+              balance: wallet.balance,
+              annualRatePct: rate,
+            )),
+            AppColors.income,
+            null),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: context.hairline, width: 0.5),
+          ),
+          child: SizedBox(
+            height: 150,
+            child: LineChart(
+              LineChartData(
+                minY: dataMin - pad,
+                maxY: dataMax + pad,
+                lineTouchData: const LineTouchData(enabled: false),
+                gridData: const FlGridData(show: false),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 6,
+                      getTitlesWidget: (v, _) => Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          v == 0
+                              ? 'Now'
+                              : v == 6
+                                  ? '6 mo'
+                                  : '12 mo',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: context.textMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: AppColors.income,
+                    barWidth: 3,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.income.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Estimate only — assumes your balance and rate stay unchanged. '
+          'Not guaranteed.',
+          style: TextStyle(color: context.textMuted, fontSize: 13),
+        ),
+      ],
     );
   }
 
@@ -469,6 +597,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         'bank' => 'account_balance',
         'ewallet' => 'smartphone',
         'credit' => 'credit_card',
+        'paylater' => 'credit_card',
         _ => 'wallet',
       };
 }

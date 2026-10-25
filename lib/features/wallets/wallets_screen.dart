@@ -12,6 +12,7 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
+import '../../core/utils/paylater.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/count_up_money.dart';
 import '../../core/widgets/glass_card.dart';
@@ -21,6 +22,7 @@ import '../transactions/add_transaction_sheet.dart';
 import '../transactions/transfer_sheet.dart';
 import '../../core/widgets/form_sheet.dart';
 import 'arrange_wallets_screen.dart';
+import 'paylater_dashboard_screen.dart';
 import 'wallet_brands.dart';
 import 'wallet_detail_screen.dart';
 import 'wallet_form_sheet.dart';
@@ -76,10 +78,11 @@ class WalletsScreen extends ConsumerWidget {
                     stream: db.watchWallets(accountId: selectedAccount),
                     builder: (context, walSnap) {
                       final wallets = walSnap.data ?? const <Wallet>[];
-                      final total = wallets.fold<int>(
-                        0,
-                        (s, w) => s + w.balance,
-                      );
+                      // Paylater balances are liabilities, never assets:
+                      // they are excluded from the combined total even
+                      // though their cards still appear in the stack below
+                      // (and still count in the "N wallets" line).
+                      final total = combinedBalance(wallets);
                       return StreamBuilder<List<TransactionWithDetails>>(
                         stream: db.watchTransactions(limit: 60),
                         builder: (context, txSnap) {
@@ -160,6 +163,10 @@ class WalletsScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
+                                if (paylaterWallets(wallets).isNotEmpty) ...[
+                                  _paylaterSummaryCard(context, wallets),
+                                  const SizedBox(height: 12),
+                                ],
                                 if (wallets.isEmpty)
                                   EmptyState(
                                     icon: Icons.wallet_outlined,
@@ -185,6 +192,67 @@ class WalletsScreen extends ConsumerWidget {
                     },
                   );
                 },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Summary card for the paylater feature. Sits below the Combined
+  /// balance card — never replacing it, never swipeable — and only
+  /// appears when at least one paylater wallet exists. Tapping it opens
+  /// the full Paylater dashboard.
+  Widget _paylaterSummaryCard(BuildContext context, List<Wallet> wallets) {
+    final outstanding = totalPaylaterOutstanding(wallets);
+    final ratio = paylaterLimitUsedRatio(wallets);
+    final next = nextPaylaterDue(wallets, DateTime.now());
+    return GestureDetector(
+      onTap: () {
+        Haptics.select();
+        PaylaterDashboardScreen.open(context);
+      },
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Paylater',
+                  style: TextStyle(
+                    color: context.textMuted,
+                    fontSize: 13,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 12,
+                  color: context.textMuted,
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Owe ${formatMoney(outstanding)}',
+              style: AppTextStyles.displayBalance.copyWith(
+                fontSize: 24,
+                color: context.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              [
+                if (ratio != null)
+                  '${(ratio * 100).round()}% of limit used',
+                if (next != null)
+                  'Next due: ${next.wallet.name} · ${formatDate(next.dueDate)} · ${formatMoney(paylaterOutstanding(next.wallet))}',
+              ].join(' · '),
+              style: TextStyle(
+                color: context.textMuted,
+                fontSize: 12,
               ),
             ),
           ],
@@ -836,6 +904,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     'bank' => 'Bank account',
     'ewallet' => 'E-wallet',
     'credit' => 'Credit card',
+    'paylater' => 'Paylater',
     _ => kind,
   };
 }

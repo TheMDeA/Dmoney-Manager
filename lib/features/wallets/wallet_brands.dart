@@ -153,6 +153,7 @@ WalletBrand walletBrandForWallet({String? logoTemplate, required String kind}) {
     'bank' => walletBrandForId('bank')!,
     'ewallet' => walletBrandForId('ewallet')!,
     'credit' => walletBrandForId('card')!,
+    'paylater' => walletBrandForId('card')!,
     _ => walletBrandForId('cash')!,
   };
 }

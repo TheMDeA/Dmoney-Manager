@@ -106,4 +106,42 @@ class NotificationService {
     if (!_ready) return;
     await _plugin.cancel(id: debtId);
   }
+
+  /// Paylater due-date reminder, mirroring the debt reminder exactly
+  /// (9:00 AM the day before, same channel, inexact schedule). Ids live in
+  /// the 3000000+ range so they can never clash with debt ids or the
+  /// 1000000+ budget / 2000000 recurring ranges.
+  static Future<void> schedulePaylaterReminder({
+    required int walletId,
+    required String walletName,
+    required int amount,
+    required DateTime dueDate,
+  }) async {
+    if (!_ready) return;
+    final now = tz.TZDateTime.now(tz.local);
+    var when = tz.TZDateTime(
+      tz.local,
+      dueDate.year,
+      dueDate.month,
+      dueDate.day,
+      9,
+    ).subtract(const Duration(days: 1));
+    if (when.isBefore(now)) {
+      when = tz.TZDateTime(tz.local, dueDate.year, dueDate.month, dueDate.day, 9);
+      if (when.isBefore(now)) return;
+    }
+    await _plugin.zonedSchedule(
+      id: 3000000 + walletId,
+      title: 'Paylater due',
+      body: '$walletName bill of ${formatMoney(amount)} is due',
+      scheduledDate: when,
+      notificationDetails: _details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+    );
+  }
+
+  static Future<void> cancelPaylaterReminder(int walletId) async {
+    if (!_ready) return;
+    await _plugin.cancel(id: 3000000 + walletId);
+  }
 }

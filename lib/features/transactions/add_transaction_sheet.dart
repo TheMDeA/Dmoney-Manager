@@ -14,6 +14,7 @@ import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/paylater.dart';
 import '../../core/utils/wallet_resolve.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../core/widgets/shaker.dart';
@@ -92,6 +93,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   DateTime _date = DateTime.now();
   TimeOfDay _time = TimeOfDay.now();
   String? _photoPath;
+
+  /// Tenor picker state for paylater wallets (1x/3x/6x/12x), plus the
+  /// last parsed amount (so typing only rebuilds the quote when the
+  /// amount itself actually changes).
+  int _tenor = 1;
+  int _lastQuoteAmount = -1;
   bool _saving = false;
   bool _success = false;
   String? _descError;
@@ -195,7 +202,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   void _onAmountChanged() {
-    if (_amountError != null) setState(() => _amountError = null);
+    final parsed = parseAmountInput(_amountCtrl.text);
+    if (_amountError != null || parsed != _lastQuoteAmount) {
+      _lastQuoteAmount = parsed;
+      if (mounted) setState(() => _amountError = null);
+    }
   }
 
   /// Inline field error, styled like the description field's error text.
@@ -389,31 +400,51 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 builder: (context, snap) {
                   final wallets = snap.data ?? const <Wallet>[];
                   _walletId = resolveWalletId(wallets, _walletId);
-                  return Shaker(
-                    controller: _walletShake,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final w in wallets)
-                          ChoiceChip(
-                            label: Text(w.name),
-                            selected: _walletId == w.id,
-                            selectedColor: context.accent,
-                            showCheckmark: false,
-                            labelStyle: TextStyle(
-                              color: _walletId == w.id
-                                  ? onAccent(context.accent)
-                                  : Theme.of(context).colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            onSelected: (_) => setState(() {
-                              _walletId = w.id;
-                              _walletError = null;
-                            }),
-                          ),
-                      ],
-                    ),
+                  Wallet? selected;
+                  for (final w in wallets) {
+                    if (w.id == _walletId) selected = w;
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Shaker(
+                        controller: _walletShake,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final w in wallets)
+                              ChoiceChip(
+                                label: Text(w.name),
+                                selected: _walletId == w.id,
+                                selectedColor: context.accent,
+                                showCheckmark: false,
+                                labelStyle: TextStyle(
+                                  color: _walletId == w.id
+                                      ? onAccent(context.accent)
+                                      : Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                onSelected: (_) => setState(() {
+                                  _walletId = w.id;
+                                  _walletError = null;
+                                }),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // Tenor calculator: only for new expenses on a
+                      // paylater wallet, where splitting across months is
+                      // a real decision. The quote is display-only — it
+                      // never creates an installment plan by itself.
+                      if (selected != null &&
+                          selected.kind == 'paylater' &&
+                          _kind == 'expense' &&
+                          !_editing)
+                        _tenorSection(selected),
+                    ],
                   );
                 },
               ),
@@ -708,6 +739,58 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _snack('Filled from "${t.name}"');
   }
 
+  /// Tenor picker + quote for a paylater expense. Flat-monthly-fee math
+  /// from the wallet's own rate; when no rate is set the monthly amount
+  /// is shown without interest and the gap is stated, never filled with
+  /// an invented rate.
+  Widget _tenorSection(Wallet wallet) {
+    const tenors = [1, 3, 6, 12];
+    final amount = parseAmountInput(_amountCtrl.text);
+    final quote = amount > 0
+        ? calcTenor(
+            principal: amount,
+            tenor: _tenor,
+            monthlyRatePercent: wallet.interestRateMonthly,
+          )
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const FormSectionLabel('Pay in installments'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final t in tenors)
+              ChoiceChip(
+                label: Text('${t}x'),
+                selected: _tenor == t,
+                selectedColor: context.accent,
+                showCheckmark: false,
+                labelStyle: TextStyle(
+                  color: _tenor == t
+                      ? onAccent(context.accent)
+                      : Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+                onSelected: (_) => setState(() => _tenor = t),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          quote == null
+              ? 'Enter an amount to see the installment breakdown.'
+              : quote.totalInterest == null
+              ? '${formatMoney(quote.monthlyAmount)}/mo · no monthly rate set on this wallet, so interest isn\'t included'
+              : '${formatMoney(quote.monthlyAmount)}/mo · ${formatMoney(quote.totalInterest!)} interest · ${formatMoney(quote.totalPayable)} total',
+          style: TextStyle(color: context.textMuted, fontSize: 13),
+        ),
+      ],
+    );
+  }
+
   Future<void> _saveTemplate(AppDatabase db) async {
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _categoryId == null || _walletId == null) {
@@ -813,9 +896,44 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       if (walletError != null) _walletShake.shake();
       return;
     }
+    final db = ref.read(databaseProvider);
+    // Paylater freeze: a new expense on a paylater wallet is blocked
+    // while frozen. The dialog offers to unfreeze and continue saving —
+    // never a silent allow, and edits of existing records are exempt.
+    if (!_editing && _kind == 'expense' && _walletId != null) {
+      final wallet = await db.getWalletById(_walletId!);
+      if (wallet != null &&
+          isPaylaterSpendBlocked(
+            frozen: AppPrefs.paylaterFrozen,
+            walletKind: wallet.kind,
+            isNewExpense: true,
+          )) {
+        if (!mounted) return;
+        final unfreeze = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Paylater is frozen'),
+            content: const Text(
+              'New paylater spending is blocked while frozen. Unfreeze to save this expense?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Unfreeze & save'),
+              ),
+            ],
+          ),
+        );
+        if (unfreeze != true) return;
+        await AppPrefs.setPaylaterFrozen(false);
+      }
+    }
     Haptics.medium();
     setState(() => _saving = true);
-    final db = ref.read(databaseProvider);
     try {
       if (_editing) {
         final e = widget.existing!.transaction;

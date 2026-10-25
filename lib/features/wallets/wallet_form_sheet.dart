@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:drift/drift.dart' show Value;
 
+import '../../core/services/app_prefs.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/paylater.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -25,13 +29,14 @@ Future<bool> showWalletFormSheet(
   return saved == true;
 }
 
-const _walletKinds = ['cash', 'bank', 'ewallet', 'credit'];
+const _walletKinds = ['cash', 'bank', 'ewallet', 'credit', 'paylater'];
 
 String _kindLabel(String kind) => switch (kind) {
   'cash' => 'Cash',
   'bank' => 'Bank account',
   'ewallet' => 'E-wallet',
   'credit' => 'Credit card',
+  'paylater' => 'Paylater',
   _ => kind,
 };
 
@@ -47,6 +52,11 @@ class _WalletFormSheet extends ConsumerStatefulWidget {
 class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _initialCtrl;
+  late final TextEditingController _limitCtrl;
+  late final TextEditingController _statementDayCtrl;
+  late final TextEditingController _dueDayCtrl;
+  late final TextEditingController _rateCtrl;
+  late final TextEditingController _annualRateCtrl;
   late String _kind;
   late String _colorHex;
   String? _logoTemplate;
@@ -72,6 +82,21 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
     final e = widget.existing;
     _nameCtrl = TextEditingController(text: e?.name ?? '');
     _initialCtrl = TextEditingController();
+    _limitCtrl =
+        TextEditingController(text: e?.creditLimit?.toString() ?? '');
+    _statementDayCtrl =
+        TextEditingController(text: e?.statementDay?.toString() ?? '');
+    _dueDayCtrl = TextEditingController(text: e?.dueDay?.toString() ?? '');
+    _rateCtrl = TextEditingController(
+      text: e?.interestRateMonthly == null
+          ? ''
+          : e!.interestRateMonthly.toString(),
+    );
+    _annualRateCtrl = TextEditingController(
+      text: e?.interestRateAnnual == null
+          ? ''
+          : e!.interestRateAnnual.toString(),
+    );
     _kind = e?.kind ?? 'cash';
     _colorHex = e?.colorHex ?? '#C6FF4A';
     _logoTemplate = e?.logoTemplate;
@@ -82,6 +107,11 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _initialCtrl.dispose();
+    _limitCtrl.dispose();
+    _statementDayCtrl.dispose();
+    _dueDayCtrl.dispose();
+    _rateCtrl.dispose();
+    _annualRateCtrl.dispose();
     super.dispose();
   }
 
@@ -96,26 +126,115 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
       _snack('Pick an account for this wallet');
       return;
     }
+    // Paylater-only fields: empty means unset. Days must be 1-31, the
+    // rate a non-negative percent.
+    int? creditLimit;
+    int? statementDay;
+    int? dueDay;
+    double? rate;
+    if (_kind == 'paylater') {
+      final limitText = _limitCtrl.text.trim();
+      if (limitText.isNotEmpty) {
+        creditLimit = parseAmountInput(limitText);
+        if (creditLimit < 0) {
+          _snack('Credit limit can\'t be negative');
+          return;
+        }
+      }
+      int? parseDay(String text, String label) {
+        if (text.trim().isEmpty) return null;
+        final day = int.tryParse(text.trim());
+        if (day == null || day < 1 || day > 31) {
+          _snack('$label must be a day of the month (1-31)');
+          return -1;
+        }
+        return day;
+      }
+
+      statementDay = parseDay(_statementDayCtrl.text, 'Statement day');
+      if (statementDay == -1) return;
+      dueDay = parseDay(_dueDayCtrl.text, 'Due day');
+      if (dueDay == -1) return;
+      final rateText = _rateCtrl.text.trim();
+      if (rateText.isNotEmpty) {
+        rate = double.tryParse(rateText.replaceAll(',', '.'));
+        if (rate == null || rate < 0) {
+          _snack('Monthly rate must be a non-negative number');
+          return;
+        }
+      }
+    }
+    // Savings growth rate, bank/ewallet only: empty means unset.
+    // Kept in a separate field from the paylater monthly cost rate —
+    // the two are never the same number.
+    double? annualRate;
+    if (_kind == 'bank' || _kind == 'ewallet') {
+      final annualText = _annualRateCtrl.text.trim();
+      if (annualText.isNotEmpty) {
+        annualRate = double.tryParse(annualText.replaceAll(',', '.'));
+        if (annualRate == null || annualRate < 0) {
+          _snack('Annual rate must be a non-negative number');
+          return;
+        }
+      }
+    }
     setState(() => _saving = true);
     final db = ref.read(databaseProvider);
+    int? walletId;
     try {
       if (_editing) {
+        walletId = widget.existing!.id;
         await db.updateWallet(
-          id: widget.existing!.id,
+          id: walletId,
           name: name,
           kind: _kind,
           colorHex: _colorHex,
           logoTemplate: _logoTemplate,
+          creditLimit: Value(creditLimit),
+          statementDay: Value(statementDay),
+          dueDay: Value(dueDay),
+          interestRateMonthly: Value(rate),
+          interestRateAnnual: Value(annualRate),
         );
       } else {
-        await db.createWallet(
+        // A paylater wallet's balance is negative when money is owed, so
+        // an entered initial amount is stored negated as outstanding.
+        final initial = parseAmountInput(_initialCtrl.text);
+        walletId = await db.createWallet(
           accountId: accountId!,
           name: name,
           kind: _kind,
-          initialAmount: parseAmountInput(_initialCtrl.text),
+          initialAmount: _kind == 'paylater' ? -initial : initial,
           colorHex: _colorHex,
           logoTemplate: _logoTemplate,
+          creditLimit: creditLimit,
+          statementDay: statementDay,
+          dueDay: dueDay,
+          interestRateMonthly: rate,
+          interestRateAnnual: annualRate,
         );
+      }
+      // Keep the due-date reminder in sync, mirroring the debt flow:
+      // scheduled when something is owed with a due day, cancelled
+      // otherwise (paid off, day cleared, reminders off, not paylater).
+      // walletId is assigned on both paths above, so it is non-null here.
+      final wallet = await db.getWalletById(walletId);
+      if (wallet != null &&
+          wallet.kind == 'paylater' &&
+          wallet.dueDay != null &&
+          paylaterOutstanding(wallet) > 0 &&
+          AppPrefs.paylaterReminders) {
+        await NotificationService.schedulePaylaterReminder(
+          walletId: wallet.id,
+          walletName: wallet.name,
+          amount: paylaterOutstanding(wallet),
+          dueDate: nextDueDate(
+            dueDay: wallet.dueDay!,
+            from: DateTime.now(),
+          ),
+        );
+      } else {
+        await NotificationService.cancelPaylaterReminder(walletId);
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -185,6 +304,60 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
               labelFor: _kindLabel,
               onSelected: (v) => setState(() => _kind = v),
             ),
+            if (_kind == 'paylater') ...[
+              const SizedBox(height: 16),
+              const FormSectionLabel('Credit limit (optional)'),
+              FormAmountEntry(controller: _limitCtrl),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _statementDayCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Statement day (1-31)',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _dueDayCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Due day (1-31)',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _rateCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Monthly interest rate % (optional)',
+                  hintText: 'e.g. 2.5',
+                ),
+              ),
+            ],
+            if (_kind == 'bank' || _kind == 'ewallet') ...[
+              const SizedBox(height: 16),
+              const FormSectionLabel('Annual interest rate (optional)'),
+              TextField(
+                controller: _annualRateCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Annual interest rate %',
+                  hintText: 'e.g. 4.0',
+                ),
+              ),
+            ],
             if (!_editing) ...[
               const SizedBox(height: 16),
               const FormSectionLabel('Account'),
@@ -204,7 +377,11 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
                   onSelected: (a) => setState(() => _accountId = a.id),
                 ),
               const SizedBox(height: 16),
-              const FormSectionLabel('Initial amount (optional)'),
+              FormSectionLabel(
+                _kind == 'paylater'
+                    ? 'Initial outstanding (optional)'
+                    : 'Initial amount (optional)',
+              ),
               FormAmountEntry(controller: _initialCtrl),
             ],
             const SizedBox(height: 16),
