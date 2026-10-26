@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
+import '../../core/utils/paylater.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -257,6 +258,40 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
     if (_feeEnabled && fee <= 0) {
       _snack('Enter a fee amount, or turn the fee off');
       return;
+    }
+    // Overpay warning for transfers into a paylater wallet: the fee is
+    // a separate expense on the source wallet, so only [amount] lands
+    // on the destination. Warn + confirm, never hard-block — the user
+    // keeps agency. (The dashboard's Mark-as-paid path is exempt: it
+    // already transfers exactly the outstanding amount.)
+    final db = ref.read(databaseProvider);
+    final toWallet = await db.getWalletById(_toId!);
+    if (toWallet != null && toWallet.kind == 'paylater') {
+      final overpay = paylaterTransferOverpay(toWallet.balance, amount);
+      if (overpay > 0) {
+        if (!mounted) return;
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Overpaying this paylater wallet?'),
+            content: Text(
+              'This exceeds what you owe by ${formatMoney(overpay)}.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Pay anyway'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted) return;
+        if (proceed != true) return;
+      }
     }
     Haptics.medium();
     setState(() => _saving = true);

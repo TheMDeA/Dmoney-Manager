@@ -1,3 +1,10 @@
+## [2.7.1] - 2026-10-26
+
+### Fixed
+
+- Paying a paylater installment now records a real payment instead of only advancing the plan counter.
+- Paylater wallets no longer accept income or top-ups, and they no longer appear in the Wallets list — they live in the paylater dashboard, where paying more than you owe now asks for confirmation first.
+
 ## [2.7.0] - 2026-10-26
 
 ### Added

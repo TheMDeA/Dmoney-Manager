@@ -107,7 +107,7 @@ class _PaylaterDashboardScreenState
                         const SizedBox(height: 8),
                       ],
                       const SizedBox(height: 12),
-                      _plansSection(plans, paylater),
+                      _plansSection(plans, paylater, wallets),
                       const SizedBox(height: 12),
                       _costsCard(monthSpending),
                       const SizedBox(height: 12),
@@ -273,6 +273,60 @@ class _PaylaterDashboardScreenState
     _snack('Paid ${formatMoney(amount)} to ${wallet.name}');
   }
 
+  /// Pays one installment of [p] as a real transfer — same pattern as
+  /// [_payDue]: pick a payer wallet, record the transfer, then advance
+  /// the plan counter. The amount is capped by the plan's own remaining
+  /// only, never by the wallet balance, so a plan whose purchase was
+  /// never recorded as an expense can still be paid off. Previously
+  /// this button only bumped the counter and created no transaction,
+  /// so the payment appeared nowhere else in the app.
+  Future<void> _payInstallment(
+    InstallmentPlan p,
+    Wallet? planWallet,
+    List<Wallet> allWallets,
+  ) async {
+    if (planWallet == null) {
+      _snack('Wallet not found for this plan.');
+      return;
+    }
+    final db = ref.read(databaseProvider);
+    final amount = installmentDueAmount(p);
+    if (amount <= 0) return;
+    final payers = allWallets.where((w) => w.kind != 'paylater').toList();
+    if (payers.isEmpty) {
+      _snack('Add a bank or cash wallet to pay from first.');
+      return;
+    }
+    final payer = await showDialog<Wallet>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pay from'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final pay in payers)
+              ListTile(
+                title: Text(pay.name),
+                trailing: Text(formatMoney(pay.balance)),
+                onTap: () => Navigator.of(context).pop(pay),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (payer == null || !mounted) return;
+    Haptics.medium();
+    await db.addTransfer(
+      fromWalletId: payer.id,
+      toWalletId: planWallet.id,
+      amount: amount,
+      note: 'Installment payment: ${p.name}',
+    );
+    await db.markInstallmentPaid(p.id);
+    if (!mounted) return;
+    _snack('Paid ${formatMoney(amount)} installment for ${p.name}');
+  }
+
   Widget _providerCard(Wallet w) {
     final outstanding = paylaterOutstanding(w);
     final ratio = w.creditLimit != null && w.creditLimit! > 0
@@ -337,7 +391,11 @@ class _PaylaterDashboardScreenState
     );
   }
 
-  Widget _plansSection(List<InstallmentPlan> plans, List<Wallet> paylater) {
+  Widget _plansSection(
+    List<InstallmentPlan> plans,
+    List<Wallet> paylater,
+    List<Wallet> allWallets,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -359,14 +417,18 @@ class _PaylaterDashboardScreenState
           )
         else
           for (final p in plans) ...[
-            _planCard(p, paylater),
+            _planCard(p, paylater, allWallets),
             const SizedBox(height: 8),
           ],
       ],
     );
   }
 
-  Widget _planCard(InstallmentPlan p, List<Wallet> paylater) {
+  Widget _planCard(
+    InstallmentPlan p,
+    List<Wallet> paylater,
+    List<Wallet> allWallets,
+  ) {
     Wallet? wallet;
     for (final w in paylater) {
       if (w.id == p.walletId) wallet = w;
@@ -412,12 +474,7 @@ class _PaylaterDashboardScreenState
               ),
               if (!complete)
                 TextButton(
-                  onPressed: () async {
-                    Haptics.light();
-                    await ref
-                        .read(databaseProvider)
-                        .markInstallmentPaid(p.id);
-                  },
+                  onPressed: () => _payInstallment(p, wallet, allWallets),
                   child: const Text('Pay installment'),
                 )
               else

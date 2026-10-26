@@ -79,10 +79,13 @@ class WalletsScreen extends ConsumerWidget {
                     builder: (context, walSnap) {
                       final wallets = walSnap.data ?? const <Wallet>[];
                       // Paylater balances are liabilities, never assets:
-                      // they are excluded from the combined total even
-                      // though their cards still appear in the stack below
-                      // (and still count in the "N wallets" line).
+                      // they are excluded from the combined total, and
+                      // their wallets never appear in the stack below —
+                      // they live in the paylater dashboard, reached
+                      // through the summary card. The stack and the
+                      // "N wallets" line count displayed wallets only.
                       final total = combinedBalance(wallets);
+                      final displayed = stackWallets(wallets);
                       return StreamBuilder<List<TransactionWithDetails>>(
                         stream: db.watchTransactions(limit: 60),
                         builder: (context, txSnap) {
@@ -153,7 +156,7 @@ class WalletsScreen extends ConsumerWidget {
                                       ),
                                       SizedBox(height: 4),
                                       Text(
-                                        '${wallets.length} wallets · tap a card to focus it',
+                                        '${displayed.length} wallets · tap a card to focus it',
                                         style: TextStyle(
                                           color: context.textMuted,
                                           fontSize: 12,
@@ -167,7 +170,8 @@ class WalletsScreen extends ConsumerWidget {
                                   _paylaterSummaryCard(context, wallets),
                                   const SizedBox(height: 12),
                                 ],
-                                if (wallets.isEmpty)
+                                if (displayed.isEmpty &&
+                                    paylaterWallets(wallets).isEmpty)
                                   EmptyState(
                                     icon: Icons.wallet_outlined,
                                     title: 'No wallets',
@@ -177,13 +181,18 @@ class WalletsScreen extends ConsumerWidget {
                                     onAction: () =>
                                         _addWalletDialog(context, ref),
                                   )
-                                else
+                                else if (displayed.isNotEmpty)
                                   Entrance(
                                     child: _WalletStack(
-                                      wallets: wallets,
+                                      wallets: displayed,
                                       recentByWallet: recentByWallet,
                                     ),
-                                  ),
+                                  )
+                                else
+                                  // Only paylater wallets exist: the
+                                  // summary card above is their entry
+                                  // point, so the stack area stays empty.
+                                  const SizedBox.shrink(),
                               ],
                             ),
                           );
@@ -432,12 +441,18 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
   Widget build(BuildContext context) {
     final wallets = widget.wallets;
 
+    // A focused id that is no longer in the displayed list (e.g. a
+    // paylater wallet, which never renders in the stack) falls back
+    // to the unfocused view instead of breaking geometry.
+    final focusedId =
+        wallets.any((w) => w.id == _focusedId) ? _focusedId : null;
+
     // Geometry per wallet id is rendered from [_tops]/[_heights], which
     // _setFocus updates with a stagger. The target layout (for the stack
     // height) comes from the current focus state. Cards added after the
     // last stagger fall back to the target geometry so they never sit at
     // 0,0.
-    final g = _geometry(_focusedId);
+    final g = _geometry(focusedId);
     for (final id in g.tops.keys) {
       _tops.putIfAbsent(id, () => g.tops[id]!);
       _heights.putIfAbsent(id, () => g.heights[id]!);
@@ -469,7 +484,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
               child: _stackCard(
                 context,
                 wallets.firstWhere((w) => w.id == id),
-                id == _focusedId,
+                id == focusedId,
               ),
             ),
         ],
@@ -740,13 +755,18 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
               label: 'Transfer',
               onTap: () => _transfer(w),
             ),
-            const SizedBox(width: 10),
-            _action(
-              context,
-              icon: Icons.add_card_outlined,
-              label: 'Top up',
-              onTap: () => _topUp(w),
-            ),
+            // No Top up on paylater cards: a paylater bill is paid via
+            // Transfer, never topped up. The action stays for every
+            // other kind.
+            if (w.kind != 'paylater') ...[
+              const SizedBox(width: 10),
+              _action(
+                context,
+                icon: Icons.add_card_outlined,
+                label: 'Top up',
+                onTap: () => _topUp(w),
+              ),
+            ],
             const SizedBox(width: 10),
             _action(
               context,

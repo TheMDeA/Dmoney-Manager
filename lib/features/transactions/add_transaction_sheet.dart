@@ -897,6 +897,36 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       return;
     }
     final db = ref.read(databaseProvider);
+    // Paylater income gate: a paylater wallet can never receive income.
+    // Income would push its balance positive, which the dashboard reads
+    // as "nothing owed" while the card shows money in the account.
+    // Bills are paid via transfers, never top-ups (merchant refunds
+    // belong in a transfer too).
+    if (_walletId != null) {
+      final wallet = await db.getWalletById(_walletId!);
+      if (wallet != null &&
+          isIncomeToPaylaterBlocked(walletKind: wallet.kind, kind: _kind)) {
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Income not allowed'),
+            content: const Text(
+              "Paylater wallets can't receive income. To pay a paylater "
+              'bill, transfer from another wallet instead. Merchant refunds '
+              'can be recorded as a transfer.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
     // Paylater freeze: a new expense on a paylater wallet is blocked
     // while frozen. The dialog offers to unfreeze and continue saving —
     // never a silent allow, and edits of existing records are exempt.

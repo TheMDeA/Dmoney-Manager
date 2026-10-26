@@ -11,6 +11,7 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/utils/interest_projection.dart';
+import '../../core/utils/paylater.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/month_scrubber.dart';
 import '../../core/widgets/skeleton.dart';
@@ -128,7 +129,6 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     List<Wallet> allWallets,
     List<TransactionWithDetails> txs,
   ) {
-    final negative = wallet.balance < 0;
     final income = txs.where((d) => d.transaction.kind == 'income').toList();
     final expense = txs.where((d) => d.transaction.kind == 'expense').toList();
     final transfer =
@@ -186,11 +186,24 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             ),
           ),
           const SizedBox(height: 4),
+          // Paylater wallets show what is owed (or overpaid), never the
+          // raw signed balance as if it were money owned. Every other
+          // kind keeps the raw balance, red when negative.
           Text(
-            formatMoney(wallet.balance),
+            wallet.kind == 'paylater'
+                ? paylaterBalanceLabel(wallet)
+                : formatMoney(wallet.balance),
             style: AppTextStyles.displayBalance.copyWith(
               fontSize: 28,
-              color: negative ? AppColors.expense : context.textPrimary,
+              color: wallet.kind == 'paylater'
+                  ? (wallet.balance < 0
+                        ? AppColors.expense
+                        : wallet.balance > 0
+                        ? AppColors.income
+                        : context.textPrimary)
+                  : (wallet.balance < 0
+                        ? AppColors.expense
+                        : context.textPrimary),
             ),
           ),
           const SizedBox(height: 16),
@@ -532,7 +545,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                       size: 20),
                 ),
                 title: Text(w.name),
-                trailing: Text(formatMoney(w.balance),
+                trailing: Text(
+                    w.kind == 'paylater'
+                        ? paylaterBalanceLabel(w)
+                        : formatMoney(w.balance),
                     style: AppTextStyles.amount(size: 14)),
                 selected: w.id == _walletId,
                 onTap: () {

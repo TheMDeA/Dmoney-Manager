@@ -1,3 +1,4 @@
+import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 
 /// Pure paylater math and wallet helpers.
@@ -156,3 +157,51 @@ bool isPaylaterSpendBlocked({
   required bool isNewExpense,
 }) =>
     frozen && isNewExpense && walletKind == 'paylater';
+
+/// Whether recording income on a wallet must be blocked: a paylater
+/// wallet can never receive income. Income would push its balance
+/// positive, which the dashboard reads as "nothing owed", while the
+/// wallet card shows money sitting in the account — a contradiction.
+/// Paylater bills are paid down via transfers, never topped up.
+/// Merchant refunds are the only edge case; they belong in a transfer,
+/// not an income row.
+bool isIncomeToPaylaterBlocked({
+  required String walletKind,
+  required String kind,
+}) =>
+    walletKind == 'paylater' && kind == 'income';
+
+/// Overpay produced by transferring [amount] into a paylater wallet
+/// whose current balance is [balance]: the positive part of the
+/// resulting balance, or 0 when the wallet still owes (or breaks even).
+/// A transfer-in pushes the balance up, so the overpay is simply
+/// whatever lands above zero.
+int paylaterTransferOverpay(int balance, int amount) {
+  final after = balance + amount;
+  return after > 0 ? after : 0;
+}
+
+/// Amount of one installment payment for [p]: the monthly installment,
+/// capped by what the plan still has left. The plan is the authority
+/// for its own remaining — never capped by the wallet balance, so a
+/// plan whose purchase was never recorded as an expense can still be
+/// paid off.
+int installmentDueAmount(InstallmentPlan p) {
+  final remaining = planRemaining(p);
+  return p.installmentAmount < remaining ? p.installmentAmount : remaining;
+}
+
+/// Display label for a paylater wallet's balance: the owed amount as a
+/// positive figure when money is owed, "Overpaid Rp X" when the balance
+/// went positive, "Rp 0" when settled. Never the raw signed balance
+/// presented as if it were money owned.
+String paylaterBalanceLabel(Wallet w) {
+  if (w.balance < 0) return formatMoney(-w.balance);
+  if (w.balance > 0) return 'Overpaid ${formatMoney(w.balance)}';
+  return formatMoney(0);
+}
+
+/// Wallets shown in the Wallets screen stack: paylater wallets live in
+/// the paylater dashboard only, never in the stack.
+List<Wallet> stackWallets(List<Wallet> wallets) =>
+    wallets.where((w) => w.kind != 'paylater').toList();
