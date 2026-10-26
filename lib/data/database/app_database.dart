@@ -102,6 +102,12 @@ class Transactions extends Table {
   /// For a transfer-fee expense row: the transfer it belongs to.
   IntColumn get transferId =>
       integer().nullable().references(Transactions, #id)();
+
+  /// For a paylater plan's purchase expense and its installment
+  /// payments: the plan they belong to. Lets plan deletion remove its
+  /// transactions and lets a plan show its own history.
+  IntColumn get planId =>
+      integer().nullable().references(InstallmentPlans, #id)();
 }
 
 /// Receipt / record photos attached to a transaction ("Save Photos").
@@ -284,7 +290,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -395,6 +401,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 16) {
             await m.addColumn(wallets, wallets.interestRateAnnual);
+          }
+          if (from < 17) {
+            await m.addColumn(transactions, transactions.planId);
           }
         },
       );
@@ -879,6 +888,7 @@ class AppDatabase extends _$AppDatabase {
     String note = '',
     DateTime? date,
     int fee = 0,
+    int? planId,
   }) {
     return transaction(() async {
       final catId = await transferCategoryId;
@@ -891,6 +901,7 @@ class AppDatabase extends _$AppDatabase {
         note: Value(note),
         date: when,
         toWalletId: Value(toWalletId),
+        planId: Value(planId),
       ));
       await adjustWalletBalance(fromWalletId, -amount);
       await adjustWalletBalance(toWalletId, amount);
@@ -1193,8 +1204,78 @@ class AppDatabase extends _$AppDatabase {
         .write(InstallmentPlansCompanion(paidCount: Value(plan.paidCount + 1)));
   }
 
-  Future<void> deleteInstallmentPlan(int id) =>
-      (delete(installmentPlans)..where((p) => p.id.equals(id))).go();
+  /// Creates a plan together with its purchase expense, atomically.
+  /// The expense is what makes the plan visible to every money figure:
+  /// it pushes the paylater wallet negative by the plan total, so
+  /// outstanding, limit used and amount owed all track the plan, and
+  /// each installment payment then pays that balance down. Returns the
+  /// plan id.
+  Future<int> addPlanWithPurchase({
+    required int walletId,
+    required String name,
+    required int totalAmount,
+    required int installmentAmount,
+    required int totalCount,
+    required int categoryId,
+  }) {
+    return transaction(() async {
+      final planId = await into(installmentPlans).insert(
+        InstallmentPlansCompanion.insert(
+          walletId: walletId,
+          name: name,
+          totalAmount: totalAmount,
+          installmentAmount: installmentAmount,
+          totalCount: totalCount,
+        ),
+      );
+      await into(transactions).insert(TransactionsCompanion.insert(
+        walletId: walletId,
+        categoryId: categoryId,
+        kind: 'expense',
+        amount: totalAmount,
+        note: Value(name),
+        date: DateTime.now(),
+        planId: Value(planId),
+      ));
+      await adjustWalletBalance(walletId, -totalAmount);
+      return planId;
+    });
+  }
+
+  /// Links an already-saved transaction (an auto-plan's expense) to its
+  /// plan. Bare update so it joins the caller's transaction.
+  Future<void> setTransactionPlan(int transactionId, int planId) =>
+      (update(transactions)..where((t) => t.id.equals(transactionId)))
+          .write(TransactionsCompanion(planId: Value(planId)));
+
+  /// Every transaction belonging to a plan: its purchase expense plus
+  /// its installment payments, newest first.
+  Future<List<Transaction>> planTransactions(int planId) =>
+      (select(transactions)
+            ..where((t) => t.planId.equals(planId))
+            ..orderBy([(t) => OrderingTerm.desc(t.date)]))
+          .get();
+
+  /// Live version of [planTransactions] with wallet/category details,
+  /// for the plan history sheet.
+  Stream<List<TransactionWithDetails>> watchPlanTransactions(int planId) {
+    final q = _joinedTransactions()
+      ..where(transactions.planId.equals(planId));
+    return q.watch().map(_toDetails);
+  }
+
+  /// Deletes a plan and every transaction linked to it — its purchase
+  /// expense and its installment payments — each through the normal
+  /// delete path, so all wallet balances are restored and the wallet
+  /// returns to its pre-plan state.
+  Future<void> deleteInstallmentPlan(int id) {
+    return transaction(() async {
+      for (final t in await planTransactions(id)) {
+        await deleteTransaction(t.id);
+      }
+      await (delete(installmentPlans)..where((p) => p.id.equals(id))).go();
+    });
+  }
 
   Stream<List<InstallmentPlan>> watchInstallmentPlans() =>
       (select(installmentPlans)
