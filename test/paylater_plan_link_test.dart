@@ -252,4 +252,92 @@ void main() {
       );
     });
   });
+
+  group('singlePayablePlan', () {
+    InstallmentPlan plan({
+      required int id,
+      required int walletId,
+      required int total,
+      required int monthly,
+      required int count,
+      required int paid,
+    }) =>
+        InstallmentPlan(
+          id: id,
+          walletId: walletId,
+          name: 'Plan $id',
+          totalAmount: total,
+          installmentAmount: monthly,
+          totalCount: count,
+          paidCount: paid,
+          createdAt: DateTime.now(),
+        );
+
+    test('single plan with money left → returned', () {
+      final p = plan(
+        id: 1,
+        walletId: 7,
+        total: 18000000,
+        monthly: 6000000,
+        count: 3,
+        paid: 0,
+      );
+      expect(singlePayablePlan([p], 7)?.id, 1);
+    });
+
+    test('two plans on the wallet → null (no attribution)', () {
+      final plans = [
+        plan(id: 1, walletId: 7, total: 9000000, monthly: 3000000, count: 3, paid: 0),
+        plan(id: 2, walletId: 7, total: 6000000, monthly: 3000000, count: 2, paid: 0),
+      ];
+      expect(singlePayablePlan(plans, 7), isNull);
+    });
+
+    test('plans on other wallets are ignored', () {
+      final plans = [
+        plan(id: 1, walletId: 7, total: 18000000, monthly: 6000000, count: 3, paid: 1),
+        plan(id: 2, walletId: 9, total: 6000000, monthly: 3000000, count: 2, paid: 0),
+      ];
+      expect(singlePayablePlan(plans, 7)?.id, 1);
+    });
+
+    test('complete plan → null', () {
+      final p = plan(
+        id: 1,
+        walletId: 7,
+        total: 9000000,
+        monthly: 3000000,
+        count: 3,
+        paid: 3,
+      );
+      expect(singlePayablePlan([p], 7), isNull);
+    });
+
+    test('rounding leftover with nothing left → null', () {
+      // 2 × 50000 already covers the 100000 total; the counter has one
+      // installment left but there is no money left to pay.
+      final p = plan(
+        id: 1,
+        walletId: 7,
+        total: 100000,
+        monthly: 50000,
+        count: 3,
+        paid: 2,
+      );
+      expect(singlePayablePlan([p], 7), isNull);
+    });
+
+    test('last installment capped by remaining still counts', () {
+      final p = plan(
+        id: 1,
+        walletId: 7,
+        total: 100000,
+        monthly: 40000,
+        count: 3,
+        paid: 2,
+      );
+      expect(installmentDueAmount(p), 20000);
+      expect(singlePayablePlan([p], 7)?.id, 1);
+    });
+  });
 }

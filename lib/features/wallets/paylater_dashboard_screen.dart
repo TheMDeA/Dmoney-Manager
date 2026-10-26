@@ -107,7 +107,7 @@ class _PaylaterDashboardScreenState
                       _heroCard(outstanding, dueCycle, ratio),
                       const SizedBox(height: 12),
                       if (next != null) ...[
-                        _nextDueCard(next.wallet, next.dueDate, wallets),
+                        _nextDueCard(next.wallet, next.dueDate, wallets, plans),
                         const SizedBox(height: 12),
                       ],
                       const _SectionLabel('Providers'),
@@ -187,8 +187,17 @@ class _PaylaterDashboardScreenState
     );
   }
 
-  Widget _nextDueCard(Wallet wallet, DateTime dueDate, List<Wallet> wallets) {
-    final amount = paylaterOutstanding(wallet);
+  Widget _nextDueCard(
+    Wallet wallet,
+    DateTime dueDate,
+    List<Wallet> wallets,
+    List<InstallmentPlan> plans,
+  ) {
+    // The button pays what this card shows: one installment when the
+    // wallet has a single payable plan, otherwise the full outstanding.
+    final plan = singlePayablePlan(plans, wallet.id);
+    final amount =
+        plan == null ? paylaterOutstanding(wallet) : installmentDueAmount(plan);
     return GlassCard(
       glowColor: context.accent,
       child: Column(
@@ -217,7 +226,7 @@ class _PaylaterDashboardScreenState
             width: double.infinity,
             child: FilledButton(
               onPressed: () => _payDue(wallet, wallets),
-              child: const Text('Mark as paid'),
+              child: Text(plan == null ? 'Mark as paid' : 'Pay installment'),
             ),
           ),
         ],
@@ -225,13 +234,24 @@ class _PaylaterDashboardScreenState
     );
   }
 
-  /// Pays [wallet]'s full outstanding amount from a wallet the user picks.
-  /// Recorded as a transfer — the same primitive the transfer sheet uses —
-  /// so the paylater balance moves back toward zero and the payment shows
-  /// up in history. Afterwards the reminder is cancelled when nothing is
-  /// owed anymore, or rescheduled with the new amount.
+  /// Pays what the Next due card shows: one installment when the wallet
+  /// has a single payable plan, otherwise the full outstanding amount.
+  /// A single plan's payment goes through the installment flow, so it is
+  /// linked to the plan and advances its counter; the reminder is then
+  /// refreshed with the new outstanding amount (or cancelled when
+  /// nothing is owed anymore).
   Future<void> _payDue(Wallet wallet, List<Wallet> allWallets) async {
     final db = ref.read(databaseProvider);
+    final plan = singlePayablePlan(
+      await db.plansForWallet(wallet.id),
+      wallet.id,
+    );
+    if (!mounted) return;
+    if (plan != null) {
+      await _payInstallment(plan, wallet, allWallets);
+      await _refreshDueReminder(wallet.id);
+      return;
+    }
     final amount = paylaterOutstanding(wallet);
     if (amount <= 0) return;
     final payers = allWallets.where((w) => w.kind != 'paylater').toList();
@@ -264,7 +284,15 @@ class _PaylaterDashboardScreenState
       amount: amount,
       note: 'Paylater payment',
     );
-    final fresh = await db.getWalletById(wallet.id);
+    await _refreshDueReminder(wallet.id);
+    if (!mounted) return;
+    _snack('Paid ${formatMoney(amount)} to ${wallet.name}');
+  }
+
+  /// Reschedules the wallet's due reminder with its current outstanding
+  /// amount, or cancels it when nothing is owed anymore.
+  Future<void> _refreshDueReminder(int walletId) async {
+    final fresh = await ref.read(databaseProvider).getWalletById(walletId);
     if (fresh != null &&
         fresh.kind == 'paylater' &&
         fresh.dueDay != null &&
@@ -277,10 +305,8 @@ class _PaylaterDashboardScreenState
         dueDate: nextDueDate(dueDay: fresh.dueDay!, from: DateTime.now()),
       );
     } else {
-      await NotificationService.cancelPaylaterReminder(wallet.id);
+      await NotificationService.cancelPaylaterReminder(walletId);
     }
-    if (!mounted) return;
-    _snack('Paid ${formatMoney(amount)} to ${wallet.name}');
   }
 
   /// Pays one installment of [p] as a real transfer — same pattern as

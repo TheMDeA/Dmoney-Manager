@@ -252,6 +252,24 @@ int installmentDueAmount(InstallmentPlan p) {
   return p.installmentAmount < remaining ? p.installmentAmount : remaining;
 }
 
+/// The single plan a due-card payment should act on: the wallet's only
+/// plan that still has an installment to pay. Returns null when there
+/// is no such plan — no plans, several plans (one payment cannot be
+/// attributed to one of them), or a plan whose counter has a rounding
+/// leftover but nothing left to pay. Callers fall back to the full
+/// outstanding amount in that case.
+InstallmentPlan? singlePayablePlan(List<InstallmentPlan> plans, int walletId) {
+  final candidates = plans
+      .where(
+        (p) =>
+            p.walletId == walletId &&
+            p.paidCount < p.totalCount &&
+            installmentDueAmount(p) > 0,
+      )
+      .toList();
+  return candidates.length == 1 ? candidates.single : null;
+}
+
 /// Display label for a paylater wallet's balance: the owed amount as a
 /// positive figure when money is owed, "Overpaid Rp X" when the balance
 /// went positive, "Rp 0" when settled. Never the raw signed balance
