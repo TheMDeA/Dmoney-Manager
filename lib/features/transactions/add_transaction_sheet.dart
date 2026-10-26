@@ -978,19 +978,89 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           date: _dateTime,
         );
       } else {
-        final id = await db.addTransaction(
-          TransactionsCompanion.insert(
-            walletId: _walletId!,
-            categoryId: _categoryId!,
-            kind: _kind,
-            amount: amount,
-            note: Value(desc),
-            memo: Value(memo),
-            date: _dateTime,
-          ),
-        );
-        if (_photoPath != null) {
-          await db.addPhoto(id, _photoPath!);
+        // Tenor auto-plan: every NEW paylater expense becomes a plan —
+        // including the default 1x, a 1-of-1 "pay next month" plan.
+        // Edits never reach this branch, and the helper refuses
+        // transfers, income, and non-paylater wallets outright.
+        ({String name, int totalAmount, int installmentAmount, int totalCount})?
+            plan;
+        if (_kind == 'expense') {
+          final wallet = await db.getWalletById(_walletId!);
+          if (wallet != null && wallet.kind == 'paylater') {
+            Category? category;
+            for (final c in await db.select(db.categories).get()) {
+              if (c.id == _categoryId!) category = c;
+            }
+            plan = autoPlanParams(
+              isNew: true,
+              transactionKind: _kind,
+              walletKind: wallet.kind,
+              amount: amount,
+              tenor: _tenor,
+              monthlyRatePercent: wallet.interestRateMonthly,
+              note: desc,
+              categoryName: category?.name,
+            );
+          }
+        }
+        Future<int> insertExpense() async {
+          final id = await db.addTransaction(
+            TransactionsCompanion.insert(
+              walletId: _walletId!,
+              categoryId: _categoryId!,
+              kind: _kind,
+              amount: amount,
+              note: Value(desc),
+              memo: Value(memo),
+              date: _dateTime,
+            ),
+          );
+          if (_photoPath != null) {
+            await db.addPhoto(id, _photoPath!);
+          }
+          return id;
+        }
+
+        try {
+          final p = plan;
+          if (p != null) {
+            // One transaction: the expense and its plan commit together
+            // or not at all — addTransaction's own transaction joins
+            // this outer one — so a failed plan insert can never leave
+            // an orphan expense behind.
+            await db.transaction(() async {
+              await insertExpense();
+              await db.addInstallmentPlan(
+                walletId: _walletId!,
+                name: p.name,
+                totalAmount: p.totalAmount,
+                installmentAmount: p.installmentAmount,
+                totalCount: p.totalCount,
+              );
+            });
+          } else {
+            await insertExpense();
+          }
+        } catch (_) {
+          // A failed save must be visible: without this, a rolled-back
+          // save would leave the sheet open with no explanation.
+          if (!mounted) return;
+          await showDialog<void>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text("Couldn't save"),
+              content: const Text(
+                'Nothing was recorded. Check the fields and try again.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+          return;
         }
       }
       await checkBudgetAlerts(ref);

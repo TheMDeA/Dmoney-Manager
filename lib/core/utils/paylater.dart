@@ -136,6 +136,50 @@ TenorQuote calcTenor({
   );
 }
 
+/// Parameters for the installment plan auto-created when a new paylater
+/// expense is saved from the add sheet, or null when no plan applies.
+/// The tenor is never skipped: the default 1x creates a 1-of-1 plan —
+/// the "pay in full next month" case — exactly like longer tenors.
+/// Never for edits, transfers, income, or non-paylater wallets: those
+/// flows have no tenor context and must never spawn plans.
+({String name, int totalAmount, int installmentAmount, int totalCount})?
+    autoPlanParams({
+  required bool isNew,
+  required String transactionKind,
+  required String walletKind,
+  required int amount,
+  required int tenor,
+  required double? monthlyRatePercent,
+  required String note,
+  String? categoryName,
+}) {
+  if (!isNew ||
+      transactionKind != 'expense' ||
+      walletKind != 'paylater' ||
+      amount <= 0 ||
+      tenor <= 0) {
+    return null;
+  }
+  final quote = calcTenor(
+    principal: amount,
+    tenor: tenor,
+    monthlyRatePercent: monthlyRatePercent,
+  );
+  final trimmedNote = note.trim();
+  final trimmedCategory = categoryName?.trim() ?? '';
+  final name = trimmedNote.isNotEmpty
+      ? trimmedNote
+      : trimmedCategory.isNotEmpty
+          ? trimmedCategory
+          : 'Paylater installment';
+  return (
+    name: name,
+    totalAmount: amount,
+    installmentAmount: quote.monthlyAmount,
+    totalCount: tenor,
+  );
+}
+
 /// Remaining balance on an installment plan (never below zero).
 int planRemaining(InstallmentPlan p) {
   final remaining = p.totalAmount - p.paidCount * p.installmentAmount;
