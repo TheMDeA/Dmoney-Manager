@@ -1282,6 +1282,13 @@ class AppDatabase extends _$AppDatabase {
             ..orderBy([(p) => OrderingTerm.desc(p.createdAt)]))
           .watch();
 
+  /// Plans on one wallet, for the due card's pay action (fresh read at
+  /// tap time, not the dashboard's stream snapshot).
+  Future<List<InstallmentPlan>> plansForWallet(int walletId) =>
+      (select(installmentPlans)
+            ..where((p) => p.walletId.equals(walletId)))
+          .get();
+
   /// Deletes a wallet. Returns false when it still has transactions —
   /// those must be moved or deleted first.
   Future<bool> deleteWallet(int id) async {
