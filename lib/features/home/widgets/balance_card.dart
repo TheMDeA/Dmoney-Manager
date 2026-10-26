@@ -7,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../core/utils/home_range.dart';
+import '../../../core/utils/paylater.dart';
 import '../../../core/widgets/count_up_balance.dart';
 import '../../../core/widgets/count_up_money.dart';
 import '../../../core/widgets/glass_card.dart';
@@ -43,7 +44,11 @@ class BalanceCard extends ConsumerWidget {
         stream: db.watchWallets(accountId: accountId),
         builder: (context, walletsSnap) {
           final wallets = walletsSnap.data ?? const <Wallet>[];
-          final total = wallets.fold<int>(0, (s, w) => s + w.balance);
+          // Same definition as the Wallets screen's Combined balance:
+          // paylater wallets are liabilities, not assets, so a transfer
+          // into one (an installment payment) reduces this total instead
+          // of leaving it unchanged.
+          final total = combinedBalance(wallets);
           final (from, to) = _rangeBounds(range);
           return StreamBuilder<List<KindTotal>>(
             stream: db.watchKindTotals(from, to, accountId: accountId),

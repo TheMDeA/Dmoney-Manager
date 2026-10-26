@@ -32,6 +32,23 @@ int combinedBalance(List<Wallet> wallets) =>
 int totalPaylaterOutstanding(List<Wallet> wallets) =>
     paylaterWallets(wallets).fold(0, (s, w) => s + paylaterOutstanding(w));
 
+/// Repayments into paylater wallets in a transaction list: transfers
+/// whose destination is a paylater wallet. Purchases (expenses on the
+/// paylater wallet) are deliberately excluded — repayments are money
+/// out of the user's other wallets, shown separately from spending.
+int paylaterRepayments(
+  Iterable<Transaction> transactions,
+  Set<int> paylaterIds,
+) =>
+    transactions
+        .where(
+          (t) =>
+              t.kind == 'transfer' &&
+              t.toWalletId != null &&
+              paylaterIds.contains(t.toWalletId),
+        )
+        .fold(0, (s, t) => s + t.amount);
+
 /// Combined credit limit across paylater wallets that have one set.
 int totalPaylaterLimit(List<Wallet> wallets) => paylaterWallets(wallets)
     .where((w) => w.creditLimit != null)

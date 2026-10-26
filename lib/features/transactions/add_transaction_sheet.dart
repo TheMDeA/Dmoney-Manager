@@ -1027,16 +1027,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             // One transaction: the expense and its plan commit together
             // or not at all — addTransaction's own transaction joins
             // this outer one — so a failed plan insert can never leave
-            // an orphan expense behind.
+            // an orphan expense behind. The expense is linked to the
+            // plan so the plan's history and delete cascade find it.
             await db.transaction(() async {
-              await insertExpense();
-              await db.addInstallmentPlan(
+              final expenseId = await insertExpense();
+              final planId = await db.addInstallmentPlan(
                 walletId: _walletId!,
                 name: p.name,
                 totalAmount: p.totalAmount,
                 installmentAmount: p.installmentAmount,
                 totalCount: p.totalCount,
               );
+              await db.setTransactionPlan(expenseId, planId);
             });
           } else {
             await insertExpense();

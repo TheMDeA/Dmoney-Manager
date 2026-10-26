@@ -15,6 +15,8 @@ import '../../core/widgets/form_sheet.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
+import '../categories/category_picker_section.dart';
+import '../transactions/widgets/transaction_tile.dart';
 import 'wallet_detail_screen.dart';
 
 /// Full Paylater dashboard, opened from the Paylater summary card on the
@@ -91,6 +93,14 @@ class _PaylaterDashboardScreenState
                             d.transaction.kind == 'expense',
                       )
                       .fold(0, (s, d) => s + d.transaction.amount);
+                  // Repayments are transfers, so they never appear in
+                  // spending above — surface them as their own line
+                  // instead of reclassifying them as expenses (which
+                  // would stop the debt from going down).
+                  final monthRepayments = paylaterRepayments(
+                    monthTxs.map((d) => d.transaction),
+                    paylaterIds,
+                  );
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                     children: [
@@ -109,7 +119,7 @@ class _PaylaterDashboardScreenState
                       const SizedBox(height: 12),
                       _plansSection(plans, paylater, wallets),
                       const SizedBox(height: 12),
-                      _costsCard(monthSpending),
+                      _costsCard(monthSpending, monthRepayments),
                       const SizedBox(height: 12),
                       _freezeCard(),
                     ],
@@ -321,6 +331,7 @@ class _PaylaterDashboardScreenState
       toWalletId: planWallet.id,
       amount: amount,
       note: 'Installment payment: ${p.name}',
+      planId: p.id,
     );
     await db.markInstallmentPaid(p.id);
     if (!mounted) return;
@@ -434,12 +445,18 @@ class _PaylaterDashboardScreenState
       if (w.id == p.walletId) wallet = w;
     }
     final complete = p.paidCount >= p.totalCount;
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
+    // Tapping the card opens the plan's history: its purchase plus
+    // every installment payment. The buttons inside still win their
+    // own taps.
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: () => _showPlanHistory(p),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
               Expanded(
                 child: Text(
                   p.name,
@@ -495,16 +512,80 @@ class _PaylaterDashboardScreenState
           ),
         ],
       ),
+    ),
+    );
+  }
+
+  /// History for one plan: its purchase expense plus every installment
+  /// payment, newest first. Rows open their transaction detail on tap.
+  Future<void> _showPlanHistory(InstallmentPlan p) async {
+    final db = ref.read(databaseProvider);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        builder: (context, scrollController) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                p.name,
+                style: TextStyle(
+                  color: context.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<List<TransactionWithDetails>>(
+                stream: db.watchPlanTransactions(p.id),
+                builder: (context, snap) {
+                  final txs = snap.data ?? const <TransactionWithDetails>[];
+                  if (txs.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'No transactions linked to this plan yet.',
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 13,
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.builder(
+                    controller: scrollController,
+                    itemCount: txs.length,
+                    itemBuilder: (context, i) => TransactionTile(
+                      details: txs[i],
+                      showDate: true,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Future<void> _confirmDeletePlan(InstallmentPlan p) async {
+    final linked = await ref.read(databaseProvider).planTransactions(p.id);
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete plan?'),
         content: Text(
-          '“${p.name}” and its progress will be removed. This does not change any transactions.',
+          linked.isEmpty
+              ? '“${p.name}” and its progress will be removed.'
+              : '“${p.name}” and its ${linked.length} linked '
+                  '${linked.length == 1 ? 'transaction' : 'transactions'} '
+                  'will be removed, and wallet balances restored.',
         ),
         actions: [
           TextButton(
@@ -528,6 +609,7 @@ class _PaylaterDashboardScreenState
     final totalCtrl = TextEditingController();
     final countCtrl = TextEditingController(text: '3');
     var selectedWalletId = paylater.first.id;
+    int? selectedCategoryId;
     final saved = await showSnackSheet<bool>(
       context,
       (context) => StatefulBuilder(
@@ -550,12 +632,43 @@ class _PaylaterDashboardScreenState
               _snack('Plans need at least 2 installments');
               return;
             }
-            await ref.read(databaseProvider).addInstallmentPlan(
+            if (selectedCategoryId == null) {
+              _snack('Pick a category for the purchase');
+              return;
+            }
+            // A plan's purchase is a new paylater expense, so the freeze
+            // gate applies here too — otherwise plans would bypass it.
+            if (AppPrefs.paylaterFrozen) {
+              final unfreeze = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Paylater is frozen'),
+                  content: const Text(
+                    'New paylater purchases are blocked while frozen. '
+                    'Unfreeze to add this plan?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('Unfreeze'),
+                    ),
+                  ],
+                ),
+              );
+              if (unfreeze != true) return;
+              await AppPrefs.setPaylaterFrozen(false);
+            }
+            await ref.read(databaseProvider).addPlanWithPurchase(
                   walletId: selectedWalletId,
                   name: name,
                   totalAmount: total,
                   installmentAmount: (total / count).round(),
                   totalCount: count,
+                  categoryId: selectedCategoryId!,
                 );
             if (context.mounted) Navigator.of(context).pop(true);
           },
@@ -585,6 +698,13 @@ class _PaylaterDashboardScreenState
                 labelText: 'Number of installments',
               ),
             ),
+            const SizedBox(height: 16),
+            CategoryPickerSection(
+              kind: 'expense',
+              selectedId: selectedCategoryId,
+              onSelected: (c) =>
+                  setSheetState(() => selectedCategoryId = c.id),
+            ),
           ],
         ),
       ),
@@ -592,7 +712,7 @@ class _PaylaterDashboardScreenState
     if (saved == true && mounted) _snack('Installment plan added');
   }
 
-  Widget _costsCard(int monthSpending) {
+  Widget _costsCard(int monthSpending, int monthRepayments) {
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,6 +729,20 @@ class _PaylaterDashboardScreenState
           const SizedBox(height: 2),
           Text(
             formatMoney(monthSpending),
+            style: TextStyle(
+              color: context.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Paid this month',
+            style: TextStyle(color: context.textMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            formatMoney(monthRepayments),
             style: TextStyle(
               color: context.textPrimary,
               fontSize: 20,
