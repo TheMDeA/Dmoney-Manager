@@ -373,7 +373,29 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               LineChartData(
                 minY: dataMin - pad,
                 maxY: dataMax + pad,
-                lineTouchData: const LineTouchData(enabled: false),
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => context.raised,
+                    fitInsideHorizontally: true,
+                    fitInsideVertically: true,
+                    getTooltipItems: (items) => items
+                        .map((s) {
+                          final month = s.x.toInt();
+                          final label =
+                              month == 0 ? 'Now' : 'Month $month';
+                          return LineTooltipItem(
+                            '$label\n${formatMoney(s.y.toInt())}',
+                            TextStyle(
+                              color: context.textPrimary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          );
+                        })
+                        .toList(),
+                  ),
+                ),
                 gridData: const FlGridData(show: false),
                 titlesData: FlTitlesData(
                   leftTitles: const AxisTitles(

@@ -1,6 +1,6 @@
-## [2.7.4] - 2026-10-27
+## [2.7.5] - 2026-10-27
 
 ### Added
 
-- Installment plans now show the due date of their next installment, following the paylater wallet's due day month by month — and the Next due card shows the plan's next installment date when the wallet has a single plan.
+- Growth projection chart is now tappable — tapping the curve shows that month's projected balance.
 
