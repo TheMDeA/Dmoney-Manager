@@ -55,6 +55,7 @@ class _PaylaterDashboardScreenState
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     final now = DateTime.now();
     return Scaffold(
       appBar: AppBar(title: const Text('Paylater')),
@@ -104,22 +105,23 @@ class _PaylaterDashboardScreenState
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                     children: [
-                      _heroCard(outstanding, dueCycle, ratio),
+                      _heroCard(outstanding, dueCycle, ratio, hidden),
                       const SizedBox(height: 12),
                       if (next != null) ...[
-                        _nextDueCard(next.wallet, next.dueDate, wallets, plans),
+                        _nextDueCard(
+                            next.wallet, next.dueDate, wallets, plans, hidden),
                         const SizedBox(height: 12),
                       ],
                       const _SectionLabel('Providers'),
                       const SizedBox(height: 8),
                       for (final w in paylater) ...[
-                        _providerCard(w),
+                        _providerCard(w, hidden),
                         const SizedBox(height: 8),
                       ],
                       const SizedBox(height: 12),
-                      _plansSection(plans, paylater, wallets),
+                      _plansSection(plans, paylater, wallets, hidden),
                       const SizedBox(height: 12),
-                      _costsCard(monthSpending, monthRepayments),
+                      _costsCard(monthSpending, monthRepayments, hidden),
                       const SizedBox(height: 12),
                       _freezeCard(),
                     ],
@@ -133,7 +135,10 @@ class _PaylaterDashboardScreenState
     );
   }
 
-  Widget _heroCard(int outstanding, int dueCycle, double? ratio) {
+  Widget _heroCard(
+      int outstanding, int dueCycle, double? ratio, bool hidden) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,7 +149,7 @@ class _PaylaterDashboardScreenState
           ),
           const SizedBox(height: 4),
           Text(
-            formatMoney(outstanding),
+            m(outstanding),
             style: AppTextStyles.displayBalance.copyWith(
               fontSize: 32,
               color: context.textPrimary,
@@ -154,7 +159,7 @@ class _PaylaterDashboardScreenState
           Row(
             children: [
               Expanded(
-                child: _heroStat('Due this cycle', formatMoney(dueCycle)),
+                child: _heroStat('Due this cycle', m(dueCycle)),
               ),
               Expanded(
                 child: _heroStat(
@@ -192,6 +197,7 @@ class _PaylaterDashboardScreenState
     DateTime dueDate,
     List<Wallet> wallets,
     List<InstallmentPlan> plans,
+    bool hidden,
   ) {
     // The button pays what this card shows: one installment when the
     // wallet has a single payable plan, otherwise the full outstanding.
@@ -203,6 +209,8 @@ class _PaylaterDashboardScreenState
     final shownDue = plan == null
         ? dueDate
         : (nextInstallmentDueDate(plan, wallet.dueDay) ?? dueDate);
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
       glowColor: context.accent,
       child: Column(
@@ -223,7 +231,7 @@ class _PaylaterDashboardScreenState
           ),
           const SizedBox(height: 2),
           Text(
-            '${formatMoney(amount)} · due ${formatDate(shownDue)}',
+            '${m(amount)} · due ${formatDate(shownDue)}',
             style: TextStyle(color: context.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -274,7 +282,9 @@ class _PaylaterDashboardScreenState
             for (final p in payers)
               ListTile(
                 title: Text(p.name),
-                trailing: Text(formatMoney(p.balance)),
+                trailing: Text(ref.read(balanceHiddenProvider)
+                    ? maskMoneyText(formatMoney(p.balance))
+                    : formatMoney(p.balance)),
                 onTap: () => Navigator.of(context).pop(p),
               ),
           ],
@@ -348,7 +358,9 @@ class _PaylaterDashboardScreenState
             for (final pay in payers)
               ListTile(
                 title: Text(pay.name),
-                trailing: Text(formatMoney(pay.balance)),
+                trailing: Text(ref.read(balanceHiddenProvider)
+                    ? maskMoneyText(formatMoney(pay.balance))
+                    : formatMoney(pay.balance)),
                 onTap: () => Navigator.of(context).pop(pay),
               ),
           ],
@@ -369,7 +381,9 @@ class _PaylaterDashboardScreenState
     _snack('Paid ${formatMoney(amount)} installment for ${p.name}');
   }
 
-  Widget _providerCard(Wallet w) {
+  Widget _providerCard(Wallet w, bool hidden) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final outstanding = paylaterOutstanding(w);
     final ratio = w.creditLimit != null && w.creditLimit! > 0
         ? (outstanding / w.creditLimit!).clamp(0.0, 1.0)
@@ -401,7 +415,7 @@ class _PaylaterDashboardScreenState
                 ),
               ),
               Text(
-                formatMoney(outstanding),
+                m(outstanding),
                 style: TextStyle(
                   color: context.textPrimary,
                   fontSize: 16,
@@ -415,7 +429,7 @@ class _PaylaterDashboardScreenState
             _LimitBar(ratio: ratio),
             const SizedBox(height: 4),
             Text(
-              '${formatMoney(outstanding)} of ${formatMoney(w.creditLimit!)} used',
+              '${m(outstanding)} of ${m(w.creditLimit!)} used',
               style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
           ] else
@@ -437,6 +451,7 @@ class _PaylaterDashboardScreenState
     List<InstallmentPlan> plans,
     List<Wallet> paylater,
     List<Wallet> allWallets,
+    bool hidden,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,7 +474,7 @@ class _PaylaterDashboardScreenState
           )
         else
           for (final p in plans) ...[
-            _planCard(p, paylater, allWallets),
+            _planCard(p, paylater, allWallets, hidden),
             const SizedBox(height: 8),
           ],
       ],
@@ -470,7 +485,10 @@ class _PaylaterDashboardScreenState
     InstallmentPlan p,
     List<Wallet> paylater,
     List<Wallet> allWallets,
+    bool hidden,
   ) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     Wallet? wallet;
     for (final w in paylater) {
       if (w.id == p.walletId) wallet = w;
@@ -500,7 +518,7 @@ class _PaylaterDashboardScreenState
                 ),
               ),
               Text(
-                '${formatMoney(planRemaining(p))} left',
+                '${m(planRemaining(p))} left',
                 style: TextStyle(color: context.textMuted, fontSize: 12),
               ),
             ],
@@ -518,8 +536,8 @@ class _PaylaterDashboardScreenState
               Expanded(
                 child: Text(
                   due == null
-                      ? '${p.paidCount} of ${p.totalCount} paid · ${formatMoney(p.installmentAmount)}/mo'
-                      : '${p.paidCount} of ${p.totalCount} paid · ${formatMoney(p.installmentAmount)}/mo · Due ${formatDate(due)}',
+                      ? '${p.paidCount} of ${p.totalCount} paid · ${m(p.installmentAmount)}/mo'
+                      : '${p.paidCount} of ${p.totalCount} paid · ${m(p.installmentAmount)}/mo · Due ${formatDate(due)}',
                   style: TextStyle(color: context.textMuted, fontSize: 12),
                 ),
               ),
@@ -746,7 +764,9 @@ class _PaylaterDashboardScreenState
     if (saved == true && mounted) _snack('Installment plan added');
   }
 
-  Widget _costsCard(int monthSpending, int monthRepayments) {
+  Widget _costsCard(int monthSpending, int monthRepayments, bool hidden) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,7 +782,7 @@ class _PaylaterDashboardScreenState
           ),
           const SizedBox(height: 2),
           Text(
-            formatMoney(monthSpending),
+            m(monthSpending),
             style: TextStyle(
               color: context.textPrimary,
               fontSize: 20,
@@ -776,7 +796,7 @@ class _PaylaterDashboardScreenState
           ),
           const SizedBox(height: 2),
           Text(
-            formatMoney(monthRepayments),
+            m(monthRepayments),
             style: TextStyle(
               color: context.textPrimary,
               fontSize: 20,

@@ -42,6 +42,14 @@ AppCurrency currencyByCode(String code) => supportedCurrencies.firstWhere(
 String formatMoney(int amount) =>
     formatMoneyWith(AppPrefs.currencyCode, amount);
 
+/// Privacy mask for an already-formatted amount: the trailing number
+/// becomes dots, keeping any sign/currency prefix (e.g. "Rp 12.450.000"
+/// -> "Rp ••••••••", "+Rp 500" -> "+Rp ••••••••"). Same rule as the
+/// count-up widgets' dot mask, shared so every hidden figure masks
+/// identically.
+String maskMoneyText(String formatted) =>
+    formatted.replaceAll(RegExp(r'[0-9.,]+$'), '••••••••');
+
 /// Formats a percentage with the Indonesian comma decimal separator,
 /// e.g. 12.5 -> "12,5%".
 String formatPercent(double value, [int fractionDigits = 1]) =>

@@ -122,3 +122,19 @@ final displayNameProvider =
 final accountsStreamProvider = StreamProvider<List<Account>>((ref) {
   return ref.watch(databaseProvider).watchAccounts();
 });
+
+/// Whether balance and total figures are hidden app-wide (privacy
+/// mode). Seeded from prefs; the Home eye toggle flips it, and every
+/// balance/total display watches it so all menus hide together.
+/// Individual transaction amounts are deliberately not gated by this.
+class BalanceHiddenNotifier extends Notifier<bool> {
+  @override
+  bool build() => AppPrefs.balanceHidden;
+  Future<void> toggle() async {
+    await AppPrefs.setBalanceHidden(!state);
+    state = !state;
+  }
+}
+
+final balanceHiddenProvider =
+    NotifierProvider<BalanceHiddenNotifier, bool>(BalanceHiddenNotifier.new);

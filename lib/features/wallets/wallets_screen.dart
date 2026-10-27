@@ -38,6 +38,7 @@ class WalletsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
     final selectedAccount = ref.watch(selectedAccountProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
 
     return Scaffold(
       body: AmbientGlow(
@@ -148,6 +149,7 @@ class WalletsScreen extends ConsumerWidget {
                                       const SizedBox(height: 4),
                                       CountUpMoney(
                                         amount: total,
+                                        hidden: hidden,
                                         style: AppTextStyles.displayBalance
                                             .copyWith(
                                               fontSize: 32,
@@ -167,7 +169,7 @@ class WalletsScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 12),
                                 if (paylaterWallets(wallets).isNotEmpty) ...[
-                                  _paylaterSummaryCard(context, wallets),
+                                  _paylaterSummaryCard(context, wallets, hidden),
                                   const SizedBox(height: 12),
                                 ],
                                 if (displayed.isEmpty &&
@@ -213,7 +215,10 @@ class WalletsScreen extends ConsumerWidget {
   /// balance card — never replacing it, never swipeable — and only
   /// appears when at least one paylater wallet exists. Tapping it opens
   /// the full Paylater dashboard.
-  Widget _paylaterSummaryCard(BuildContext context, List<Wallet> wallets) {
+  Widget _paylaterSummaryCard(
+      BuildContext context, List<Wallet> wallets, bool hidden) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final outstanding = totalPaylaterOutstanding(wallets);
     final ratio = paylaterLimitUsedRatio(wallets);
     final next = nextPaylaterDue(wallets, DateTime.now());
@@ -245,7 +250,7 @@ class WalletsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Owe ${formatMoney(outstanding)}',
+              'Owe ${m(outstanding)}',
               style: AppTextStyles.displayBalance.copyWith(
                 fontSize: 24,
                 color: context.textPrimary,
@@ -257,7 +262,7 @@ class WalletsScreen extends ConsumerWidget {
                 if (ratio != null)
                   '${(ratio * 100).round()}% of limit used',
                 if (next != null)
-                  'Next due: ${next.wallet.name} · ${formatDate(next.dueDate)} · ${formatMoney(paylaterOutstanding(next.wallet))}',
+                  'Next due: ${next.wallet.name} · ${formatDate(next.dueDate)} · ${m(paylaterOutstanding(next.wallet))}',
               ].join(' · '),
               style: TextStyle(
                 color: context.textMuted,
@@ -440,6 +445,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
   @override
   Widget build(BuildContext context) {
     final wallets = widget.wallets;
+    final hidden = ref.watch(balanceHiddenProvider);
 
     // A focused id that is no longer in the displayed list (e.g. a
     // paylater wallet, which never renders in the stack) falls back
@@ -485,6 +491,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                 context,
                 wallets.firstWhere((w) => w.id == id),
                 id == focusedId,
+                hidden,
               ),
             ),
         ],
@@ -492,7 +499,8 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     );
   }
 
-  Widget _stackCard(BuildContext context, Wallet w, bool focused) {
+  Widget _stackCard(
+      BuildContext context, Wallet w, bool focused, bool hidden) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = colorFromHex(w.colorHex);
     final brand = walletBrandForWallet(
@@ -590,11 +598,13 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                             brand,
                             color,
                             isDark,
+                            hidden,
                           ),
                         )
                       : KeyedSubtree(
                           key: ValueKey('fan-${w.id}'),
-                          child: _fanContent(context, w, brand, color, isDark),
+                          child: _fanContent(
+                              context, w, brand, color, isDark, hidden),
                         ),
                 ),
               ),
@@ -614,6 +624,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     WalletBrand brand,
     Color color,
     bool isDark,
+    bool hidden,
   ) {
     final negative = w.balance < 0;
     final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
@@ -648,6 +659,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
         const SizedBox(height: 6),
         CountUpMoney(
           amount: w.balance,
+          hidden: hidden,
           style: AppTextStyles.amount(size: 23).copyWith(
             color: negative ? AppColors.expense : context.textPrimary,
           ),
@@ -670,6 +682,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     WalletBrand brand,
     Color color,
     bool isDark,
+    bool hidden,
   ) {
     final negative = w.balance < 0;
     final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
@@ -723,6 +736,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
         const SizedBox(height: 10),
         CountUpMoney(
           amount: w.balance,
+          hidden: hidden,
           style: AppTextStyles.amount(size: 26).copyWith(
             color: negative ? AppColors.expense : context.textPrimary,
           ),
