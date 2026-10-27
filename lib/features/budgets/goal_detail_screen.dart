@@ -30,6 +30,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    // Privacy mode: goal figures mask, deposit/withdrawal rows stay.
+    final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Goal'),
@@ -64,7 +66,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             stream: db.watchGoalDeposits(g.id),
             builder: (context, dSnap) {
               final deposits = dSnap.data ?? const <GoalDeposit>[];
-              return _content(context, db, g, deposits);
+              return _content(context, db, g, deposits, hidden);
             },
           );
         },
@@ -77,7 +79,10 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
     AppDatabase db,
     Goal goal,
     List<GoalDeposit> deposits,
+    bool hidden,
   ) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final ratio =
         goal.target == 0 ? 0.0 : goal.saved / goal.target;
     final remain = goal.target - goal.saved;
@@ -114,8 +119,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _amountColumn(
-                  'Saved', formatMoney(goal.saved), context.textMuted),
-              _amountColumn('Remain', formatMoney(remain),
+                  'Saved', m(goal.saved), context.textMuted),
+              _amountColumn('Remain', m(remain),
                   remain < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
@@ -151,7 +156,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _infoRow('Amount', formatMoney(goal.target)),
+          _infoRow('Amount', m(goal.target)),
           _infoRow(
             'Goal date',
             goal.deadline == null ? '—' : formatDate(goal.deadline!),
@@ -194,7 +199,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
               ),
             )
           else
-            for (final day in days) _dayGroup(context, db, day, byDay[day]!),
+            for (final day in days) _dayGroup(context, db, day, byDay[day]!, hidden),
         ],
       ),
     );
@@ -273,7 +278,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   }
 
   Widget _dayGroup(BuildContext context, AppDatabase db, DateTime day,
-      List<GoalDeposit> ds) {
+      List<GoalDeposit> ds, bool hidden) {
     final dayTotal = ds.fold<int>(0, (s, d) => s + d.amount);
     return Column(
       children: [
@@ -310,7 +315,10 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 ),
               ),
               Text(
-                formatSignedMoney(dayTotal, isIncome: dayTotal >= 0),
+                hidden
+                    ? maskMoneyText(
+                        formatSignedMoney(dayTotal, isIncome: dayTotal >= 0))
+                    : formatSignedMoney(dayTotal, isIncome: dayTotal >= 0),
                 style: AppTextStyles.amount(size: 15),
               ),
             ],
@@ -454,6 +462,11 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   /// phone buzzes. Shown once, at the moment of completion.
   Future<void> _celebrateGoal(BuildContext context, Goal goal) {
     Haptics.medium();
+    // Modal dialog: capture the flag at open (the Home eye can't be
+    // reached while it is up).
+    final hidden = ref.read(balanceHiddenProvider);
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return showDialog(
       context: context,
       barrierDismissible: true,
@@ -517,7 +530,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${goal.name} — ${formatMoney(goal.saved)} saved',
+                '${goal.name} — ${m(goal.saved)} saved',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: context.textMuted, fontSize: 14),
               ),

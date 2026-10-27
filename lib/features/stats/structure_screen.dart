@@ -105,6 +105,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     final from = DateTime(_month.year, _month.month);
     final to = DateTime(_month.year, _month.month + 1)
         .subtract(const Duration(seconds: 1));
@@ -142,7 +143,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                       for (final c in (catSnap.data ?? const <Category>[]))
                         c.id: c,
                     };
-                    return _body(stats, cats);
+                    return _body(stats, cats, hidden);
                   },
                 );
               },
@@ -153,7 +154,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     );
   }
 
-  Widget _body(List<CategoryStat> stats, Map<int, Category> cats) {
+  Widget _body(List<CategoryStat> stats, Map<int, Category> cats, bool hidden) {
     final total = stats.fold<int>(0, (s, e) => s + e.total);
     return SingleChildScrollView(
       // Replay the stagger whenever month or kind changes.
@@ -162,7 +163,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _donutCard(stats, cats, total),
+          _donutCard(stats, cats, total, hidden),
           const SizedBox(height: 8),
           if (total == 0)
             Entrance(
@@ -186,7 +187,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
               Entrance(
                 delay: Duration(milliseconds: 80 + (i * 45).clamp(0, 450)),
                 child: _categoryRow(stats[i], cats[stats[i].categoryId],
-                    total, i == stats.length - 1),
+                    total, i == stats.length - 1, hidden),
               ),
         ],
       ),
@@ -194,7 +195,9 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   }
 
   Widget _donutCard(
-      List<CategoryStat> stats, Map<int, Category> cats, int total) {
+      List<CategoryStat> stats, Map<int, Category> cats, int total, bool hidden) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     if (total == 0) {
       return const SizedBox.shrink();
     }
@@ -229,7 +232,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     }
 
     final signedTotal =
-        _isIncome ? formatMoney(total) : '-${formatMoney(total)}';
+        _isIncome ? m(total) : '-${m(total)}';
 
     return GlassCard(
       child: SizedBox(
@@ -289,8 +292,8 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                 Text(
                   touched != null
                       ? (_isIncome
-                          ? formatMoney(touched.amount)
-                          : '-${formatMoney(touched.amount)}')
+                          ? m(touched.amount)
+                          : '-${m(touched.amount)}')
                       : signedTotal,
                   style: AppTextStyles.amount(size: 20),
                 ),
@@ -312,7 +315,9 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   }
 
   Widget _categoryRow(
-      CategoryStat s, Category? c, int total, bool last) {
+      CategoryStat s, Category? c, int total, bool last, bool hidden) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final color =
         c != null ? colorFromHex(c.colorHex) : Colors.grey;
     final pct = total == 0 ? 0.0 : s.total / total * 100;
@@ -366,8 +371,8 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                 children: [
                   Text(
                     _isIncome
-                        ? formatMoney(s.total)
-                        : '-${formatMoney(s.total)}',
+                        ? m(s.total)
+                        : '-${m(s.total)}',
                     style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
                         .copyWith(
                       color: _isIncome
@@ -400,6 +405,11 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     final to =
         DateTime(_month.year, _month.month + 1).subtract(const Duration(seconds: 1));
     final name = c?.name ?? 'Unknown';
+    // Modal sheet: capture the flag at open (the Home eye can't be
+    // reached while it is up).
+    final hidden = ref.read(balanceHiddenProvider);
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -434,7 +444,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                   ),
                   _isIncome
                       ? Text(
-                          formatMoney(s.total),
+                          m(s.total),
                           style: const TextStyle(
                             color: AppColors.income,
                             fontWeight: FontWeight.w700,
@@ -442,7 +452,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                           ),
                         )
                       : Text(
-                          '-${formatMoney(s.total)}',
+                          '-${m(s.total)}',
                           style: const TextStyle(
                             color: AppColors.expense,
                             fontWeight: FontWeight.w700,

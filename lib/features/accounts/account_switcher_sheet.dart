@@ -54,6 +54,9 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final selectedId = ref.watch(selectedAccountProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
@@ -107,7 +110,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
                             title: 'All accounts',
                             subtitle:
                                 '${wallets.length} wallet${wallets.length == 1 ? '' : 's'}',
-                            trailing: formatMoney(totalBalance),
+                            trailing: m(totalBalance),
                             selected: selectedId == null,
                             onTap: () => _select(null),
                           ),
@@ -119,7 +122,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
                               title: a.name,
                               subtitle:
                                   '${(byAccount[a.id] ?? const <Wallet>[]).length} wallet${(byAccount[a.id] ?? const <Wallet>[]).length == 1 ? '' : 's'}',
-                              trailing: formatMoney(
+                              trailing: m(
                                 (byAccount[a.id] ?? const <Wallet>[]).fold<int>(
                                   0,
                                   (s, w) => s + w.balance,

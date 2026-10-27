@@ -67,6 +67,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     final first = DateTime(_month.year, _month.month);
     // Sunday-first grid covering 6 weeks.
     final gridStart = first.subtract(Duration(days: first.weekday % 7));
@@ -137,7 +138,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   onShift: _shift,
                   onPick: _pickMonth,
                 ),
-                      _summary(monthIncome, monthExpense),
+                      _summary(monthIncome, monthExpense, hidden),
                       _weekdayHeader(),
                       Expanded(
                         child: AnimatedSwitcher(
@@ -207,7 +208,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     });
   }
 
-  Widget _summary(int income, int expense) {
+  Widget _summary(int income, int expense, bool hidden) {
     final total = income - expense;
     Widget cell(String label, Widget value) => Expanded(
       child: Column(
@@ -226,6 +227,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             'Income',
             CountUpMoney(
               amount: income,
+              hidden: hidden,
               style: AppTextStyles.amount(
                 size: 15,
                 weight: FontWeight.w700,
@@ -236,6 +238,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             'Expense',
             CountUpMoney(
               amount: expense,
+              hidden: hidden,
               format: (v) => '-${formatMoney(v)}',
               style: AppTextStyles.amount(
                 size: 15,
@@ -247,6 +250,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             'Total',
             CountUpMoney(
               amount: total,
+              hidden: hidden,
               format: (v) => v >= 0 ? formatMoney(v) : '-${formatMoney(-v)}',
               style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
                   .copyWith(
@@ -398,6 +402,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       builder: (_) => _DaySheet(
         initialDay: day,
         totals: totals,
+        hidden: ref.read(balanceHiddenProvider),
         onAdd: (d) {
           Navigator.of(context).pop();
           final now = DateTime.now();
@@ -421,11 +426,15 @@ class _DaySheet extends StatefulWidget {
     required this.initialDay,
     required this.totals,
     required this.onAdd,
+    required this.hidden,
   });
 
   final DateTime initialDay;
   final Map<DateTime, _DayTotal> totals;
   final ValueChanged<DateTime> onAdd;
+  // Captured at open: the sheet is modal, so the Home eye can't be
+  // reached while it is up.
+  final bool hidden;
 
   @override
   State<_DaySheet> createState() => _DaySheetState();
@@ -482,10 +491,13 @@ class _DaySheetState extends State<_DaySheet> {
                 const Spacer(),
                 net == 0
                     ? Text(
-                        formatMoney(0),
+                        widget.hidden
+                            ? maskMoneyText(formatMoney(0))
+                            : formatMoney(0),
                         style: TextStyle(color: context.textMuted),
                       )
-                    : AmountText(net.abs(), isIncome: net > 0, size: 15),
+                    : AmountText(net.abs(),
+                        isIncome: net > 0, size: 15, hidden: widget.hidden),
               ],
             ),
           ),
