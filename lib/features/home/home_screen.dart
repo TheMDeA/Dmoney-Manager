@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/services/app_prefs.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/sliding_segmented.dart';
 import '../../core/services/receipt_ocr.dart';
@@ -38,15 +37,14 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  // Restored from prefs: plain screen state used to reset whenever the
-  // shell's PageView disposed Home after jumping to a distant tab.
-  bool _balanceHidden = AppPrefs.balanceHidden;
-
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final range = ref.watch(dateRangeProvider);
     final accountId = ref.watch(selectedAccountProvider);
+    // Global privacy flag: the eye on the balance card flips it for
+    // every menu, not just Home (see [balanceHiddenProvider]).
+    final balanceHidden = ref.watch(balanceHiddenProvider);
 
     return Scaffold(
       body: AmbientGlow(
@@ -59,11 +57,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _header(context),
                 const SizedBox(height: 12),
                 BalanceCard(
-                  balanceHidden: _balanceHidden,
+                  balanceHidden: balanceHidden,
                   onToggleHidden: () {
                     Haptics.light();
-                    setState(() => _balanceHidden = !_balanceHidden);
-                    AppPrefs.setBalanceHidden(_balanceHidden);
+                    ref.read(balanceHiddenProvider.notifier).toggle();
                   },
                 ),
                 const SizedBox(height: 12),

@@ -31,6 +31,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Debts'),
@@ -74,7 +75,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
               ),
               const SizedBox(height: 12),
               _band(context, _direction == 'payable' ? 'Not yet pay' : 'Not yet received',
-                  outstandingTotal),
+                  outstandingTotal, hidden),
               if (outstanding.isEmpty)
                 const EmptyState(
                     icon: Icons.handshake_outlined,
@@ -88,7 +89,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                     child: _debtTile(context, ref, outstanding[i], false),
                   ),
               const SizedBox(height: 8),
-              _band(context, _direction == 'payable' ? 'Paid' : 'Received', paidTotal),
+              _band(context, _direction == 'payable' ? 'Paid' : 'Received', paidTotal, hidden),
               for (var i = 0; i < paid.length; i++)
                 Entrance(
                   key: ValueKey(paid[i].id),
@@ -102,7 +103,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     );
   }
 
-  Widget _band(BuildContext context, String label, int total) {
+  Widget _band(BuildContext context, String label, int total, bool hidden) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -118,7 +119,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             children: [
               TextSpan(text: '$label  '),
               TextSpan(
-                text: formatMoney(total),
+                text: hidden ? maskMoneyText(formatMoney(total)) : formatMoney(total),
                 style: const TextStyle(
                     color: AppColors.expense, fontWeight: FontWeight.w700),
               ),
@@ -130,6 +131,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   }
 
   Widget _debtTile(BuildContext context, WidgetRef ref, Debt d, bool paid) {
+    final hidden = ref.watch(balanceHiddenProvider);
     final color = colorFromHex(d.colorHex);
     return Dismissible(
       key: ValueKey(d.id),
@@ -200,7 +202,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           ],
         ),
         trailing: Text(
-          formatMoney(d.amount),
+          hidden ? maskMoneyText(formatMoney(d.amount)) : formatMoney(d.amount),
           style: AppTextStyles.amount(size: 15).copyWith(
             color: AppColors.expense,
             decoration: paid ? TextDecoration.lineThrough : null,

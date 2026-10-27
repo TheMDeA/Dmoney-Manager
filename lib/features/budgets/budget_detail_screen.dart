@@ -36,6 +36,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    // Privacy mode: budget figures mask, transaction rows stay.
+    final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Budget'),
@@ -95,7 +97,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                   for (final c in catSnap.data ?? const <Category>[]) {
                     if (c.id == categoryId) cat = c;
                   }
-                  return _content(context, db, budget, cat, txs);
+                  return _content(context, db, budget, cat, txs, hidden);
                 },
               );
             },
@@ -111,7 +113,10 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     Budget budget,
     Category? cat,
     List<TransactionWithDetails> txs,
+    bool hidden,
   ) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final spent = txs.fold<int>(0, (s, d) => s + d.transaction.amount);
     final left = budget.limit - spent;
     final ratio = budget.limit == 0 ? 0.0 : spent / budget.limit;
@@ -152,8 +157,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _amountColumn('Spent', formatMoney(spent), context.textMuted),
-              _amountColumn('Left', formatMoney(left),
+              _amountColumn('Spent', m(spent), context.textMuted),
+              _amountColumn('Left', m(left),
                   left < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
@@ -192,7 +197,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           ),
           const SizedBox(height: 20),
           _infoRow('Category', cat?.name ?? '—'),
-          _infoRow('Budget', formatMoney(budget.limit)),
+          _infoRow('Budget', m(budget.limit)),
           _infoRow(
             'Period',
             '01–${daysInMonth.toString().padLeft(2, '0')} ${_monthName(month)} $year',
@@ -200,15 +205,15 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           ),
           const SizedBox(height: 8),
           _dailyChart(
-              context, txs, budget.limit, daysInMonth, month, year, catColor),
+              context, txs, budget.limit, daysInMonth, month, year, catColor, hidden),
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: _paceStat('Recommended', recommended),
+                child: _paceStat('Recommended', recommended, hidden),
               ),
               Expanded(
-                child: _paceStat('Average', average),
+                child: _paceStat('Average', average, hidden),
               ),
             ],
           ),
@@ -285,7 +290,10 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     int month,
     int year,
     Color catColor,
+    bool hidden,
   ) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     // Cumulative spend per day.
     final perDay = List<int>.filled(daysInMonth + 1, 0);
     for (final d in txs) {
@@ -318,7 +326,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
               getTooltipColor: (_) => context.raised,
               getTooltipItems: (items) => items
                   .map((s) => LineTooltipItem(
-                        'Day ${s.x.toInt()}\n${formatMoney(s.y.toInt())}',
+                        'Day ${s.x.toInt()}\n${m(s.y.toInt())}',
                         TextStyle(
                             color: context.textPrimary,
                             fontSize: 12,
@@ -388,7 +396,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
-                  labelResolver: (_) => formatMoney(limit),
+                  labelResolver: (_) => m(limit),
                 ),
               ),
             ],
@@ -413,12 +421,13 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     );
   }
 
-  Widget _paceStat(String label, double value) {
+  Widget _paceStat(String label, double value, bool hidden) {
     final decimals = currentCurrency.decimals > 0 ? 2 : 0;
     final text = NumberFormat('#,##0.${'0' * decimals}',
             currentCurrency.locale)
         .format(value)
         .replaceAll('.', ',');
+    final shown = hidden ? maskMoneyText(text) : text;
     return Column(
       children: [
         Text(label,
@@ -426,7 +435,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                 TextStyle(color: context.textMuted, fontSize: 14)),
         const SizedBox(height: 4),
         Text(
-          '${currencyFieldPrefix.trim()} $text',
+          '${currencyFieldPrefix.trim()} $shown',
           style: AppTextStyles.amount(size: 17),
         ),
       ],

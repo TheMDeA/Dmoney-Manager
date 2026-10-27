@@ -84,6 +84,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     return Stack(
       key: _stackKey,
       children: [
@@ -139,7 +140,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                             DropdownMenuItem(
                               value: w.id,
                               child: Text(
-                                '${w.name} (${formatMoney(w.balance)})',
+                                '${w.name} (${hidden ? maskMoneyText(formatMoney(w.balance)) : formatMoney(w.balance)})',
                               ),
                             ),
                         ],
@@ -200,7 +201,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                             DropdownMenuItem(
                               value: w.id,
                               child: Text(
-                                '${w.name} (${formatMoney(w.balance)})',
+                                '${w.name} (${hidden ? maskMoneyText(formatMoney(w.balance)) : formatMoney(w.balance)})',
                               ),
                             ),
                         ],

@@ -32,6 +32,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    // Privacy mode: debt figures mask, payment rows stay.
+    final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Debt'),
@@ -78,7 +80,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                   for (final w in wallets) {
                     if (w.id == d.walletId) wallet = w;
                   }
-                  return _content(context, db, d, payments, wallets, wallet);
+                  return _content(context, db, d, payments, wallets, wallet, hidden);
                 },
               );
             },
@@ -95,7 +97,10 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
     List<DebtPayment> payments,
     List<Wallet> wallets,
     Wallet? wallet,
+    bool hidden,
   ) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final received = payments.fold<int>(0, (s, p) => s + p.amount);
     final left = debt.amount - received;
     final ratio = debt.amount == 0 ? 0.0 : received / debt.amount;
@@ -149,8 +154,8 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _amountColumn(receivable ? 'Received' : 'Paid',
-                  formatMoney(received), context.textMuted),
-              _amountColumn('Left', formatMoney(left),
+                  m(received), context.textMuted),
+              _amountColumn('Left', m(left),
                   left < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
@@ -190,7 +195,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _infoRow('Amount', formatMoney(debt.amount)),
+          _infoRow('Amount', m(debt.amount)),
           _infoRow('Date', dateFmt.format(debt.createdAt)),
           _infoRow('Wallet', wallet?.name ?? '—'),
           if (debt.note.isNotEmpty) _infoRow('Note', debt.note),
