@@ -34,6 +34,7 @@ class BudgetsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     final mk = monthKey(DateTime.now());
     final now = DateTime.now();
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
@@ -177,6 +178,7 @@ class BudgetsScreen extends ConsumerWidget {
                                         cats[budgets[i].categoryId],
                                         spentByCat[budgets[i].categoryId] ?? 0,
                                         mk,
+                                        hidden,
                                       ),
                                     ),
                                 const SectionHeader(title: 'Savings goals'),
@@ -215,6 +217,7 @@ class BudgetsScreen extends ConsumerWidget {
     Category? c,
     int spent,
     String mk,
+    bool hidden,
   ) {
     final ratio = b.limit == 0 ? 0.0 : spent / b.limit;
     final color = ratio >= 1
@@ -265,10 +268,11 @@ class BudgetsScreen extends ConsumerWidget {
                       children: [
                         CountUpMoney(
                           amount: spent,
+                          hidden: hidden,
                           style: AppTextStyles.amount(size: 13),
                         ),
                         Text(
-                          ' / ${formatMoney(b.limit)}',
+                          ' / ${hidden ? maskMoneyText(formatMoney(b.limit)) : formatMoney(b.limit)}',
                           style: AppTextStyles.amount(size: 13),
                         ),
                       ],
@@ -294,6 +298,7 @@ class BudgetsScreen extends ConsumerWidget {
                       ),
                       CountUpMoney(
                         amount: spent - b.limit,
+                        hidden: hidden,
                         style: AppTextStyles.amount(
                           size: 12,
                         ).copyWith(color: AppColors.expense),
@@ -301,6 +306,7 @@ class BudgetsScreen extends ConsumerWidget {
                     ] else ...[
                       CountUpMoney(
                         amount: b.limit - spent,
+                        hidden: hidden,
                         style: AppTextStyles.amount(
                           size: 12,
                         ).copyWith(color: context.textMuted),
@@ -324,6 +330,7 @@ class BudgetsScreen extends ConsumerWidget {
 
   Widget _goalsSection(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     return StreamBuilder<List<Goal>>(
       stream: db.watchGoals(),
       builder: (context, snap) {
@@ -388,12 +395,13 @@ class BudgetsScreen extends ConsumerWidget {
                                   children: [
                                     CountUpMoney(
                                       amount: goals[i].saved,
+                                      hidden: hidden,
                                       style: AppTextStyles.amount(
                                         size: 12,
                                       ).copyWith(color: context.textMuted),
                                     ),
                                     Text(
-                                      ' of ${formatMoney(goals[i].target)}',
+                                      ' of ${hidden ? maskMoneyText(formatMoney(goals[i].target)) : formatMoney(goals[i].target)}',
                                       style: AppTextStyles.amount(
                                         size: 12,
                                       ).copyWith(color: context.textMuted),
@@ -440,6 +448,7 @@ class BudgetsScreen extends ConsumerWidget {
 
   Widget _debtsPreview(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     return StreamBuilder<List<Debt>>(
       stream: db.watchDebts(isPaid: false),
       builder: (context, snap) {
@@ -477,7 +486,7 @@ class BudgetsScreen extends ConsumerWidget {
                   d.direction == 'payable' ? 'You owe' : 'Owed to you',
                 ),
                 trailing: Text(
-                  formatMoney(d.amount),
+                  hidden ? maskMoneyText(formatMoney(d.amount)) : formatMoney(d.amount),
                   style: AppTextStyles.amount(
                     size: 15,
                   ).copyWith(color: AppColors.expense),

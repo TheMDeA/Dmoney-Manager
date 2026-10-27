@@ -40,6 +40,20 @@ class WalletDetailScreen extends ConsumerStatefulWidget {
 
 class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
   late int _walletId;
+  int? _interestCategoryId;
+  bool _interestCategoryLoading = false;
+
+  /// Resolves the Interest category id once, for growth wallets only:
+  /// the actual-interest rows match by id (see [interestEarned]), and
+  /// resolving also creates the category on first use for existing
+  /// installs (see [AppDatabase.interestCategoryId]).
+  void _ensureInterestCategoryId(AppDatabase db) {
+    if (_interestCategoryId != null || _interestCategoryLoading) return;
+    _interestCategoryLoading = true;
+    db.interestCategoryId.then((id) {
+      if (mounted) setState(() => _interestCategoryId = id);
+    });
+  }
 
   @override
   void initState() {
@@ -134,6 +148,29 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     final transfer =
         txs.where((d) => d.transaction.kind == 'transfer').toList();
 
+    // Privacy mode: balances and totals mask, transaction amounts stay.
+    final hidden = ref.watch(balanceHiddenProvider);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String mb(Wallet w) {
+      final s = w.kind == 'paylater'
+          ? paylaterBalanceLabel(w)
+          : formatMoney(w.balance);
+      return hidden ? maskMoneyText(s) : s;
+    }
+
+    // Actual interest, once the category id is known. Null while it
+    // loads, so the rows below stay hidden rather than flashing a
+    // wrong Rp 0; the section then appears on the rate alone.
+    if (isGrowthWallet(wallet)) _ensureInterestCategoryId(db);
+    final interestId = _interestCategoryId;
+    final actuals = interestId == null
+        ? null
+        : (
+            year: interestEarned(txs, interestId,
+                year: DateTime.now().year),
+            total: interestEarned(txs, interestId),
+          );
+
     // Group expense/income by category like the reference.
     final groups = <int, List<TransactionWithDetails>>{};
     for (final d in txs) {
@@ -190,9 +227,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           // raw signed balance as if it were money owned. Every other
           // kind keeps the raw balance, red when negative.
           Text(
-            wallet.kind == 'paylater'
-                ? paylaterBalanceLabel(wallet)
-                : formatMoney(wallet.balance),
+            mb(wallet),
             style: AppTextStyles.displayBalance.copyWith(
               fontSize: 28,
               color: wallet.kind == 'paylater'
@@ -227,7 +262,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _statRow('Initial Amount', formatMoney(wallet.initialAmount), null,
+          _statRow('Initial Amount', m(wallet.initialAmount), null,
               null),
           _statRow(
               'Income',
@@ -244,7 +279,8 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               '${transfer.length} transaction${transfer.length == 1 ? '' : 's'}',
               null,
               () => _openTransactions(context, wallet, 'transfer')),
-          if (showGrowthProjection(wallet)) _growthSection(context, wallet),
+          if (showGrowthProjection(wallet) || (actuals?.total ?? 0) > 0)
+            _growthSection(context, wallet, actuals, hidden),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -275,7 +311,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                       TextStyle(color: context.textMuted, fontSize: 15)),
             )
           else
-            for (final e in grouped.take(8)) _groupRow(context, e.value),
+            for (final e in grouped.take(8)) _groupRow(context, e.value, hidden),
         ],
       ),
     );
@@ -310,25 +346,34 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     );
   }
 
-  /// Growth projection for savings wallets with an annual rate set.
-  /// Never rendered for an unset rate (see [showGrowthProjection]), and
-  /// every figure is labeled projected: the model assumes the balance
-  /// and the rate stay unchanged for the whole year, which is an
-  /// estimate, not a promise. No "interest earned this year" actual
-  /// row: the app has no interest income category, so no actual figure
-  /// exists to show — only the projected one.
-  Widget _growthSection(BuildContext context, Wallet wallet) {
-    final rate = wallet.interestRateAnnual!;
-    final curve = projectionCurve(
-      balance: wallet.balance,
-      annualRatePct: rate,
-    );
+  /// Growth projection for savings wallets with an annual rate set,
+  /// plus actual interest earned from Interest-category income.
+  /// Projected rows and the chart need a rate and are skipped without
+  /// one; the section itself also appears for a rateless wallet that
+  /// has actual interest. Every projected figure is labeled projected:
+  /// the model assumes the balance and the rate stay unchanged for the
+  /// whole year, which is an estimate, not a promise. Actual rows are
+  /// labeled actual and only total interest that was recorded.
+  Widget _growthSection(
+    BuildContext context,
+    Wallet wallet,
+    ({int year, int total})? actuals,
+    bool hidden,
+  ) {
+    final rate = wallet.interestRateAnnual;
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    final curve = rate == null
+        ? <int>[]
+        : projectionCurve(
+            balance: wallet.balance,
+            annualRatePct: rate,
+          );
     final spots = [
       for (var i = 0; i < curve.length; i++)
         FlSpot(i.toDouble(), curve[i].toDouble()),
     ];
-    final dataMin = curve.reduce(math.min).toDouble();
-    final dataMax = curve.reduce(math.max).toDouble();
+    final dataMin = curve.isEmpty ? 0.0 : curve.reduce(math.min).toDouble();
+    final dataMax = curve.isEmpty ? 0.0 : curve.reduce(math.max).toDouble();
     var pad = (dataMax - dataMin) * 0.12;
     if (pad <= 0) {
       pad = dataMax.abs() * 0.1;
@@ -347,21 +392,36 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        _statRow('Annual rate', formatAnnualRate(rate), null, null),
-        _statRow(
-            'In 6 months (projected)', formatMoney(curve[6]), null, null),
-        _statRow(
-            'In 12 months (projected)', formatMoney(curve[12]), null, null),
-        _statRow(
-            'Interest in a year (projected)',
-            formatMoney(projectedYearInterest(
-              balance: wallet.balance,
-              annualRatePct: rate,
-            )),
-            AppColors.income,
-            null),
-        const SizedBox(height: 12),
-        Container(
+        if (rate != null)
+          _statRow('Annual rate', formatAnnualRate(rate), null, null),
+        if (rate != null)
+          _statRow('In 6 months (projected)', m(curve[6]), null, null),
+        if (rate != null)
+          _statRow('In 12 months (projected)', m(curve[12]), null, null),
+        if (rate != null)
+          _statRow(
+              'Interest in a year (projected)',
+              m(projectedYearInterest(
+                balance: wallet.balance,
+                annualRatePct: rate,
+              )),
+              AppColors.income,
+              null),
+        if (actuals != null)
+          _statRow(
+              'Interest earned this year (actual)',
+              m(actuals.year),
+              AppColors.income,
+              null),
+        if (actuals != null)
+          _statRow(
+              'Total interest earned (actual)',
+              m(actuals.total),
+              AppColors.income,
+              null),
+        if (rate != null) ...[
+          const SizedBox(height: 12),
+          Container(
           padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
@@ -385,7 +445,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                           final label =
                               month == 0 ? 'Now' : 'Month $month';
                           return LineTooltipItem(
-                            '$label\n${formatMoney(s.y.toInt())}',
+                            '$label\n${m(s.y.toInt())}',
                             TextStyle(
                               color: context.textPrimary,
                               fontSize: 12,
@@ -446,17 +506,21 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Estimate only — assumes your balance and rate stay unchanged. '
-          'Not guaranteed.',
-          style: TextStyle(color: context.textMuted, fontSize: 13),
-        ),
+        ],
+        if (rate != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Estimate only — assumes your balance and rate stay unchanged. '
+            'Not guaranteed.',
+            style: TextStyle(color: context.textMuted, fontSize: 13),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _groupRow(BuildContext context, List<TransactionWithDetails> ds) {
+  Widget _groupRow(
+      BuildContext context, List<TransactionWithDetails> ds, bool hidden) {
     final d = ds.first;
     final catColor = colorFromHex(d.category.colorHex);
     final total = _groupTotal(ds);
@@ -512,7 +576,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               ),
             ),
             Text(
-              formatSignedMoney(total, isIncome: isIncome),
+              hidden
+                  ? maskMoneyText(
+                      formatSignedMoney(total, isIncome: isIncome))
+                  : formatSignedMoney(total, isIncome: isIncome),
               style: AppTextStyles.amount(size: 15).copyWith(
                   color: isIncome ? AppColors.income : AppColors.expense),
             ),
@@ -541,6 +608,15 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
   Future<void> _switchWallet(
       BuildContext context, List<Wallet> wallets) async {
     if (wallets.length < 2) return;
+    // Captured at open: the sheet is modal, so the Home eye can't be
+    // reached while it is up — no live update needed.
+    final hidden = ref.read(balanceHiddenProvider);
+    String mb(Wallet w) {
+      final s = w.kind == 'paylater'
+          ? paylaterBalanceLabel(w)
+          : formatMoney(w.balance);
+      return hidden ? maskMoneyText(s) : s;
+    }
     final picked = await showModalBottomSheet<int>(
       context: context,
       builder: (context) => SafeArea(
@@ -567,10 +643,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                       size: 20),
                 ),
                 title: Text(w.name),
-                trailing: Text(
-                    w.kind == 'paylater'
-                        ? paylaterBalanceLabel(w)
-                        : formatMoney(w.balance),
+                trailing: Text(mb(w),
                     style: AppTextStyles.amount(size: 14)),
                 selected: w.id == _walletId,
                 onTap: () {

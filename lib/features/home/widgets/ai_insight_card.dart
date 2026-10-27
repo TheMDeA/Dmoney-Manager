@@ -47,8 +47,12 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
 
   // Memoized eligible set: the 6-second cycle ticks must not rescan the
   // whole transaction table — only genuine data changes recompute.
+  // Computed strings embed amounts, so a privacy toggle must also
+  // recompute (and the shown session re-masks by title, not reshuffle).
   List<TransactionWithDetails>? _lastAll;
   List<(String, String)> _eligibleCache = const [];
+  bool _lastCacheHidden = false;
+  bool _lastShownHidden = false;
 
   @override
   void initState() {
@@ -76,10 +80,12 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     _index = 0;
   }
 
-  List<(String, String)> _eligibleInsights(List<TransactionWithDetails> all) {
-    if (!identical(all, _lastAll)) {
+  List<(String, String)> _eligibleInsights(
+      List<TransactionWithDetails> all, bool hidden) {
+    if (!identical(all, _lastAll) || hidden != _lastCacheHidden) {
       _lastAll = all;
-      _eligibleCache = _computeInsights(all);
+      _lastCacheHidden = hidden;
+      _eligibleCache = _computeInsights(all, hidden);
     }
     return _eligibleCache;
   }
@@ -106,6 +112,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     // The insight rules never look back more than two months, so don't
     // stream the entire history — bound it to the start of that day
     // (the rules apply their own precise cutoffs on top).
@@ -115,8 +122,18 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       stream: db.watchTransactions(accountId: accountId, from: insightFrom),
       builder: (context, snap) {
         final all = snap.data ?? const <TransactionWithDetails>[];
-        final eligible = _eligibleInsights(all);
+        final eligible = _eligibleInsights(all, hidden);
         _latestEligible = eligible;
+        // The eye toggle re-masks the shown session in place: match by
+        // title so the same insights stay up, just with dots.
+        if (hidden != _lastShownHidden) {
+          _lastShownHidden = hidden;
+          final byTitle = {for (final e in eligible) e.$1: e.$2};
+          _sessionInsights = [
+            for (final s in _sessionInsights)
+              (s.$1, byTitle[s.$1] ?? s.$2),
+          ];
+        }
         final key = eligible.map((e) => e.$1).join('|');
         if (key != _lastEligibleKey) {
           _lastEligibleKey = key;
@@ -281,7 +298,10 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
   /// Returns up to thirteen (headline, detail) insights, or empty when there
   /// is nothing to say. Each insight appears only when its data is
   /// meaningful, so the eligible set varies with the user's history.
-  List<(String, String)> _computeInsights(List<TransactionWithDetails> all) {
+  List<(String, String)> _computeInsights(
+      List<TransactionWithDetails> all, bool hidden) {
+    String m(int v) =>
+        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
     final twoWeeksAgo = now.subtract(const Duration(days: 14));
@@ -324,7 +344,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     if (topCatId != null) {
       final topCat = names[topCatId] ?? 'Unknown';
       final pct = (topRise * 100).toStringAsFixed(0);
-      final spent = formatMoney(
+      final spent = m(
         thisWeek.entries.firstWhere((e) => names[e.key] == topCat).value,
       );
       // Debt repayments aren't "spending" — phrase them correctly.
@@ -349,7 +369,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       final name = names[biggest.key] ?? 'Unknown';
       out.add((
         '$name leads your spending this month.',
-        '${formatMoney(biggest.value)} on $name in the last 30 days.',
+        '${m(biggest.value)} on $name in the last 30 days.',
       ));
     }
 
@@ -358,8 +378,8 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     if (weekTotal > 0) {
       final pace = weekTotal ~/ 7;
       out.add((
-        'You\'re spending about ${formatMoney(pace)} a day.',
-        '${formatMoney(weekTotal)} total in the last 7 days.',
+        'You\'re spending about ${m(pace)} a day.',
+        '${m(weekTotal)} total in the last 7 days.',
       ));
     }
 
@@ -428,9 +448,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       final count = merchCounts[top.key] ?? 1;
       out.add((
         '${top.key} is your top merchant this month.',
-        '${formatMoney(top.value)} across $count '
+        '${m(top.value)} across $count '
             '${count == 1 ? 'visit' : 'visits'} · '
-            '${formatMoney(top.value ~/ count)} on average.',
+            '${m(top.value ~/ count)} on average.',
       ));
     }
 
@@ -444,13 +464,13 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       if (pct <= -5) {
         out.add((
           'Spending is ${-pct}% lower than last month.',
-          '${formatMoney(monthTotal)} vs ${formatMoney(prevMonthTotal)} '
+          '${m(monthTotal)} vs ${m(prevMonthTotal)} '
               'in $prevName. Keep it going.',
         ));
       } else if (pct >= 5) {
         out.add((
           'Spending is $pct% higher than last month.',
-          '${formatMoney(monthTotal)} vs ${formatMoney(prevMonthTotal)} '
+          '${m(monthTotal)} vs ${m(prevMonthTotal)} '
               'in $prevName. Worth a glance.',
         ));
       }
@@ -502,8 +522,8 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       if (ratio >= 1.5) {
         out.add((
           'Weekends cost you ${ratio.toStringAsFixed(1).replaceAll('.', ',')}× weekdays.',
-          '${formatMoney((weekendTotal / weekendDays).round())} per weekend day '
-              'vs ${formatMoney((weekdayTotal / weekdayDays).round())} on weekdays.',
+          '${m((weekendTotal / weekendDays).round())} per weekend day '
+              'vs ${m((weekdayTotal / weekdayDays).round())} on weekdays.',
         ));
       }
     }
@@ -514,7 +534,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       final pct = (saved / incomeTotal * 100).round();
       out.add((
         'You kept $pct% of what you earned.',
-        '${formatMoney(saved)} saved in the last 30 days — income minus spending.',
+        '${m(saved)} saved in the last 30 days — income minus spending.',
       ));
     }
 
@@ -525,14 +545,14 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       if (pct >= 60) {
         out.add((
           '$pct% of your spending is cashless.',
-          '${formatMoney(cashlessTotal)} via bank & e-wallet vs '
-              '${formatMoney(cashTotal)} in cash.',
+          '${m(cashlessTotal)} via bank & e-wallet vs '
+              '${m(cashTotal)} in cash.',
         ));
       } else if (pct <= 40) {
         out.add((
           '${100 - pct}% of your spending is cash.',
-          '${formatMoney(cashTotal)} in cash vs '
-              '${formatMoney(cashlessTotal)} via bank & e-wallet.',
+          '${m(cashTotal)} in cash vs '
+              '${m(cashlessTotal)} via bank & e-wallet.',
         ));
       }
     }
@@ -543,7 +563,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       final share = (big.amount / monthTotal * 100).round();
       final label = big.note.trim().isNotEmpty ? big.note.trim() : 'Unknown';
       out.add((
-        'Biggest hit this month: ${formatMoney(big.amount)}.',
+        'Biggest hit this month: ${m(big.amount)}.',
         '$label on ${DateFormat('MMM d').format(big.date)} — one transaction, '
             '$share% of the month.',
       ));
@@ -552,7 +572,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     // 11. Late-night spending.
     if (lateCount >= 3) {
       out.add((
-        '${formatMoney(lateTotal)} spent after 10 PM.',
+        '${m(lateTotal)} spent after 10 PM.',
         '$lateCount late-night transactions in the last 30 days. '
             'Tired you spends more.',
       ));
@@ -587,15 +607,15 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     if (bestWd > 0 && overallDaily > 0 && bestAvg >= overallDaily * 1.5) {
       out.add((
         'Your biggest spending day: ${dowNames[bestWd]}s.',
-        '${formatMoney(bestAvg.round())} on average every ${dowNames[bestWd]}.',
+        '${m(bestAvg.round())} on average every ${dowNames[bestWd]}.',
       ));
     }
 
     // 13. Small leaks.
     if (smallCount >= 5) {
       out.add((
-        'Small leaks: ${formatMoney(smallTotal)}.',
-        '$smallCount purchases under ${formatMoney(50000)} this week. '
+        'Small leaks: ${m(smallTotal)}.',
+        '$smallCount purchases under ${m(50000)} this week. '
             'They add up quietly.',
       ));
     }

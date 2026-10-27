@@ -17,6 +17,7 @@ class GoalSpotlightCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     return StreamBuilder<List<Goal>>(
       stream: db.watchGoals(),
       builder: (context, snap) {
@@ -74,7 +75,7 @@ class GoalSpotlightCard extends ConsumerWidget {
                                 fontWeight: FontWeight.w700, fontSize: 16)),
                         const SizedBox(height: 2),
                         Text(
-                          '${formatMoney(g.saved)} of ${formatMoney(g.target)}',
+                          '${hidden ? maskMoneyText(formatMoney(g.saved)) : formatMoney(g.saved)} of ${hidden ? maskMoneyText(formatMoney(g.target)) : formatMoney(g.target)}',
                           style: AppTextStyles.amount(size: 12)
                               .copyWith(color: context.textMuted),
                         ),
