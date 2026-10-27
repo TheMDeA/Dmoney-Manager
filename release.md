@@ -1,6 +1,6 @@
-## [2.7.3] - 2026-10-27
+## [2.7.4] - 2026-10-27
 
-### Fixed
+### Added
 
-- Mark as paid on the paylater Next due card now pays a single installment instead of the whole bill when the wallet has one installment plan, so the plan advances and the payment stays linked to it.
+- Installment plans now show the due date of their next installment, following the paylater wallet's due day month by month — and the Next due card shows the plan's next installment date when the wallet has a single plan.
 

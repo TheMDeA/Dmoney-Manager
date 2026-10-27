@@ -270,6 +270,24 @@ InstallmentPlan? singlePayablePlan(List<InstallmentPlan> plans, int walletId) {
   return candidates.length == 1 ? candidates.single : null;
 }
 
+/// Due date of a plan's next unpaid installment: the wallet's due day
+/// in the (paidCount + 1)-th month after the plan's creation month —
+/// the first installment falls due the month after creation, each
+/// following one a month later. When the wallet has no due day, the
+/// plan's creation day is used instead. Days past a short month's end
+/// clamp to its last day, same as [nextDueDate]. Returns null for
+/// complete plans. A date in the past means that installment is
+/// overdue; it is shown as-is rather than rolled forward, so the
+/// schedule never mislabels which installment is due.
+DateTime? nextInstallmentDueDate(InstallmentPlan plan, int? walletDueDay) {
+  if (plan.paidCount >= plan.totalCount) return null;
+  final day = walletDueDay ?? plan.createdAt.day;
+  final year = plan.createdAt.year;
+  final month = plan.createdAt.month + plan.paidCount + 1;
+  final lastDay = DateTime(year, month + 1, 0).day;
+  return DateTime(year, month, day.clamp(1, lastDay));
+}
+
 /// Display label for a paylater wallet's balance: the owed amount as a
 /// positive figure when money is owed, "Overpaid Rp X" when the balance
 /// went positive, "Rp 0" when settled. Never the raw signed balance

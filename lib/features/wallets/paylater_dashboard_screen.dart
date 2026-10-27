@@ -195,9 +195,14 @@ class _PaylaterDashboardScreenState
   ) {
     // The button pays what this card shows: one installment when the
     // wallet has a single payable plan, otherwise the full outstanding.
+    // The date follows the same rule: the plan's next installment date
+    // in the single-plan case, the wallet's due date otherwise.
     final plan = singlePayablePlan(plans, wallet.id);
     final amount =
         plan == null ? paylaterOutstanding(wallet) : installmentDueAmount(plan);
+    final shownDue = plan == null
+        ? dueDate
+        : (nextInstallmentDueDate(plan, wallet.dueDay) ?? dueDate);
     return GlassCard(
       glowColor: context.accent,
       child: Column(
@@ -218,7 +223,7 @@ class _PaylaterDashboardScreenState
           ),
           const SizedBox(height: 2),
           Text(
-            '${formatMoney(amount)} · due ${formatDate(dueDate)}',
+            '${formatMoney(amount)} · due ${formatDate(shownDue)}',
             style: TextStyle(color: context.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -471,6 +476,7 @@ class _PaylaterDashboardScreenState
       if (w.id == p.walletId) wallet = w;
     }
     final complete = p.paidCount >= p.totalCount;
+    final due = nextInstallmentDueDate(p, wallet?.dueDay);
     // Tapping the card opens the plan's history: its purchase plus
     // every installment payment. The buttons inside still win their
     // own taps.
@@ -511,7 +517,9 @@ class _PaylaterDashboardScreenState
             children: [
               Expanded(
                 child: Text(
-                  '${p.paidCount} of ${p.totalCount} paid · ${formatMoney(p.installmentAmount)}/mo',
+                  due == null
+                      ? '${p.paidCount} of ${p.totalCount} paid · ${formatMoney(p.installmentAmount)}/mo'
+                      : '${p.paidCount} of ${p.totalCount} paid · ${formatMoney(p.installmentAmount)}/mo · Due ${formatDate(due)}',
                   style: TextStyle(color: context.textMuted, fontSize: 12),
                 ),
               ),

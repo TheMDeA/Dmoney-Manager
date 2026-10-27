@@ -340,4 +340,85 @@ void main() {
       expect(singlePayablePlan([p], 7)?.id, 1);
     });
   });
+
+  group('nextInstallmentDueDate', () {
+    InstallmentPlan datedPlan({
+      required DateTime created,
+      required int paid,
+      required int count,
+    }) =>
+        InstallmentPlan(
+          id: 1,
+          walletId: 7,
+          name: 'Plan',
+          totalAmount: 18000000,
+          installmentAmount: 6000000,
+          totalCount: count,
+          paidCount: paid,
+          createdAt: created,
+        );
+
+    test('first installment due the month after creation, on due day', () {
+      final p = datedPlan(
+        created: DateTime(2026, 10, 27),
+        paid: 0,
+        count: 3,
+      );
+      expect(nextInstallmentDueDate(p, 11), DateTime(2026, 11, 11));
+    });
+
+    test('each payment rolls the date one month forward', () {
+      final created = DateTime(2026, 10, 27);
+      expect(
+        nextInstallmentDueDate(
+          datedPlan(created: created, paid: 1, count: 3),
+          11,
+        ),
+        DateTime(2026, 12, 11),
+      );
+      expect(
+        nextInstallmentDueDate(
+          datedPlan(created: created, paid: 2, count: 3),
+          11,
+        ),
+        DateTime(2027, 1, 11),
+      );
+    });
+
+    test('complete plan → null', () {
+      final p = datedPlan(
+        created: DateTime(2026, 10, 27),
+        paid: 3,
+        count: 3,
+      );
+      expect(nextInstallmentDueDate(p, 11), isNull);
+    });
+
+    test('day 31 clamps to short month end', () {
+      final p = datedPlan(
+        created: DateTime(2026, 1, 15),
+        paid: 0,
+        count: 3,
+      );
+      expect(nextInstallmentDueDate(p, 31), DateTime(2026, 2, 28));
+    });
+
+    test('no wallet due day → creation day', () {
+      final p = datedPlan(
+        created: DateTime(2026, 10, 27),
+        paid: 0,
+        count: 3,
+      );
+      expect(nextInstallmentDueDate(p, null), DateTime(2026, 11, 27));
+    });
+
+    test('year rollover', () {
+      final p = datedPlan(
+        created: DateTime(2026, 12, 10),
+        paid: 0,
+        count: 3,
+      );
+      expect(nextInstallmentDueDate(p, 11), DateTime(2027, 1, 11));
+    });
+  });
 }
