@@ -55,8 +55,7 @@ class _CountUpMoneyState extends State<CountUpMoney> {
 
   /// Dot mask derived from the format: the trailing number becomes dots,
   /// keeping any sign/currency prefix (e.g. '+Rp ••••••••').
-  String _maskText() =>
-      widget.format(0).replaceAll(RegExp(r'[0-9.,]+$'), '••••••••');
+  String _maskText() => maskMoneyText(widget.format(0));
 
   @override
   Widget build(BuildContext context) {

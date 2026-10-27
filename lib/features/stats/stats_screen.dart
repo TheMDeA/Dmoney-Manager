@@ -94,6 +94,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     _bindStreams(db, accountId);
 
     return Scaffold(
@@ -155,7 +156,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _overviewSection(context),
+                                    _overviewSection(context, hidden),
                                     SectionHeader(
                                       title: 'Spending by category',
                                       action: TextButton(
@@ -169,26 +170,27 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                         child: const Text('Show more'),
                                       ),
                                     ),
-                                    _donut(context, donutTotals, cats),
+                                    _donut(context, donutTotals, cats, hidden),
                                     const SectionHeader(title: 'Insights'),
                                     _insightsCard(
                                       context,
                                       donutTotals,
                                       prevTotals,
                                       cats,
+                                      hidden,
                                     ),
                                     const SectionHeader(title: 'Last 6 months'),
-                                    _bars(context, monthlyTotals),
+                                    _bars(context, monthlyTotals, hidden),
                                     SectionHeader(
                                       title: 'Net savings trend',
-                                      action: _trendReadout(monthlyTotals),
+                                      action: _trendReadout(monthlyTotals, hidden),
                                     ),
-                                    _trendLine(context, monthlyTotals),
+                                    _trendLine(context, monthlyTotals, hidden),
                                     SectionHeader(
                                       title: 'Net worth',
                                       action: _netWorthRangeChips(),
                                     ),
-                                    _netWorthCard(context),
+                                    _netWorthCard(context, hidden),
                                     SizedBox(height: 8),
                                   ],
                                 ),
@@ -257,7 +259,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   /// Opening/ending are derived from the current wallet total minus the
   /// net of later transactions (balance adjustments fold into the nearest
   /// month).
-  Widget _overviewSection(BuildContext context) {
+  Widget _overviewSection(BuildContext context, bool hidden) {
     return StreamBuilder<List<Wallet>>(
       stream: _walletsStream,
       builder: (context, wSnap) {
@@ -296,6 +298,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                   context,
                                   'Opening balance',
                                   opening,
+                                  hidden,
                                 ),
                               ),
                               Container(
@@ -308,6 +311,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                   context,
                                   'Ending balance',
                                   ending,
+                                  hidden,
                                 ),
                               ),
                             ],
@@ -326,6 +330,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               'Income',
                               income,
                               AppColors.income,
+                              hidden: hidden,
                             ),
                             _overviewRow(
                               context,
@@ -333,12 +338,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               expense,
                               AppColors.expense,
                               format: (v) => '-${formatMoney(v)}',
+                              hidden: hidden,
                             ),
                             _overviewRow(
                               context,
                               'Total',
                               income - expense,
                               null,
+                              hidden: hidden,
                             ),
                             Divider(height: 1, color: context.hairline),
                             InkWell(
@@ -398,13 +405,17 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     return income - expense;
   }
 
-  Widget _balanceCell(BuildContext context, String label, int amount) {
+  Widget _balanceCell(
+      BuildContext context, String label, int amount, bool hidden) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 4),
-        CountUpMoney(amount: amount, style: AppTextStyles.amount(size: 17)),
+        CountUpMoney(
+            amount: amount,
+            hidden: hidden,
+            style: AppTextStyles.amount(size: 17)),
       ],
     );
   }
@@ -415,6 +426,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     int amount,
     Color? valueColor, {
     String Function(int) format = formatMoney,
+    bool hidden = false,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -425,6 +437,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           CountUpMoney(
             amount: amount,
             format: format,
+            hidden: hidden,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -467,6 +480,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     List<CategoryTotal> cur,
     List<CategoryTotal> prev,
     Map<int, Category> cats,
+    bool hidden,
   ) {
     final insights =
         <({IconData icon, Color color, String title, String subtitle})>[];
@@ -477,6 +491,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final curMap = {for (final e in cur) e.categoryId: e.total};
     final prevMap = {for (final e in prev) e.categoryId: e.total};
     String nameOf(int id) => cats[id]?.name ?? 'Other';
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     (IconData, Color) badgeOf(int id) {
       final c = cats[id];
       return (
@@ -493,7 +508,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       icon: topIcon,
       color: topColor,
       title: '${nameOf(top.categoryId)} leads your spending',
-      subtitle: '${formatMoney(top.total)} · $share% of this month',
+      subtitle: '${m(top.total)} · $share% of this month',
     ));
 
     // 2-3. Biggest riser and faller vs last month.
@@ -538,7 +553,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         color: AppColors.expense,
         title: '${nameOf(riserId)} up $pct%',
         subtitle:
-            '${formatMoney(prevMap[riserId]!)} → ${formatMoney(curMap[riserId]!)} vs $prevLabel',
+            '${m(prevMap[riserId]!)} → ${m(curMap[riserId]!)} vs $prevLabel',
       ));
     } else if (newId != -1) {
       final badgeColor = badgeOf(newId).$2;
@@ -546,7 +561,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         icon: Icons.fiber_new_outlined,
         color: badgeColor,
         title: 'New spending on ${nameOf(newId)}',
-        subtitle: '${formatMoney(newAmount)} this month',
+        subtitle: '${m(newAmount)} this month',
       ));
     }
     if (fallerId != -1) {
@@ -556,14 +571,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         color: AppColors.income,
         title: '${nameOf(fallerId)} down $pct%',
         subtitle:
-            'Saved ${formatMoney(prevMap[fallerId]! - curMap[fallerId]!)} vs $prevLabel',
+            'Saved ${m(prevMap[fallerId]! - curMap[fallerId]!)} vs $prevLabel',
       ));
     } else if (goneId != -1) {
       insights.add((
         icon: Icons.check_circle_outline,
         color: AppColors.income,
         title: 'No ${nameOf(goneId)} spending',
-        subtitle: 'Was ${formatMoney(goneAmount)} in $prevLabel',
+        subtitle: 'Was ${m(goneAmount)} in $prevLabel',
       ));
     }
 
@@ -580,9 +595,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       insights.add((
         icon: Icons.speed_outlined,
         color: up ? AppColors.expense : AppColors.income,
-        title: 'Daily pace ${formatMoney(paceCur)}',
+        title: 'Daily pace ${m(paceCur)}',
         subtitle:
-            '${up ? 'Above' : 'Below'} ${formatMoney(pacePrev)}/day in $prevLabel',
+            '${up ? 'Above' : 'Below'} ${m(pacePrev)}/day in $prevLabel',
       ));
     }
     return insights;
@@ -593,8 +608,9 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     List<CategoryTotal> cur,
     List<CategoryTotal> prev,
     Map<int, Category> cats,
+    bool hidden,
   ) {
-    final insights = _buildInsights(context, cur, prev, cats);
+    final insights = _buildInsights(context, cur, prev, cats, hidden);
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: insights.isEmpty
@@ -675,6 +691,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     BuildContext context,
     List<CategoryTotal> totals,
     Map<int, Category> cats,
+    bool hidden,
   ) {
     // Already grouped and sorted by the database.
     final sorted = totals;
@@ -757,7 +774,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      formatMoney(touched?.amount ?? total),
+                      hidden
+                          ? maskMoneyText(
+                              formatMoney(touched?.amount ?? total))
+                          : formatMoney(touched?.amount ?? total),
                       style: AppTextStyles.amount(size: 18),
                     ),
                     if (touched != null)
@@ -782,6 +802,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               amount: slices[i].amount,
               total: total,
               selected: _touchedDonutIndex == i,
+              hidden: hidden,
               onTap: () {
                 Haptics.select();
                 setState(() {
@@ -800,6 +821,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     required int amount,
     required int total,
     required bool selected,
+    required bool hidden,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -826,7 +848,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             const SizedBox(width: 10),
             Expanded(child: Text(name)),
             Text(
-              '${(amount / total * 100).toStringAsFixed(0)}%  ${formatMoney(amount)}',
+              '${(amount / total * 100).toStringAsFixed(0)}%  ${hidden ? maskMoneyText(formatMoney(amount)) : formatMoney(amount)}',
               style: AppTextStyles.amount(size: 13),
             ),
           ],
@@ -849,7 +871,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   String _monthKey(DateTime m) =>
       '${m.year}-${m.month.toString().padLeft(2, '0')}';
 
-  Widget _bars(BuildContext context, List<MonthlyTotal> totals) {
+  Widget _bars(BuildContext context, List<MonthlyTotal> totals, bool hidden) {
     final now = DateTime.now();
     final months = List.generate(
       6,
@@ -943,7 +965,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     children: [
                       TextSpan(
                         text:
-                            '${isIncome ? 'Income' : 'Expense'}: ${formatMoney(rod.toY.toInt())}',
+                            '${isIncome ? 'Income' : 'Expense'}: ${hidden ? maskMoneyText(formatMoney(rod.toY.toInt())) : formatMoney(rod.toY.toInt())}',
                         style: TextStyle(
                           color: isIncome
                               ? AppColors.income
@@ -1011,13 +1033,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   /// Fixed readout for the touched trend point. Lives in the section header,
   /// above the chart, so the finger never covers it.
-  Widget _trendReadout(List<MonthlyTotal> totals) {
+  Widget _trendReadout(List<MonthlyTotal> totals, bool hidden) {
     final i = _trendSelected;
     if (i == null) return const SizedBox.shrink();
     final (months, nets) = _trendData(totals);
     if (i < 0 || i >= months.length) return const SizedBox.shrink();
     return Text(
-      '${_monthLabel(months[i])} · ${formatMoney(nets[i].toInt())}',
+      '${_monthLabel(months[i])} · ${hidden ? maskMoneyText(formatMoney(nets[i].toInt())) : formatMoney(nets[i].toInt())}',
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w700,
@@ -1026,7 +1048,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     );
   }
 
-  Widget _trendLine(BuildContext context, List<MonthlyTotal> totals) {
+  Widget _trendLine(BuildContext context, List<MonthlyTotal> totals, bool hidden) {
     final (months, nets) = _trendData(totals);
     final spots = [
       for (var i = 0; i < nets.length; i++) FlSpot(i.toDouble(), nets[i]),
@@ -1109,7 +1131,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Text(
-                        _compactMoney((isMin ? dataMin : dataMax).round()),
+                        _compactMoney((isMin ? dataMin : dataMax).round(), hidden),
                         style: TextStyle(
                           fontSize: 10,
                           color: context.textMuted,
@@ -1162,7 +1184,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   /// Compact money for chart axis labels, e.g. 5_000_000 -> "5M".
-  String _compactMoney(int amount) {
+  String _compactMoney(int amount, bool hidden) {
+    if (hidden) return '••••';
     String trim(double v) {
       final s = v.toStringAsFixed(1);
       return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
@@ -1246,7 +1269,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   /// Total balance over time, derived backwards from today's total using
   /// monthly income/expense sums (transfers are neutral).
-  Widget _netWorthCard(BuildContext context) {
+  Widget _netWorthCard(BuildContext context, bool hidden) {
     return StreamBuilder<List<Wallet>>(
       stream: _walletsStream,
       builder: (context, wSnap) {
@@ -1256,7 +1279,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           stream: _monthlyStream,
           builder: (context, mSnap) {
             final totals = mSnap.data ?? const <MonthlyTotal>[];
-            return _netWorthChart(context, currentTotal, totals);
+            return _netWorthChart(context, currentTotal, totals, hidden);
           },
         );
       },
@@ -1267,6 +1290,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     BuildContext context,
     int currentTotal,
     List<MonthlyTotal> totals,
+    bool hidden,
   ) {
     final now = DateTime.now();
     final n = _netWorthRange;
@@ -1313,7 +1337,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               // the finger never covers it.
               if (_worthSelected != null && _worthSelected! < months.length)
                 Text(
-                  '${_monthLabel(months[_worthSelected!])} · ${formatMoney(points[_worthSelected!].toInt())}',
+                  '${_monthLabel(months[_worthSelected!])} · ${hidden ? maskMoneyText(formatMoney(points[_worthSelected!].toInt())) : formatMoney(points[_worthSelected!].toInt())}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -1326,6 +1350,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             children: [
               CountUpMoney(
                 amount: currentTotal,
+                hidden: hidden,
                 style: AppTextStyles.displayBalance.copyWith(
                   fontSize: 28,
                   color: context.textPrimary,
@@ -1341,7 +1366,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${up ? '+' : ''}${formatMoney(delta.toInt())} (${up ? '+' : ''}${formatPercent(pct)})',
+                  '${up ? '+' : ''}${hidden ? maskMoneyText(formatMoney(delta.toInt())) : formatMoney(delta.toInt())} (${up ? '+' : ''}${formatPercent(pct)})',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

@@ -13,6 +13,7 @@ void main() {
       'paid', // Bonus
       'trending_up', // Dividend
       'savings', // Investment
+      'account_balance', // Interest
       'lottery', // Lottery
       'salary', // Salary
       'tips', // Tips

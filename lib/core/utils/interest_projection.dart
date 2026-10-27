@@ -55,14 +55,37 @@ List<int> projectionCurve({
 
 /// Projected interest earned over a full year: the 12-month future
 /// value minus today's balance. Labeled "projected" in the UI — it is
-/// not a record of interest actually received (the app has no interest
-/// income category, so no actual-interest figure exists to show).
+/// an estimate, not a record of interest actually received (for that,
+/// see [interestEarned]).
 int projectedYearInterest({
   required int balance,
   required double annualRatePct,
 }) =>
     projectedBalance(balance: balance, annualRatePct: annualRatePct, months: 12) -
     balance;
+
+/// Actual interest earned from a wallet's loaded transactions: income
+/// rows booked under the Interest category. [interestCategoryId] is
+/// the category's id (see [AppDatabase.interestCategoryId]); matching
+/// by id, not name, so renaming the category keeps working. With
+/// [year] set, only that calendar year's rows count; without it, all
+/// rows. This can only total interest that was recorded — a balance
+/// jump from a deposit or transfer is indistinguishable from interest,
+/// so unrecorded interest never appears here.
+int interestEarned(
+  List<TransactionWithDetails> txs,
+  int interestCategoryId, {
+  int? year,
+}) {
+  var total = 0;
+  for (final t in txs) {
+    if (t.category.id != interestCategoryId) continue;
+    if (t.transaction.kind != 'income') continue;
+    if (year != null && t.transaction.date.year != year) continue;
+    total += t.transaction.amount;
+  }
+  return total;
+}
 
 /// Display form of an annual rate: "4%" for 4.0, "4.5%" for 4.5.
 String formatAnnualRate(double annualRatePct) {

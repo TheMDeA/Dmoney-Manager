@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
+import '../../state/providers.dart';
 
 /// Result of the move-wallets sheet.
 class MoveWalletsResult {
@@ -40,6 +41,7 @@ class _MoveWalletsSheetState extends ConsumerState<MoveWalletsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final hidden = ref.watch(balanceHiddenProvider);
     return FormSheet(
       title: 'Move wallets',
       subtitle: 'From ${widget.source.name}',
@@ -60,7 +62,7 @@ class _MoveWalletsSheetState extends ConsumerState<MoveWalletsSheet> {
               }
             }),
             title: Text(w.name),
-            subtitle: Text(formatMoney(w.balance),
+            subtitle: Text(hidden ? maskMoneyText(formatMoney(w.balance)) : formatMoney(w.balance),
                 style: TextStyle(color: context.textMuted, fontSize: 12)),
             controlAffinity: ListTileControlAffinity.leading,
             contentPadding: EdgeInsets.zero,

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/amount_text.dart';
+import '../../../state/providers.dart';
 
 /// Date group header: big day number, weekday + month/year, and the day's
 /// net total. Shared by the transaction history and wallet screens.
-class DateGroupHeader extends StatelessWidget {
+class DateGroupHeader extends ConsumerWidget {
   const DateGroupHeader({
     super.key,
     required this.day,
@@ -19,7 +21,8 @@ class DateGroupHeader extends StatelessWidget {
   final int net;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balanceHiddenProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
       child: Row(
@@ -48,10 +51,11 @@ class DateGroupHeader extends StatelessWidget {
           ),
           const Spacer(),
           net == 0
-              ? Text(formatMoney(0),
+              ? Text(hidden ? maskMoneyText(formatMoney(0)) : formatMoney(0),
                   style: AppTextStyles.amount(size: 15)
                       .copyWith(color: context.textMuted))
-              : AmountText(net.abs(), isIncome: net > 0, size: 15),
+              : AmountText(net.abs(),
+                  isIncome: net > 0, size: 15, hidden: hidden),
         ],
       ),
     );
