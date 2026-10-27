@@ -40,6 +40,7 @@ class WalletCategoryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     final catColor = colorFromHex(colorHex);
     return Scaffold(
       appBar: AppBar(
@@ -89,7 +90,9 @@ class WalletCategoryScreen extends ConsumerWidget {
                             style: TextStyle(fontSize: 15)),
                         const Spacer(),
                         Text(
-                          formatSignedMoney(total, isIncome: isIncome),
+                          hidden
+                              ? maskMoneyText(formatSignedMoney(total, isIncome: isIncome))
+                              : formatSignedMoney(total, isIncome: isIncome),
                           style:
                               AppTextStyles.amount(size: 17).copyWith(
                             color: isIncome

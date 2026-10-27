@@ -27,6 +27,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final db = ref.watch(databaseProvider);
+    final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Arrange Wallets')),
       body: StreamBuilder<List<Wallet>>(
@@ -54,7 +55,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
               );
             },
             itemBuilder: (context, i) =>
-                _walletRow(context, db, wallets[i], i),
+                _walletRow(context, db, wallets[i], i, hidden),
           );
         },
       ),
@@ -65,7 +66,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
   /// balance, and a compact logo badge. Explicit Row layout (no ListTile)
   /// so the badge can never squeeze the name out.
   Widget _walletRow(
-      BuildContext context, AppDatabase db, Wallet w, int index) {
+      BuildContext context, AppDatabase db, Wallet w, int index, bool hidden) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = colorFromHex(w.colorHex);
     final brand = walletBrandForWallet(
@@ -137,7 +138,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    formatMoney(w.balance),
+                    hidden ? maskMoneyText(formatMoney(w.balance)) : formatMoney(w.balance),
                     style: TextStyle(
                       color: context.textMuted,
                       fontSize: 13,

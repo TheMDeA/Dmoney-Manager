@@ -166,15 +166,13 @@ void main() {
     });
   });
 
-  group('no interest income category', () {
-    test('seed has no Interest category, so no actual-interest row exists',
-        () async {
+  group('interest income category', () {
+    test('seed has an Interest income category', () async {
       final cats = await db.watchCategories().first;
       expect(cats, isNotEmpty);
-      expect(
-        cats.any((c) => c.name.toLowerCase() == 'interest'),
-        isFalse,
-      );
+      final interest = cats.where((c) => c.name == 'Interest');
+      expect(interest, hasLength(1));
+      expect(interest.single.kind, 'income');
     });
   });
 }

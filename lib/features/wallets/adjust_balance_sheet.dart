@@ -92,6 +92,7 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
   @override
   Widget build(BuildContext context) {
     final diff = _diff;
+    final hidden = ref.watch(balanceHiddenProvider);
     final diffColor = diff == 0
         ? context.textMuted
         : (diff > 0 ? AppColors.income : AppColors.expense);
@@ -108,7 +109,9 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
             Text('Current balance',
                 style: TextStyle(color: context.textMuted, fontSize: 13)),
             Text(
-              formatMoney(widget.wallet.balance),
+              hidden
+                  ? maskMoneyText(formatMoney(widget.wallet.balance))
+                  : formatMoney(widget.wallet.balance),
               style:
                   const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
