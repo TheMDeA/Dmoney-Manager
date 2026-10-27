@@ -446,7 +446,24 @@ class AppDatabase extends _$AppDatabase {
     ));
   }
 
-  /// The fee expense rows linked to a transfer (usually zero or one).
+  /// The income category interest credits are booked under. Created on
+  /// first use — existing installs never re-run the seed. Mirrors
+  /// [feeCategoryId], except this one is user-visible: it appears in
+  /// the category picker once created, which is the point — it is how
+  /// interest income gets recorded.
+  Future<int> get interestCategoryId async {
+    final existing = await (select(categories)
+          ..where((c) =>
+              c.kind.equals('income') & c.name.equals('Interest')))
+        .get();
+    if (existing.isNotEmpty) return existing.first.id;
+    return into(categories).insert(CategoriesCompanion.insert(
+      name: 'Interest',
+      iconKey: const Value('account_balance'),
+      colorHex: const Value('#4ADE80'),
+      kind: 'income',
+    ));
+  }
   Future<List<Transaction>> transferFeeRows(int transferId) =>
       (select(transactions)..where((t) => t.transferId.equals(transferId)))
           .get();
@@ -1978,6 +1995,7 @@ class AppDatabase extends _$AppDatabase {
     await cat('Bonus', 'paid', '#14B8A6', 'income');
     await cat('Dividend', 'trending_up', '#FACC15', 'income');
     await cat('Investment', 'savings', '#FB923C', 'income');
+    await cat('Interest', 'account_balance', '#4ADE80', 'income');
     await cat('Lottery', 'lottery', '#F04444', 'income');
     await cat('Salary', 'salary', '#EC4899', 'income');
     await cat('Tips', 'tips', '#A78BFA', 'income');
