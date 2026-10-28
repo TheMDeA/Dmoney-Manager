@@ -764,32 +764,42 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   duration: _animDuration,
                   curve: _animCurve,
                 ),
-                // Center readout: total, or the tapped slice.
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      touched?.name ?? 'Total',
-                      style: TextStyle(color: context.textMuted, fontSize: 12),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      hidden
-                          ? maskMoneyText(
-                              formatMoney(touched?.amount ?? total))
-                          : formatMoney(touched?.amount ?? total),
-                      style: AppTextStyles.amount(size: 18),
-                    ),
-                    if (touched != null)
+                // Center readout: total, or the tapped slice. The amount
+                // shrinks to fit the hole instead of spilling onto the ring.
+                SizedBox(
+                  width: 112, // hole diameter (2 x 58) minus breathing room
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        '${(touched.amount / total * 100).toStringAsFixed(0)}%',
+                        touched?.name ?? 'Total',
                         style: TextStyle(
-                          color: context.accent,
+                          color: context.textMuted,
                           fontSize: 12,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                  ],
+                      const SizedBox(height: 2),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          hidden
+                              ? maskMoneyText(
+                                  formatMoney(touched?.amount ?? total))
+                              : formatMoney(touched?.amount ?? total),
+                          style: AppTextStyles.amount(size: 18),
+                        ),
+                      ),
+                      if (touched != null)
+                        Text(
+                          '${(touched.amount / total * 100).toStringAsFixed(0)}%',
+                          style: TextStyle(
+                            color: context.accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -980,8 +990,31 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ),
             ),
             titlesData: FlTitlesData(
-              leftTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  // No labels for an empty chart — a lone "Rp 1" top label
+                  // would be worse than none.
+                  showTitles: maxY > 1,
+                  reservedSize: 44,
+                  interval: maxY * 1.15,
+                  getTitlesWidget: (v, meta) {
+                    // Only the extremes — keeps the chart clean. The top
+                    // label shows the tallest bar, not the padded axis max.
+                    final isMin = (v - meta.min).abs() < 1e-6;
+                    final isMax = (v - meta.max).abs() < 1e-6;
+                    if (!isMin && !isMax) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        _compactMoney(isMin ? 0 : maxY.toInt(), hidden),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: context.textMuted,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
               topTitles: const AxisTitles(
                 sideTitles: SideTitles(showTitles: false),
@@ -1395,6 +1428,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ),
               child: LineChart(
                 LineChartData(
+                  // Half a step of horizontal headroom so the first/last
+                  // month labels sit inside the card instead of clipping.
+                  minX: -0.5,
+                  maxX: (n - 1) + 0.5,
                   minY: nwMin - nwPad,
                   maxY: nwMax + nwPad,
                   lineTouchData: LineTouchData(
@@ -1430,8 +1467,33 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   ),
                   gridData: const FlGridData(show: false),
                   titlesData: FlTitlesData(
-                    leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 44,
+                        interval: (nwMax + nwPad) - (nwMin - nwPad),
+                        getTitlesWidget: (v, meta) {
+                          // Only the extremes — keeps the chart clean.
+                          // Labels show the true data values, not the
+                          // padded axis bounds.
+                          final isMin = (v - meta.min).abs() < 1e-6;
+                          final isMax = (v - meta.max).abs() < 1e-6;
+                          if (!isMin && !isMax) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(
+                              _compactMoney(
+                                (isMin ? nwMin : nwMax).round(),
+                                hidden,
+                              ),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: context.textMuted,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                     topTitles: const AxisTitles(
                       sideTitles: SideTitles(showTitles: false),

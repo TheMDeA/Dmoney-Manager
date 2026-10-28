@@ -1,7 +1,12 @@
-## [2.7.5] - 2026-10-27
+## [2.7.6] - 2026-10-28
 
 ### Added
 
-- Growth projection chart is now tappable — tapping the curve shows that month's projected balance.
-- Interest earned is now tracked: record bank interest under the new Interest income category and the wallet detail shows what you earned this year and in total, next to the projection.
-- Hide-balance mode now covers every menu: wallet balances, Stats totals, paylater amounts, budgets, goals, debts, and calendar totals all show as dots, while individual transaction amounts stay visible.
+- Adding a transaction now reopens on the last saved transaction's date for the rest of the app session, with a Today button to jump back — closing the app resets it to today.
+- The Last 6 months bars and the net worth chart now show compact value labels on their vertical axis, matching the trend chart.
+
+### Fixed
+
+- The spending donut's center total now shrinks to fit inside the ring instead of spilling over it on large amounts.
+- The net worth chart's first and last month labels are no longer cut off at the card edges.
+

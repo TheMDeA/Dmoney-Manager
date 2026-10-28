@@ -138,3 +138,20 @@ class BalanceHiddenNotifier extends Notifier<bool> {
 
 final balanceHiddenProvider =
     NotifierProvider<BalanceHiddenNotifier, bool>(BalanceHiddenNotifier.new);
+
+/// The date of the last transaction saved in this app session, so the add
+/// sheet reopens on it instead of today. Deliberately NOT persisted: it
+/// lives only in memory, so a fresh app launch starts on today again.
+class LastTransactionDateNotifier extends Notifier<DateTime?> {
+  @override
+  DateTime? build() => null;
+
+  void set(DateTime date) {
+    state = DateTime(date.year, date.month, date.day);
+  }
+}
+
+final lastTransactionDateProvider =
+    NotifierProvider<LastTransactionDateNotifier, DateTime?>(
+      LastTransactionDateNotifier.new,
+    );
