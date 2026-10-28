@@ -125,6 +125,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   DateTime get _dateTime =>
       DateTime(_date.year, _date.month, _date.day, _time.hour, _time.minute);
 
+  /// True when the picked date is today — the Today button hides then.
+  bool get _isToday {
+    final now = DateTime.now();
+    return _date.year == now.year &&
+        _date.month == now.month &&
+        _date.day == now.day;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -152,6 +160,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       if (widget.initialDate != null) {
         _date = widget.initialDate!;
         _time = TimeOfDay.fromDateTime(widget.initialDate!);
+      } else {
+        // Session sticky date: reopen on the last saved transaction's
+        // date. The time stays "now" from the field initializer — only
+        // the date sticks.
+        final sticky = ref.read(lastTransactionDateProvider);
+        if (sticky != null) _date = sticky;
       }
       if (widget.ocrFilled) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -450,7 +464,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
               _fieldError(_walletError),
               const SizedBox(height: 16),
-              const FormSectionLabel('Date & time'),
+              Row(
+                children: [
+                  const Expanded(child: FormSectionLabel('Date & time')),
+                  if (!_isToday)
+                    TextButton(
+                      onPressed: () {
+                        Haptics.select();
+                        setState(() => _date = DateTime.now());
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      child: const Text('Today'),
+                    ),
+                ],
+              ),
               Row(
                 children: [
                   Expanded(
@@ -1064,6 +1094,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           );
           return;
         }
+      }
+      // Remember the date for the next add, within this session only:
+      // the sheet reopens on the last saved transaction's date. Edits
+      // don't count — only new transactions set it. This runs only on
+      // success: a failed insert returns early above, and a throw skips
+      // past this point entirely.
+      if (!_editing) {
+        ref.read(lastTransactionDateProvider.notifier).set(_date);
       }
       await checkBudgetAlerts(ref);
     } finally {
