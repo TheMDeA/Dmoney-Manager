@@ -2,6 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../../core/utils/app_locale.dart';
 import '../../core/utils/formatters.dart';
 
 /// Local notifications: budget threshold alerts and debt due-date reminders.
@@ -27,11 +28,16 @@ class NotificationService {
     return await android?.requestNotificationsPermission() ?? false;
   }
 
-  static const _details = NotificationDetails(
+  /// Channel details are built per call (not const) so the channel name
+  /// and description follow the app language via [localizedOrFallback].
+  static NotificationDetails _details() => NotificationDetails(
     android: AndroidNotificationDetails(
       'dmoney_alerts',
-      'Dmoney alerts',
-      channelDescription: 'Budget threshold alerts and debt reminders',
+      localizedOrFallback((l) => l.notifChannelName, 'Dmoney alerts'),
+      channelDescription: localizedOrFallback(
+        (l) => l.notifChannelDescription,
+        'Budget threshold alerts and debt reminders',
+      ),
       importance: Importance.high,
       priority: Priority.high,
     ),
@@ -47,11 +53,19 @@ class NotificationService {
     if (!_ready) return;
     await _plugin.show(
       id: 1000000 + budgetId,
-      title: over ? 'Budget exceeded' : 'Budget alert',
-      body: over
-          ? '$categoryName is over budget'
-          : '$categoryName reached $percent% of its budget',
-      notificationDetails: _details,
+      title: localizedOrFallback(
+        (l) => over ? l.notifBudgetExceeded : l.notifBudgetAlert,
+        over ? 'Budget exceeded' : 'Budget alert',
+      ),
+      body: localizedOrFallback(
+        (l) => over
+            ? l.notifBudgetOverBody(categoryName)
+            : l.notifBudgetReachedBody(categoryName, percent),
+        over
+            ? '$categoryName is over budget'
+            : '$categoryName reached $percent% of its budget',
+      ),
+      notificationDetails: _details(),
     );
   }
 
@@ -60,11 +74,17 @@ class NotificationService {
     if (!_ready || count <= 0) return;
     await _plugin.show(
       id: 2000000,
-      title: 'Recurring transactions added',
-      body: count == 1
-          ? '1 recurring transaction was recorded'
-          : '$count recurring transactions were recorded',
-      notificationDetails: _details,
+      title: localizedOrFallback(
+        (l) => l.notifRecurringAdded,
+        'Recurring transactions added',
+      ),
+      body: localizedOrFallback(
+        (l) => l.notifRecurringBody(count),
+        count == 1
+            ? '1 recurring transaction was recorded'
+            : '$count recurring transactions were recorded',
+      ),
+      notificationDetails: _details(),
     );
   }
 
@@ -92,12 +112,17 @@ class NotificationService {
     }
     await _plugin.zonedSchedule(
       id: debtId,
-      title: 'Debt reminder',
-      body: payable
-          ? 'You owe ${formatMoney(amount)} to $person'
-          : '$person owes you ${formatMoney(amount)}',
+      title: localizedOrFallback((l) => l.notifDebtReminder, 'Debt reminder'),
+      body: localizedOrFallback(
+        (l) => payable
+            ? l.notifDebtOwedBody(formatMoney(amount), person)
+            : l.notifDebtOwedToYouBody(formatMoney(amount), person),
+        payable
+            ? 'You owe ${formatMoney(amount)} to $person'
+            : '$person owes you ${formatMoney(amount)}',
+      ),
       scheduledDate: when,
-      notificationDetails: _details,
+      notificationDetails: _details(),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }
@@ -132,10 +157,13 @@ class NotificationService {
     }
     await _plugin.zonedSchedule(
       id: 3000000 + walletId,
-      title: 'Paylater due',
-      body: '$walletName bill of ${formatMoney(amount)} is due',
+      title: localizedOrFallback((l) => l.notifPaylaterDue, 'Paylater due'),
+      body: localizedOrFallback(
+        (l) => l.notifPaylaterDueBody(formatMoney(amount), walletName),
+        '$walletName bill of ${formatMoney(amount)} is due',
+      ),
       scheduledDate: when,
-      notificationDetails: _details,
+      notificationDetails: _details(),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
   }

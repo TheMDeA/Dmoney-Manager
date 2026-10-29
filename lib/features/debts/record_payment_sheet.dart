@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
@@ -59,10 +60,11 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return FormSheet(
-      title: _receivable ? 'Record received' : 'Record payment',
-      actionLabel: 'Save',
+      title: _receivable ? l10n.debtRecordReceived : l10n.debtRecordPaymentTitle,
+      actionLabel: l10n.commonSave,
       onAction: _save,
       busy: _saving,
       children: [
@@ -82,17 +84,17 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
             ),
           ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Note (optional)'),
+        FormSectionLabel(l10n.commonNoteOptional),
         const SizedBox(height: 8),
         TextField(
           controller: _noteCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'What was this payment for?',
+          decoration: InputDecoration(
+            hintText: l10n.debtPaymentNoteHint,
           ),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Wallet'),
+        FormSectionLabel(l10n.commonWallet),
         const SizedBox(height: 8),
         StreamBuilder<List<Wallet>>(
           stream: db.watchWallets(),
@@ -141,7 +143,7 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text("Don't use wallet"),
+          title: Text(l10n.debtNoWallet),
           value: _noWallet,
           onChanged: (v) => setState(() {
             _noWallet = v;
@@ -151,11 +153,11 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
           }),
         ),
         const SizedBox(height: 8),
-        const FormSectionLabel('Date'),
+        FormSectionLabel(l10n.debtDateLabel),
         const SizedBox(height: 8),
         FormDatePill(
           date: _date,
-          placeholder: 'Pick a date',
+          placeholder: l10n.commonPickDate,
           onTap: () async {
             final picked = await showDatePicker(
               context: context,
@@ -174,9 +176,10 @@ class _RecordPaymentSheetState extends ConsumerState<RecordPaymentSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0) {
-      setState(() => _amountError = 'Please enter an amount');
+      setState(() => _amountError = l10n.commonEnterAmount);
       _amountShake.shake();
       return;
     }

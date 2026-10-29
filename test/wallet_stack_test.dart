@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -53,7 +54,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [databaseProvider.overrideWithValue(db)],
-        child: const MaterialApp(home: WalletsScreen()),
+        child: const MaterialApp(localizationsDelegates: AppLocalizations.localizationsDelegates, supportedLocales: AppLocalizations.supportedLocales, home: WalletsScreen()),
       ),
     );
     await tester.pump();

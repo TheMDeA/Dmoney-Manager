@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -77,8 +78,9 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _phase = _Phase.idle);
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Update failed: ${_friendlyError(e)}')),
+        SnackBar(content: Text(l10n.settingsUpdateFailed(_friendlyError(e)))),
       );
     }
   }
@@ -91,16 +93,23 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final info = widget.info;
     final downloading = _phase == _Phase.downloading;
     return FormSheet(
-      title: 'Update available',
+      title: l10n.settingsUpdateTitle,
       actionLabel: switch (_phase) {
-        _Phase.idle => _cached ? 'Install update' : 'Download update',
+        _Phase.idle =>
+          _cached ? l10n.settingsUpdateInstall : l10n.settingsUpdateDownload,
         _Phase.downloading => _speedBps > 0
-            ? 'Downloading… ${(_progress * 100).toStringAsFixed(0)}% • ${formatSpeed(_speedBps)}'
-            : 'Downloading… ${(_progress * 100).toStringAsFixed(0)}%',
-        _Phase.installing => 'Opening installer…',
+            ? l10n.settingsUpdateDownloadingSpeed(
+                (_progress * 100).toStringAsFixed(0),
+                formatSpeed(_speedBps),
+              )
+            : l10n.settingsUpdateDownloading(
+                (_progress * 100).toStringAsFixed(0),
+              ),
+        _Phase.installing => l10n.settingsUpdateInstalling,
       },
       onAction: _phase == _Phase.idle ? _download : null,
       busy: _phase == _Phase.installing,
@@ -117,7 +126,7 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
           ],
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel("What's new"),
+        FormSectionLabel(l10n.settingsUpdateWhatsNew),
         Container(
           constraints: const BoxConstraints(maxHeight: 220),
           padding: const EdgeInsets.all(14),
@@ -128,7 +137,7 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
           child: SingleChildScrollView(
             child: SelectableText(
               info.releaseNotes.isEmpty
-                  ? 'No release notes.'
+                  ? l10n.settingsUpdateNoNotes
                   : info.releaseNotes,
               style: const TextStyle(fontSize: 13, height: 1.45),
             ),
@@ -148,7 +157,7 @@ class _UpdateSheetState extends ConsumerState<_UpdateSheet> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Downloading the update — keep the app open.',
+            l10n.settingsUpdateDownloadingNote,
             style:
                 TextStyle(color: context.textMuted, fontSize: 12),
           ),

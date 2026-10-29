@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
@@ -68,10 +69,11 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final limit = parseAmountInput(_limitCtrl.text);
     final catId = _categoryId;
     if (catId == null || limit <= 0) {
-      _snack('Pick a category and enter a monthly limit');
+      _snack(l10n.budgetsPickCategoryLimit);
       return;
     }
     setState(() => _saving = true);
@@ -94,10 +96,11 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return FormSheet(
-      title: 'Add budget',
-      subtitle: 'Set a monthly spending limit per category.',
-      actionLabel: 'Add budget',
+      title: l10n.budgetsAddBudget,
+      subtitle: l10n.budgetsAddSubtitle,
+      actionLabel: l10n.budgetsAddBudget,
       onAction: _save,
       busy: _saving,
       children: [
@@ -108,7 +111,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
           onSelected: (c) => setState(() => _categoryId = c.id),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Monthly limit'),
+        FormSectionLabel(l10n.budgetsMonthlyLimit),
         FormAmountEntry(controller: _limitCtrl, autofocus: true),
         const SizedBox(height: 8),
       ],
@@ -138,6 +141,7 @@ class _EditBudgetLimitSheetState extends ConsumerState<_EditBudgetLimitSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return FutureBuilder<Budget?>(
       future: db.getBudgetById(widget.budgetId),
@@ -156,14 +160,14 @@ class _EditBudgetLimitSheetState extends ConsumerState<_EditBudgetLimitSheet> {
               if (budget != null && x.id == budget.categoryId) c = x;
             }
             return FormSheet(
-              title: 'Edit budget limit',
-              actionLabel: 'Save changes',
+              title: l10n.budgetsEditLimitTitle,
+              actionLabel: l10n.commonSaveChanges,
               onAction: () =>
                   Navigator.of(context).pop(parseAmountInput(_ctrl.text)),
               children: [
                 if (c != null) _categoryTile(context, c),
                 if (c != null) const SizedBox(height: 16),
-                const FormSectionLabel('Monthly limit'),
+                FormSectionLabel(l10n.budgetsMonthlyLimit),
                 FormAmountEntry(controller: _ctrl, autofocus: true),
                 const SizedBox(height: 8),
               ],

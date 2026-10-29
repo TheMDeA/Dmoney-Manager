@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_accents.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/app_locale.dart';
 import '../../../core/utils/haptics.dart';
 
 /// Opens the bottom-sheet month/year picker; returns the picked month or null.
@@ -46,7 +48,7 @@ class MonthSelector extends StatelessWidget {
             onPick();
           },
           child: Text(
-            DateFormat('MMM yyyy').format(month),
+            DateFormat('MMM yyyy', appLocaleCode).format(month),
             style: const TextStyle(
                 fontWeight: FontWeight.w700, fontSize: 16),
           ),
@@ -74,15 +76,12 @@ class MonthPicker extends StatefulWidget {
 }
 
 class _MonthPickerState extends State<MonthPicker> {
-  static const _names = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-
   late int _year = widget.initial.year;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final names = monthAbbreviations();
     final now = DateTime.now();
     return SafeArea(
       child: Padding(
@@ -131,7 +130,7 @@ class _MonthPickerState extends State<MonthPicker> {
                 Navigator.of(context).pop(DateTime(now.year, now.month));
               },
               icon: const Icon(Icons.today_outlined, size: 16),
-              label: const Text('Current month'),
+              label: Text(l10n.txCurrentMonth),
               style: TextButton.styleFrom(
                 foregroundColor: context.accent,
                 visualDensity: VisualDensity.compact,
@@ -171,7 +170,7 @@ class _MonthPickerState extends State<MonthPicker> {
                           },
                     child: Center(
                       child: Text(
-                        _names[m],
+                        names[m],
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: selected

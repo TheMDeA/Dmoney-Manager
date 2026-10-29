@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
@@ -11,7 +12,7 @@ import '../../core/utils/haptics.dart';
 import '../../state/providers.dart';
 
 /// Passcode + biometric lock screen ("Secure and Private").
-/// Verifies the 4-digit passcode set in More → Password protection.
+/// Verifies the 4-digit passcode set in Settings → Password protection.
 class LockScreen extends ConsumerStatefulWidget {
   const LockScreen({super.key});
 
@@ -53,7 +54,7 @@ class _LockScreenState extends ConsumerState<LockScreen>
     setState(() => _pin = '');
     _shake.forward(from: 0);
     Haptics.medium();
-    _msg('Wrong passcode, try again');
+    _msg(AppLocalizations.of(context)!.lockWrongPasscode);
   }
 
   void _press(String digit) {
@@ -79,19 +80,20 @@ class _LockScreenState extends ConsumerState<LockScreen>
   }
 
   Future<void> _biometric({bool silent = false}) async {
+    final l10n = AppLocalizations.of(context)!;
     try {
       final auth = LocalAuthentication();
       if (!await auth.canCheckBiometrics) {
-        if (!silent) _msg('No biometrics enrolled on this device');
+        if (!silent) _msg(l10n.lockNoBiometrics);
         return;
       }
       final ok = await auth.authenticate(
-        localizedReason: 'Unlock Dmoney Manager',
+        localizedReason: l10n.lockBiometricReason,
         biometricOnly: true,
       );
       if (ok && mounted) ref.read(lockedProvider.notifier).unlock();
     } catch (_) {
-      if (!silent) _msg('Biometric unlock failed');
+      if (!silent) _msg(l10n.lockBiometricFailed);
     }
   }
 
@@ -101,13 +103,14 @@ class _LockScreenState extends ConsumerState<LockScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final accent = context.accent;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             const SizedBox(height: 64),
-            Text('Enter Password', style: AppTextStyles.displaySection),
+            Text(l10n.lockEnterPassword, style: AppTextStyles.displaySection),
             const SizedBox(height: 32),
             // The dot row wiggles side-to-side on a wrong entry.
             AnimatedBuilder(

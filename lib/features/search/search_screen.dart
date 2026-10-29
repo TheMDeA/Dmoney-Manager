@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/formatters.dart';
@@ -58,10 +59,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Search')),
+      appBar: AppBar(title: Text(l10n.commonSearch)),
       body: Column(
         children: [
           Padding(
@@ -70,7 +72,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               controller: _ctrl,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'Keyword, amount, or date…',
+                hintText: l10n.searchHint,
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _hasText
                     ? IconButton(
@@ -94,13 +96,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                for (final f in ['all', 'income', 'expense'])
+                for (final f in [
+                  ('all', l10n.commonAll),
+                  ('income', l10n.txIncome),
+                  ('expense', l10n.txExpense),
+                ])
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(f[0].toUpperCase() + f.substring(1)),
-                      selected: _filter == f,
-                      onSelected: (_) => setState(() => _filter = f),
+                      label: Text(f.$2),
+                      selected: _filter == f.$1,
+                      onSelected: (_) => setState(() => _filter = f.$1),
                     ),
                   ),
               ],
@@ -116,17 +122,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
                 if (q.isEmpty) {
                   if (_recent.isEmpty) {
-                    return const EmptyState(
+                    return EmptyState(
                       icon: Icons.search,
-                      message: 'Search by keyword, amount (e.g. 45000), or date.',
+                      message: l10n.searchEmptyHint,
                     );
                   }
                   return ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: [
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('Recent searches'),
+                        child: Text(l10n.searchRecent),
                       ),
                       for (final r in _recent)
                         ListTile(
@@ -157,9 +163,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 }).toList();
 
                 if (results.isEmpty) {
-                  return const EmptyState(
+                  return EmptyState(
                     icon: Icons.search_off_outlined,
-                    message: 'No records match your search.',
+                    message: l10n.searchNoMatch,
                   );
                 }
                 return ListView.builder(

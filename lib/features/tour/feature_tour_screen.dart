@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/services/app_prefs.dart';
@@ -39,36 +40,36 @@ class _TourPage {
   final String body;
 }
 
-const _pages = [
+List<_TourPage> _tourPages(AppLocalizations l10n) => [
   _TourPage(
     Icons.receipt_long_outlined,
-    'Track every rupiah',
-    'Log income and expenses in seconds — or snap a receipt and let the app file it for you.',
+    l10n.tourPageTrackTitle,
+    l10n.tourPageTrackBody,
   ),
   _TourPage(
     Icons.wallet_outlined,
-    'Wallets that match real life',
-    'Cash, bank, e-wallet — track each balance separately, or see them all combined.',
+    l10n.tourPageWalletsTitle,
+    l10n.tourPageWalletsBody,
   ),
   _TourPage(
     Icons.savings_outlined,
-    'Budgets & savings goals',
-    'Set monthly budgets per category and watch your savings goals grow toward their targets.',
+    l10n.tourPageBudgetsTitle,
+    l10n.tourPageBudgetsBody,
   ),
   _TourPage(
     Icons.handshake_outlined,
-    'Debts, without the awkwardness',
-    'Track what you borrowed and lent, with due dates and reminders so nothing slips.',
+    l10n.tourPageDebtsTitle,
+    l10n.tourPageDebtsBody,
   ),
   _TourPage(
     Icons.calendar_month_outlined,
-    'Calendar & smart insights',
-    'See each day\u2019s money flow on the calendar and get insights about your spending habits.',
+    l10n.tourPageCalendarTitle,
+    l10n.tourPageCalendarBody,
   ),
   _TourPage(
     Icons.shield_outlined,
-    'Private by design',
-    'Your data stays on your device. Back it up anytime, and lock the app with a passcode.',
+    l10n.tourPagePrivateTitle,
+    l10n.tourPagePrivateBody,
   ),
 ];
 
@@ -87,9 +88,9 @@ class _FeatureTourScreenState extends State<FeatureTourScreen> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  void _next() {
+  void _next(bool last) {
     Haptics.light();
-    if (_index == _pages.length - 1) {
+    if (last) {
       _close();
     } else {
       _controller.nextPage(
@@ -101,7 +102,9 @@ class _FeatureTourScreenState extends State<FeatureTourScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final last = _index == _pages.length - 1;
+    final l10n = AppLocalizations.of(context)!;
+    final pages = _tourPages(l10n);
+    final last = _index == pages.length - 1;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -115,7 +118,7 @@ class _FeatureTourScreenState extends State<FeatureTourScreen> {
                   _close();
                 },
                 child: Text(
-                  'Skip',
+                  l10n.tourSkip,
                   style: TextStyle(
                     color: context.textMuted,
                     fontWeight: FontWeight.w600,
@@ -127,16 +130,16 @@ class _FeatureTourScreenState extends State<FeatureTourScreen> {
             Expanded(
               child: PageView.builder(
                 controller: _controller,
-                itemCount: _pages.length,
+                itemCount: pages.length,
                 onPageChanged: (i) => setState(() => _index = i),
-                itemBuilder: (_, i) => _page(context, _pages[i]),
+                itemBuilder: (_, i) => _page(context, pages[i]),
               ),
             ),
             // Dots.
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                for (var i = 0; i < _pages.length; i++)
+                for (var i = 0; i < pages.length; i++)
                   AnimatedContainer(
                     duration: AppMotion.fast,
                     curve: AppMotion.enter,
@@ -158,7 +161,7 @@ class _FeatureTourScreenState extends State<FeatureTourScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _next,
+                  onPressed: () => _next(last),
                   style: FilledButton.styleFrom(
                     backgroundColor: context.accent,
                     foregroundColor: onAccent(context.accent),
@@ -168,7 +171,7 @@ class _FeatureTourScreenState extends State<FeatureTourScreen> {
                     ),
                   ),
                   child: Text(
-                    last ? 'Get started' : 'Next',
+                    last ? l10n.tourGetStarted : l10n.tourNext,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,

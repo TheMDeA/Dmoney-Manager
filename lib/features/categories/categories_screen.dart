@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +24,7 @@ class CategoriesScreen extends ConsumerStatefulWidget {
 class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return DefaultTabController(
       length: 2,
@@ -31,10 +33,10 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           final tab = DefaultTabController.of(context);
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Manage Category'),
+              title: Text(l10n.categoryManageTitle),
               actions: [
                 IconButton(
-                  tooltip: 'Add category',
+                  tooltip: l10n.categoryAddTooltip,
                   icon: Icon(Icons.add),
                   onPressed: () {
                     final kind = tab.index == 0 ? 'income' : 'expense';
@@ -49,8 +51,8 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
               ],
               bottom: TabBar(
                 tabs: [
-                  Tab(text: 'INCOME'),
-                  Tab(text: 'EXPENSE'),
+                  Tab(text: l10n.categoryIncomeTab),
+                  Tab(text: l10n.categoryExpenseTab),
                 ],
               ),
             ),
@@ -69,6 +71,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                   children: [
                     _categoryList(
                       context,
+                      l10n,
                       db,
                       all
                           .where((c) =>
@@ -78,6 +81,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                     ),
                     _categoryList(
                       context,
+                      l10n,
                       db,
                       all
                           .where((c) =>
@@ -97,13 +101,14 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   Widget _categoryList(
     BuildContext context,
+    AppLocalizations l10n,
     AppDatabase db,
     List<Category> cats,
     Map<int, int> subCounts,
   ) {
     if (cats.isEmpty) {
       return Center(
-        child: Text('No categories yet — tap + to add one',
+        child: Text(l10n.categoryEmpty,
             style: TextStyle(color: context.textMuted)),
       );
     }
@@ -149,7 +154,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
           title: Text(c.name,
               style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
-            '$n subcategory',
+            l10n.categorySubcategoryCount(n),
             style: TextStyle(
                 fontSize: 12, color: context.textMuted),
           ),
@@ -157,7 +162,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                tooltip: 'Edit',
+                tooltip: l10n.commonEdit,
                 icon: const Icon(Icons.edit_outlined, size: 22),
                 onPressed: () => Navigator.of(context).push(
                   AppPageRoute(
@@ -169,7 +174,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
                 ),
               ),
               IconButton(
-                tooltip: 'Delete',
+                tooltip: l10n.commonDelete,
                 icon: Icon(Icons.delete_outline,
                     size: 22, color: context.textMuted),
                 onPressed: () {
@@ -186,16 +191,16 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
 
   Future<void> _confirmDelete(
       BuildContext context, AppDatabase db, Category c) async {
+    final l10n = AppLocalizations.of(context)!;
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Delete "${c.name}"?'),
-        content: const Text(
-            'Its subcategories are removed too. Transactions using it are moved to Uncategorized.'),
+        title: Text(l10n.categoryDeleteTitle(c.name)),
+        content: Text(l10n.categoryDeleteMessage),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.commonCancel)),
           FilledButton(
             onPressed: () {
               Haptics.medium();
@@ -203,7 +208,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
             },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete')),
+            child: Text(l10n.commonDelete)),
         ],
       ),
     );

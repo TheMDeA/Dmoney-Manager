@@ -88,6 +88,13 @@ class AppPrefs {
   static Future<void> setCurrencyCode(String v) =>
       _p.setString('currencyCode', v);
 
+  // -------------------------------- language -------------------------------
+  /// UI language override: null means "follow the device language".
+  static String? get languageCode => _p.getString('languageCode');
+  static Future<void> setLanguageCode(String? v) => v == null
+      ? _p.remove('languageCode')
+      : _p.setString('languageCode', v);
+
   // ------------------------------- accounts --------------------------------
   /// Global account scope: null means "All accounts".
   static int? get selectedAccountId => _p.getInt('selectedAccountId');

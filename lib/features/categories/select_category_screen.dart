@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -44,16 +45,17 @@ class _SelectCategoryScreenState extends ConsumerState<SelectCategoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final kinds = widget.lockKind ? [widget.initialKind] : const ['income', 'expense'];
     final body = kinds.length == 1
-        ? _categoryList(context, kinds.first)
+        ? _categoryList(context, l10n, kinds.first)
         : DefaultTabController(
             length: 2,
             initialIndex: widget.initialKind == 'income' ? 0 : 1,
             child: Column(
               children: [
                 TabBar(
-                  tabs: const [Tab(text: 'INCOME'), Tab(text: 'EXPENSE')],
+                  tabs: [Tab(text: l10n.categoryIncomeTab), Tab(text: l10n.categoryExpenseTab)],
                   labelColor: Theme.of(context).colorScheme.onSurface,
                   unselectedLabelColor: context.textMuted,
                   indicatorColor: context.textPrimary,
@@ -62,8 +64,8 @@ class _SelectCategoryScreenState extends ConsumerState<SelectCategoryScreen> {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      _categoryList(context, 'income'),
-                      _categoryList(context, 'expense'),
+                      _categoryList(context, l10n, 'income'),
+                      _categoryList(context, l10n, 'expense'),
                     ],
                   ),
                 ),
@@ -81,17 +83,17 @@ class _SelectCategoryScreenState extends ConsumerState<SelectCategoryScreen> {
             ? TextField(
                 controller: _searchCtrl,
                 autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search categories',
+                decoration: InputDecoration(
+                  hintText: l10n.categorySearchHint,
                   border: InputBorder.none,
                 ),
                 onChanged: (v) =>
                     setState(() => _query = v.trim().toLowerCase()),
               )
-            : const Text('Select Category'),
+            : Text(l10n.categorySelectTitle),
         actions: [
           IconButton(
-            tooltip: 'Search',
+            tooltip: l10n.commonSearch,
             icon: Icon(_searching ? Icons.close : Icons.search),
             onPressed: () => setState(() {
               _searching = !_searching;
@@ -102,7 +104,7 @@ class _SelectCategoryScreenState extends ConsumerState<SelectCategoryScreen> {
             }),
           ),
           IconButton(
-            tooltip: 'Manage categories',
+            tooltip: l10n.categoryManageTooltip,
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
               AppPageRoute(builder: (_) => const CategoriesScreen()),
@@ -114,7 +116,7 @@ class _SelectCategoryScreenState extends ConsumerState<SelectCategoryScreen> {
     );
   }
 
-  Widget _categoryList(BuildContext context, String kind) {
+  Widget _categoryList(BuildContext context, AppLocalizations l10n, String kind) {
     final db = ref.watch(databaseProvider);
     return StreamBuilder<List<Category>>(
       stream: db.watchCategories(kind: kind, topLevelOnly: true),
@@ -127,7 +129,7 @@ class _SelectCategoryScreenState extends ConsumerState<SelectCategoryScreen> {
         }
         if (cats.isEmpty) {
           return Center(
-            child: Text('No categories found.',
+            child: Text(l10n.categoryNoCategoriesFound,
                 style: TextStyle(color: context.textMuted)),
           );
         }
