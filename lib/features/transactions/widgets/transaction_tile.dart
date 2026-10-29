@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,6 +58,7 @@ class TransactionTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final t = details.transaction;
     final c = details.category;
     final isTransfer = t.kind == 'transfer';
@@ -84,7 +86,7 @@ class TransactionTile extends ConsumerWidget {
             backgroundColor: Theme.of(context).colorScheme.primary,
             foregroundColor: Colors.white,
             icon: Icons.edit_outlined,
-            label: 'Edit',
+            label: l10n.commonEdit,
           ),
         ],
       ),
@@ -101,7 +103,7 @@ class TransactionTile extends ConsumerWidget {
             backgroundColor: AppColors.expense,
             foregroundColor: Colors.white,
             icon: Icons.delete_outline,
-            label: 'Delete',
+            label: l10n.commonDelete,
           ),
         ],
       ),
@@ -194,7 +196,7 @@ class TransactionTile extends ConsumerWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Debt',
+                            l10n.txDebt,
                             style: TextStyle(
                               fontSize: 11,
                               color: Theme.of(context)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_accents.dart';
@@ -108,14 +109,15 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return FormSheet(
-      title: 'Edit debt',
-      actionLabel: 'Save',
+      title: l10n.debtEditTitle,
+      actionLabel: l10n.commonSave,
       onAction: _save,
       busy: _saving,
       children: [
-        const FormSectionLabel('Person'),
+        FormSectionLabel(l10n.debtPersonLabel),
         const SizedBox(height: 8),
         Shaker(
           controller: _personShake,
@@ -123,7 +125,7 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
             controller: _personCtrl,
             textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
-              hintText: 'Who is this debt with?',
+              hintText: l10n.debtPersonHint,
               errorText: _personError,
             ),
           ),
@@ -135,21 +137,21 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
         ),
         _fieldError(_amountError),
         const SizedBox(height: 16),
-        const FormSectionLabel('Note (optional)'),
+        FormSectionLabel(l10n.commonNoteOptional),
         const SizedBox(height: 8),
         TextField(
           controller: _noteCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'What was it for?',
+          decoration: InputDecoration(
+            hintText: l10n.commonNoteHint,
           ),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Due date (optional)'),
+        FormSectionLabel(l10n.debtDueDateOptional),
         const SizedBox(height: 8),
         FormDatePill(
           date: _dueDate,
-          placeholder: 'No due date',
+          placeholder: l10n.debtNoDueDate,
           onClear:
               _dueDate == null ? null : () => setState(() => _dueDate = null),
           onTap: () async {
@@ -164,7 +166,7 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
           },
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Wallet'),
+        FormSectionLabel(l10n.commonWallet),
         const SizedBox(height: 8),
         StreamBuilder<List<Wallet>>(
           stream: db.watchWallets(),
@@ -201,7 +203,7 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text("Don't use wallet"),
+          title: Text(l10n.debtNoWallet),
           value: _noWallet,
           onChanged: (v) => setState(() {
             _noWallet = v;
@@ -210,10 +212,10 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Show in transaction history'),
+          title: Text(l10n.debtShowInHistory),
           subtitle: Text(_noWallet
-              ? 'Needs a wallet to record'
-              : 'Record this debt as a transaction'),
+              ? l10n.debtNeedsWallet
+              : l10n.debtRecordAsTransaction),
           // Disabled while there's no wallet: the save path skips the
           // transaction, so the toggle must not promise one. _recordTx
           // is preserved underneath and restored when a wallet is used.
@@ -226,10 +228,11 @@ class _EditDebtSheetState extends ConsumerState<EditDebtSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final person = _personCtrl.text.trim();
     final amount = parseAmountInput(_amountCtrl.text);
-    final personError = person.isEmpty ? 'Please enter a name' : null;
-    final amountError = amount <= 0 ? 'Please enter an amount' : null;
+    final personError = person.isEmpty ? l10n.debtEnterName : null;
+    final amountError = amount <= 0 ? l10n.commonEnterAmount : null;
     setState(() {
       _personError = personError;
       _amountError = amountError;

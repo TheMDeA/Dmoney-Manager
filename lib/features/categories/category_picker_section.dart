@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -75,11 +76,16 @@ class CategoryPickerSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
+    // The const default label can't carry a locale; translate the
+    // default value here so the section header follows the app language.
+    // An explicit label passed by a caller is used as-is.
+    final sectionLabel = label == 'Category' ? l10n.categorySectionLabel : label;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FormSectionLabel(label),
+        FormSectionLabel(sectionLabel),
         StreamBuilder<List<Category>>(
           stream: db.watchCategories(kind: kind, topLevelOnly: true),
           builder: (context, snap) {
@@ -109,6 +115,7 @@ class CategoryPickerSection extends ConsumerWidget {
   }
 
   Widget _categoryTile(BuildContext context, Category c) {
+    final l10n = AppLocalizations.of(context)!;
     final selected = c.id == selectedId;
     final suggested = c.id == suggestedId && !selected;
     final color = colorFromHex(c.colorHex);
@@ -161,7 +168,7 @@ class CategoryPickerSection extends ConsumerWidget {
               Icon(Icons.check_circle, size: 18, color: accent)
             else if (suggested)
               Tooltip(
-                message: 'Suggested based on your history',
+                message: l10n.categorySuggestedTooltip,
                 child: Icon(Icons.auto_awesome,
                     size: 18, color: accent),
               ),
@@ -172,6 +179,7 @@ class CategoryPickerSection extends ConsumerWidget {
   }
 
   Widget _allTile(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final accent = context.accent;
     return InkWell(
       onTap: () {
@@ -207,7 +215,7 @@ class CategoryPickerSection extends ConsumerWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'All',
+                l10n.commonAll,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,

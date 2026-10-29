@@ -12,6 +12,7 @@ import '../../../core/widgets/count_up_balance.dart';
 import '../../../core/widgets/count_up_money.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../data/database/app_database.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../state/providers.dart';
 import '../../stats/structure_screen.dart';
 
@@ -32,6 +33,7 @@ class BalanceCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final range = ref.watch(dateRangeProvider);
     final accountId = ref.watch(selectedAccountProvider);
@@ -67,7 +69,7 @@ class BalanceCard extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Total balance',
+                        l10n.homeTotalBalance,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: context.textMuted,
                         ),
@@ -107,7 +109,7 @@ class BalanceCard extends ConsumerWidget {
                       Expanded(
                         child: _flowCell(
                           context,
-                          label: 'Income',
+                          label: l10n.homeIncome,
                           amount: income,
                           isIncome: true,
                           onTap: () => StructureScreen.open(
@@ -121,7 +123,7 @@ class BalanceCard extends ConsumerWidget {
                       Expanded(
                         child: _flowCell(
                           context,
-                          label: 'Expense',
+                          label: l10n.homeExpense,
                           amount: expense,
                           isIncome: false,
                           onTap: () => StructureScreen.open(

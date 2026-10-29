@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' hide Column, isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -64,6 +65,8 @@ void main() {
           child: ProviderScope(
             overrides: [databaseProvider.overrideWithValue(db)],
             child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
               home: Scaffold(
                 body: AddTransactionSheet(
                   initialKind: 'expense',

@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,11 +70,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   Future<void> _autoCheckUpdate() async {
     final info = await maybeAutoCheckUpdate();
     if (info == null || !mounted) return;
+    final l10n = AppLocalizations.of(context)!;
     final controller = ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Update available: v${info.version}'),
+        content: Text(l10n.shellUpdateAvailable(info.version)),
         action: SnackBarAction(
-          label: 'View',
+          label: l10n.shellView,
           onPressed: () {
             if (mounted) showUpdateSheet(context, info);
           },
@@ -116,6 +118,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     // External tab jumps (quick actions, deep links) animate like taps.
     ref.listen<int>(tabIndexProvider, (_, next) => _goTo(next));
 
@@ -140,9 +143,9 @@ class _AppShellState extends ConsumerState<AppShell> {
           _lastBackPress = now;
           Haptics.light();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Press back again to exit'),
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Text(l10n.shellPressBackAgain),
+              duration: const Duration(seconds: 2),
             ),
           );
         }
@@ -175,14 +178,18 @@ class _AppShellState extends ConsumerState<AppShell> {
         padding: EdgeInsets.zero,
         child: Row(
           children: [
-            _navItem(0, Icons.home_outlined, Icons.home, 'Home'),
-            _navItem(1, Icons.wallet_outlined, Icons.wallet, 'Wallets'),
+            _navItem(0, Icons.home_outlined, Icons.home, l10n.shellHome),
+            _navItem(
+                1, Icons.wallet_outlined, Icons.wallet, l10n.shellWallets),
             _navItem(2, Icons.calendar_month_outlined, Icons.calendar_month,
-                'Calendar'),
+                l10n.shellCalendar),
             const Spacer(),
-            _navItem(3, Icons.pie_chart_outline, Icons.pie_chart, 'Stats'),
-            _navItem(4, Icons.savings_outlined, Icons.savings, 'Budgets'),
-            _navItem(5, Icons.settings_outlined, Icons.settings, 'Settings'),
+            _navItem(
+                3, Icons.pie_chart_outline, Icons.pie_chart, l10n.shellStats),
+            _navItem(
+                4, Icons.savings_outlined, Icons.savings, l10n.shellBudgets),
+            _navItem(5, Icons.settings_outlined, Icons.settings,
+                l10n.shellSettings),
           ],
         ),
       ),

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -32,12 +33,13 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Export data')),
+      appBar: AppBar(title: Text(l10n.exportTitle)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          const SectionHeader(title: 'Format'),
+          SectionHeader(title: l10n.exportFormat),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'csv', label: Text('CSV')),
@@ -47,32 +49,34 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             showSelectedIcon: false,
             onSelectionChanged: (s) => setState(() => _format = s.first),
           ),
-          const SectionHeader(title: 'Date range'),
+          SectionHeader(title: l10n.exportDateRange),
           SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'month', label: Text('This month')),
-              ButtonSegment(value: 'quarter', label: Text('3 months')),
-              ButtonSegment(value: 'all', label: Text('All time')),
+            segments: [
+              ButtonSegment(
+                  value: 'month', label: Text(l10n.exportThisMonth)),
+              ButtonSegment(
+                  value: 'quarter', label: Text(l10n.exportThreeMonths)),
+              ButtonSegment(value: 'all', label: Text(l10n.exportAllTime)),
             ],
             selected: {_range},
             showSelectedIcon: false,
             onSelectionChanged: (s) => setState(() => _range = s.first),
           ),
-          const SectionHeader(title: 'Include'),
+          SectionHeader(title: l10n.exportInclude),
           SwitchListTile(
             value: _includeTransactions,
             onChanged: (v) => setState(() => _includeTransactions = v),
-            title: const Text('Transactions'),
+            title: Text(l10n.exportTransactions),
           ),
           SwitchListTile(
             value: _includeBudgets,
             onChanged: (v) => setState(() => _includeBudgets = v),
-            title: const Text('Budgets & goals'),
+            title: Text(l10n.exportBudgetsGoals),
           ),
           SwitchListTile(
             value: _includeDebts,
             onChanged: (v) => setState(() => _includeDebts = v),
-            title: const Text('Debts'),
+            title: Text(l10n.exportDebts),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -81,7 +85,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                 ? const SizedBox(
                     width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.file_download_outlined),
-            label: Text(_exporting ? 'Exporting…' : 'Export'),
+            label: Text(_exporting ? l10n.exportExporting : l10n.exportExport),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               backgroundColor: context.accent,
@@ -90,7 +94,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'The file is saved to a temporary location and opened in the share sheet so you can save, print, or send it anywhere.',
+            l10n.exportNote,
             style: TextStyle(color: context.textMuted, fontSize: 12),
           ),
         ],
@@ -111,9 +115,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 
   Future<void> _export() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_includeTransactions && !_includeBudgets && !_includeDebts) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select at least one dataset')),
+        SnackBar(content: Text(l10n.exportSelectDataset)),
       );
       return;
     }
@@ -138,19 +143,19 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       if (mounted) {
         await SharePlus.instance.share(
           ShareParams(
-            text: 'Dmoney Manager export',
+            text: l10n.exportShareText,
             files: [XFile(file.path)],
           ),
         );
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Export ready')),
+        SnackBar(content: Text(l10n.exportReady)),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Export failed: $e')));
+            .showSnackBar(SnackBar(content: Text(l10n.exportFailed('$e'))));
       }
     } finally {
       if (mounted) setState(() => _exporting = false);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -26,19 +27,20 @@ class ArrangeWalletsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Arrange Wallets')),
+      appBar: AppBar(title: Text(l10n.walletArrangeTitle)),
       body: StreamBuilder<List<Wallet>>(
         stream: db.watchWallets(),
         builder: (context, snap) {
           final wallets = snap.data ?? const <Wallet>[];
           if (wallets.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.wallet_outlined,
-              title: 'No wallets yet',
-              message: 'Add a wallet first, then arrange them here.',
+              title: l10n.walletArrangeEmptyTitle,
+              message: l10n.walletArrangeEmptyMessage,
             );
           }
           return ReorderableListView.builder(
@@ -73,6 +75,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
       logoTemplate: w.logoTemplate,
       kind: w.kind,
     );
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       key: ValueKey(w.id),
       margin: const EdgeInsets.only(bottom: 10),
@@ -155,7 +158,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
             child: WalletBadge(brand: brand, height: 28),
           ),
           IconButton(
-            tooltip: 'Delete wallet',
+            tooltip: l10n.walletDeleteWallet,
             onPressed: () => _confirmDelete(context, db, w),
             icon: Icon(
               Icons.delete_outline,
@@ -170,16 +173,16 @@ class ArrangeWalletsScreen extends ConsumerWidget {
 
   Future<void> _confirmDelete(
       BuildContext context, AppDatabase db, Wallet w) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete wallet?'),
-        content: const Text(
-            'Wallets with transactions cannot be deleted. An empty wallet will be removed permanently.'),
+        title: Text(l10n.walletDeleteTitle),
+        content: Text(l10n.walletDeleteMessage),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.commonCancel)),
           FilledButton(
             onPressed: () {
               Haptics.medium();
@@ -187,7 +190,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
             },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -197,9 +200,8 @@ class ArrangeWalletsScreen extends ConsumerWidget {
     if (!context.mounted) return;
     if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'This wallet has transactions and cannot be deleted.')),
+        SnackBar(
+            content: Text(l10n.walletDeleteHasTransactions)),
       );
     }
     // On success the stream rebuilds and the row vanishes — no pop needed.

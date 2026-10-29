@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/app_page_route.dart';
@@ -30,14 +31,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Debts'),
+        title: Text(l10n.debtsTitle),
         actions: [
           IconButton(
-            tooltip: 'Add debt',
+            tooltip: l10n.debtAddTooltip,
             onPressed: () {
               Haptics.select();
               showModalBottomSheet(
@@ -68,19 +70,19 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
               Center(
                 child: SlidingSegmented<String>(
                   values: const ['payable', 'receivable'],
-                  labels: const ['PAYABLE', 'RECEIVABLE'],
+                  labels: [l10n.debtPayableLabel, l10n.debtReceivableLabel],
                   selected: _direction,
                   onChanged: (v) => setState(() => _direction = v),
                 ),
               ),
               const SizedBox(height: 12),
-              _band(context, _direction == 'payable' ? 'Not yet pay' : 'Not yet received',
+              _band(context, _direction == 'payable' ? l10n.debtNotYetPay : l10n.debtNotYetReceived,
                   outstandingTotal, hidden),
               if (outstanding.isEmpty)
-                const EmptyState(
+                EmptyState(
                     icon: Icons.handshake_outlined,
-                    title: 'All clear',
-                    message: 'No outstanding debts right now.')
+                    title: l10n.debtsAllClearTitle,
+                    message: l10n.debtsAllClearMessage)
               else
                 for (var i = 0; i < outstanding.length; i++)
                   Entrance(
@@ -89,7 +91,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                     child: _debtTile(context, ref, outstanding[i], false),
                   ),
               const SizedBox(height: 8),
-              _band(context, _direction == 'payable' ? 'Paid' : 'Received', paidTotal, hidden),
+              _band(context, _direction == 'payable' ? l10n.debtPaid : l10n.debtReceived, paidTotal, hidden),
               for (var i = 0; i < paid.length; i++)
                 Entrance(
                   key: ValueKey(paid[i].id),
@@ -131,6 +133,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   }
 
   Widget _debtTile(BuildContext context, WidgetRef ref, Debt d, bool paid) {
+    final l10n = AppLocalizations.of(context)!;
     final hidden = ref.watch(balanceHiddenProvider);
     final color = colorFromHex(d.colorHex);
     return Dismissible(
@@ -194,7 +197,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                     color: AppColors.warning.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text('Due ${formatDate(d.dueDate!)}',
+                  child: Text(l10n.debtDue(formatDate(d.dueDate!)),
                       style: const TextStyle(
                           color: AppColors.warning, fontSize: 11)),
                 ),
