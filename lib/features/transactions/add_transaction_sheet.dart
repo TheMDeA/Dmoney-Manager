@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/services/app_prefs.dart';
@@ -169,7 +170,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       }
       if (widget.ocrFilled) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _snack('Filled from receipt — please verify the details.');
+          _snack(AppLocalizations.of(context)!.txFilledFromReceipt);
         });
       }
     }
@@ -334,6 +335,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return ScaffoldMessenger(
       key: _messengerKey,
@@ -341,15 +343,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         children: [
           FormSheet(
             title: _editing
-                ? 'Edit record'
-                : (_kind == 'income' ? 'Add income' : 'Add expense'),
-            actionLabel: _editing ? 'Save changes' : 'Save',
+                ? l10n.txEditRecord
+                : (_kind == 'income' ? l10n.txAddIncome : l10n.txAddExpense),
+            actionLabel: _editing ? l10n.commonSaveChanges : l10n.commonSave,
             onAction: _save,
             busy: _saving,
             children: [
               SlidingSegmented<String>(
                 values: const ['expense', 'income'],
-                labels: const ['Expense', 'Income'],
+                labels: [l10n.txExpense, l10n.txIncome],
                 selected: _kind,
                 onChanged: (v) {
                   setState(() {
@@ -362,7 +364,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 },
               ),
               const SizedBox(height: 16),
-              _templateRow(context, db),
+              _templateRow(context, db, l10n),
               const SizedBox(height: 16),
               Shaker(
                 controller: _amountShake,
@@ -370,7 +372,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
               _fieldError(_amountError),
               const SizedBox(height: 16),
-              const FormSectionLabel('Description *'),
+              FormSectionLabel(l10n.txDescription),
               const SizedBox(height: 8),
               Shaker(
                 controller: _descShake,
@@ -379,7 +381,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   focusNode: _descFocus,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: InputDecoration(
-                    hintText: 'What was this for?',
+                    hintText: l10n.txDescriptionHint,
                     errorText: _descError,
                   ),
                 ),
@@ -402,7 +404,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               ),
               _fieldError(_categoryError),
               const SizedBox(height: 16),
-              const FormSectionLabel('Wallet'),
+              FormSectionLabel(l10n.txWallet),
               StreamBuilder<List<Wallet>>(
                 // In edit mode the transaction's own wallet must stay
                 // selectable even when it sits outside the active scope.
@@ -457,7 +459,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           selected.kind == 'paylater' &&
                           _kind == 'expense' &&
                           !_editing)
-                        _tenorSection(selected),
+                        _tenorSection(selected, l10n),
                     ],
                   );
                 },
@@ -466,7 +468,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  const Expanded(child: FormSectionLabel('Date & time')),
+                  Expanded(child: FormSectionLabel(l10n.txDateTime)),
                   if (!_isToday)
                     TextButton(
                       onPressed: () {
@@ -477,7 +479,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         visualDensity: VisualDensity.compact,
                       ),
-                      child: const Text('Today'),
+                      child: Text(l10n.commonToday),
                     ),
                 ],
               ),
@@ -486,7 +488,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   Expanded(
                     child: FormDatePill(
                       date: _date,
-                      placeholder: 'Pick a date',
+                      placeholder: l10n.txPickDate,
                       onTap: () async {
                         Haptics.select();
                         final picked = await showDatePicker(
@@ -520,14 +522,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ],
               ),
               const SizedBox(height: 16),
-              const FormSectionLabel('Memo (optional)'),
+              FormSectionLabel(l10n.txMemo),
               const SizedBox(height: 8),
               TextField(
                 controller: _memoCtrl,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(hintText: 'Extra details…'),
+                decoration: InputDecoration(hintText: l10n.txMemoHint),
               ),
-              if (!_editing) ...[const SizedBox(height: 16), _receiptSection()],
+              if (!_editing) ...[const SizedBox(height: 16), _receiptSection(l10n)],
               const SizedBox(height: 8),
             ],
           ),
@@ -540,16 +542,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   /// Receipt photo attachment: camera/gallery picker, thumbnail preview
   /// (tap for full-screen), and remove. The file is copied into the
   /// receipts folder on save via [AppDatabase.addPhoto].
-  Widget _receiptSection() {
+  Widget _receiptSection(AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const FormSectionLabel('Receipt'),
+        FormSectionLabel(l10n.txReceipt),
         if (_photoPath == null)
           OutlinedButton.icon(
             onPressed: _pickPhoto,
             icon: const Icon(Icons.receipt_long_outlined, size: 18),
-            label: const Text('Attach receipt photo'),
+            label: Text(l10n.txAttachReceipt),
           )
         else
           Row(
@@ -581,19 +583,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Receipt attached',
+                    Text(
+                      l10n.txReceiptAttached,
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     Text(
-                      'Tap to preview',
+                      l10n.txTapToPreview,
                       style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                tooltip: 'Remove photo',
+                tooltip: l10n.txRemovePhoto,
                 icon: const Icon(Icons.close),
                 onPressed: () {
                   Haptics.light();
@@ -605,7 +607,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         if (widget.ocrFilled && widget.ocrCandidates.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
-            'Not the right amount?',
+            l10n.txNotRightAmount,
             style: TextStyle(color: context.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 6),
@@ -635,6 +637,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _pickPhoto() async {
+    final l10n = AppLocalizations.of(context)!;
     Haptics.select();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -644,7 +647,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take photo'),
+              title: Text(l10n.txTakePhoto),
               onTap: () {
                 Haptics.select();
                 Navigator.pop(context, ImageSource.camera);
@@ -652,7 +655,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
+              title: Text(l10n.txChooseFromGallery),
               onTap: () {
                 Haptics.select();
                 Navigator.pop(context, ImageSource.gallery);
@@ -679,12 +682,13 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       }
     } catch (e) {
       if (mounted) {
-        _snack('Could not pick photo: $e');
+        _snack(l10n.txCouldNotPickPhoto('$e'));
       }
     }
   }
 
   void _previewPhoto() {
+    final l10n = AppLocalizations.of(context)!;
     final path = _photoPath;
     if (path == null) return;
     Haptics.select();
@@ -703,7 +707,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               top: 8,
               right: 8,
               child: IconButton(
-                tooltip: 'Close',
+                tooltip: l10n.commonClose,
                 icon: const Icon(Icons.close),
                 color: Colors.white,
                 style: IconButton.styleFrom(backgroundColor: Colors.black54),
@@ -718,7 +722,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   /// One-tap templates: tap fills the form, long-press deletes,
   /// trailing chip saves the current form as a template.
-  Widget _templateRow(BuildContext context, AppDatabase db) {
+  Widget _templateRow(BuildContext context, AppDatabase db, AppLocalizations l10n) {
     return StreamBuilder<List<TransactionTemplate>>(
       stream: db.watchTransactionTemplates(),
       builder: (context, snap) {
@@ -726,7 +730,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const FormSectionLabel('Templates'),
+            FormSectionLabel(l10n.txTemplates),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -745,7 +749,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     ),
                   ActionChip(
                     avatar: const Icon(Icons.add, size: 18),
-                    label: const Text('Save current'),
+                    label: Text(l10n.txSaveCurrent),
                     onPressed: () => _saveTemplate(db),
                   ),
                 ],
@@ -758,6 +762,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   void _applyTemplate(AppDatabase db, TransactionTemplate t) {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _kind = t.kind;
       _categoryId = t.categoryId;
@@ -766,14 +771,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _descCtrl.text = t.note;
     });
     db.bumpTemplateUse(t.id);
-    _snack('Filled from "${t.name}"');
+    _snack(l10n.txFilledFromTemplate(t.name));
   }
 
   /// Tenor picker + quote for a paylater expense. Flat-monthly-fee math
   /// from the wallet's own rate; when no rate is set the monthly amount
   /// is shown without interest and the gap is stated, never filled with
   /// an invented rate.
-  Widget _tenorSection(Wallet wallet) {
+  Widget _tenorSection(Wallet wallet, AppLocalizations l10n) {
     const tenors = [1, 3, 6, 12];
     final amount = parseAmountInput(_amountCtrl.text);
     final quote = amount > 0
@@ -787,7 +792,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 16),
-        const FormSectionLabel('Pay in installments'),
+        FormSectionLabel(l10n.txPayInInstallments),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -811,10 +816,15 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         const SizedBox(height: 8),
         Text(
           quote == null
-              ? 'Enter an amount to see the installment breakdown.'
+              ? l10n.txEnterAmountBreakdown
               : quote.totalInterest == null
-              ? '${formatMoney(quote.monthlyAmount)}/mo · no monthly rate set on this wallet, so interest isn\'t included'
-              : '${formatMoney(quote.monthlyAmount)}/mo · ${formatMoney(quote.totalInterest!)} interest · ${formatMoney(quote.totalPayable)} total',
+              ? l10n.txInstallmentNoRate(formatMoney(quote.monthlyAmount))
+              // gen-l10n orders params alphabetically: interest, monthly, total.
+              : l10n.txInstallmentQuote(
+                  formatMoney(quote.totalInterest!),
+                  formatMoney(quote.monthlyAmount),
+                  formatMoney(quote.totalPayable),
+                ),
           style: TextStyle(color: context.textMuted, fontSize: 13),
         ),
       ],
@@ -822,9 +832,10 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _saveTemplate(AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _categoryId == null || _walletId == null) {
-      _snack('Fill in amount, category and wallet first');
+      _snack(l10n.txFillAmountCategoryWallet);
       return;
     }
     Haptics.medium();
@@ -836,21 +847,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Save as template'),
+        title: Text(l10n.txSaveAsTemplate),
         content: TextField(
           controller: nameCtrl,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Template name'),
+          decoration: InputDecoration(labelText: l10n.txTemplateName),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, nameCtrl.text.trim()),
-            child: const Text('Save'),
+            child: Text(l10n.commonSave),
           ),
         ],
       ),
@@ -867,7 +878,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       ),
     );
     if (mounted) {
-      _snack('Template "$name" saved');
+      _snack(l10n.txTemplateSaved(name));
     }
   }
 
@@ -875,20 +886,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     AppDatabase db,
     TransactionTemplate t,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete template?'),
-        content: Text('"${t.name}" will be removed.'),
+        title: Text(l10n.txDeleteTemplateTitle),
+        content: Text(l10n.txTemplateRemoved(t.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -899,17 +911,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final amount = parseAmountInput(_amountCtrl.text);
     final desc = _descCtrl.text.trim();
     final memo = _memoCtrl.text.trim();
     // Inline per-field errors, like the description field's red text —
     // no snackbar needed.
-    final descError = desc.isEmpty ? 'Please describe this transaction' : null;
-    final amountError = amount <= 0 ? 'Please enter an amount' : null;
+    final descError = desc.isEmpty ? l10n.txDescribeTransaction : null;
+    final amountError = amount <= 0 ? l10n.txEnterAmount : null;
     final categoryError = _categoryId == null
-        ? 'Please select a category'
+        ? l10n.txSelectCategory
         : null;
-    final walletError = _walletId == null ? 'Please select a wallet' : null;
+    final walletError = _walletId == null ? l10n.txSelectWallet : null;
     setState(() {
       _descError = descError;
       _amountError = amountError;
@@ -940,16 +953,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         await showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Income not allowed'),
-            content: const Text(
-              "Paylater wallets can't receive income. To pay a paylater "
-              'bill, transfer from another wallet instead. Merchant refunds '
-              'can be recorded as a transfer.',
-            ),
+            title: Text(l10n.txIncomeNotAllowed),
+            content: Text(l10n.txIncomeNotAllowedBody),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
+                child: Text(l10n.commonOk),
               ),
             ],
           ),
@@ -972,18 +981,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         final unfreeze = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Paylater is frozen'),
-            content: const Text(
-              'New paylater spending is blocked while frozen. Unfreeze to save this expense?',
-            ),
+            title: Text(l10n.txPaylaterFrozen),
+            content: Text(l10n.txPaylaterFrozenBody),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+                child: Text(l10n.commonCancel),
               ),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Unfreeze & save'),
+                child: Text(l10n.txUnfreezeAndSave),
               ),
             ],
           ),
@@ -1080,14 +1087,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           await showDialog<void>(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text("Couldn't save"),
-              content: const Text(
-                'Nothing was recorded. Check the fields and try again.',
-              ),
+              title: Text(l10n.txCouldntSave),
+              content: Text(l10n.txCouldntSaveBody),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('OK'),
+                  child: Text(l10n.commonOk),
                 ),
               ],
             ),
@@ -1132,8 +1137,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       SnackBar(
         content: Text(
           _editing
-              ? 'Record updated'
-              : '${_kind == 'income' ? 'Income' : 'Expense'} of ${formatMoney(amount)} saved',
+              ? l10n.txRecordUpdated
+              // gen-l10n orders params alphabetically: amount, kind.
+              : l10n.txSavedAmount(
+                  formatMoney(amount),
+                  _kind == 'income' ? l10n.txIncome : l10n.txExpense,
+                ),
         ),
       ),
     );
@@ -1221,6 +1230,7 @@ class _OcrRawTextExpanderState extends State<_OcrRawTextExpander> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1233,7 +1243,7 @@ class _OcrRawTextExpanderState extends State<_OcrRawTextExpander> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'What I read',
+                l10n.txWhatIRead,
                 style: TextStyle(color: context.textMuted, fontSize: 12),
               ),
               Icon(
