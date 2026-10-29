@@ -1,3 +1,4 @@
+import '../../l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/widgets/app_page_route.dart';
@@ -41,15 +42,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  Future<void> _pickLanguage(BuildContext context, String? current) async {
+    final l10n = AppLocalizations.of(context)!;
+    final picked = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.languageTitle),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        content: RadioGroup<String?>(
+          groupValue: current,
+          onChanged: (v) => Navigator.of(context).pop(v),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (value, label) in <(String?, String)>[
+                (null, l10n.languageSystem),
+                ('en', l10n.languageEnglish),
+                ('id', l10n.languageIndonesian),
+              ])
+                RadioListTile<String?>(
+                  value: value,
+                  title: Text(label),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != current && context.mounted) {
+      await ref.read(appLocaleProvider.notifier).setLanguage(picked);
+    }
+  }
+
   Future<void> _checkForUpdates() async {
     if (_checking) return;
     setState(() => _checking = true);
+    final l10n = AppLocalizations.of(context)!;
     try {
       final info = await checkForUpdate();
       if (!mounted) return;
       if (info == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("You're on the latest version ($_version)")),
+          SnackBar(content: Text(l10n.settingsLatestVersion(_version))),
         );
       } else {
         await showUpdateSheet(context, info);
@@ -57,8 +91,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Couldn't check for updates. Check your connection."),
+        SnackBar(
+          content: Text(l10n.settingsUpdateCheckFailed),
         ),
       );
     } finally {
@@ -71,13 +105,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final lockEnabled = ref.watch(lockEnabledProvider);
     final themeMode = ref.watch(themeModeProvider);
     final hapticsEnabled = ref.watch(hapticsEnabledProvider);
+    final languageCode = ref.watch(appLocaleProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: AmbientGlow(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const ScreenHeader(title: 'Settings', tabIndex: 5),
+            ScreenHeader(title: l10n.settingsTitle, tabIndex: 5),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
@@ -102,7 +138,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       subtitle: Text(
-                        'Personal finances',
+                        l10n.settingsProfileSubtitle,
                         style: TextStyle(
                           color: context.textMuted,
                           fontSize: 12,
@@ -113,12 +149,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _sectionHeader(context, 'Manage'),
+                  _sectionHeader(context, l10n.settingsSectionManage),
                   _tile(
                     context,
                     icon: Icons.category_outlined,
-                    title: 'Categories',
-                    subtitle: 'Create, edit, delete',
+                    title: l10n.settingsCategories,
+                    subtitle: l10n.settingsCategoriesSubtitle,
                     onTap: () => Navigator.of(context).push(
                       AppPageRoute(builder: (_) => const CategoriesScreen()),
                     ),
@@ -126,8 +162,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _tile(
                     context,
                     icon: Icons.repeat_outlined,
-                    title: 'Recurring transactions',
-                    subtitle: 'Subscriptions, salary, rent',
+                    title: l10n.settingsRecurring,
+                    subtitle: l10n.settingsRecurringSubtitle,
                     onTap: () => Navigator.of(context).push(
                       AppPageRoute(builder: (_) => const RecurringScreen()),
                     ),
@@ -135,8 +171,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _tile(
                     context,
                     icon: Icons.file_download_outlined,
-                    title: 'Export data',
-                    subtitle: 'CSV / Excel',
+                    title: l10n.settingsExport,
+                    subtitle: l10n.settingsExportSubtitle,
                     onTap: () => Navigator.of(
                       context,
                     ).push(AppPageRoute(builder: (_) => const ExportScreen())),
@@ -144,18 +180,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _tile(
                     context,
                     icon: Icons.backup_outlined,
-                    title: 'Backup & restore',
-                    subtitle: 'Full backup to a file',
+                    title: l10n.settingsBackup,
+                    subtitle: l10n.settingsBackupSubtitle,
                     onTap: () => Navigator.of(
                       context,
                     ).push(AppPageRoute(builder: (_) => BackupScreen())),
                   ),
-                  _sectionHeader(context, 'Security'),
+                  _sectionHeader(context, l10n.settingsSectionSecurity),
                   SwitchListTile(
                     secondary: const Icon(Icons.lock_outline),
-                    title: const Text('Password protection'),
+                    title: Text(l10n.settingsPasswordProtection),
                     subtitle: Text(
-                      'Passcode + biometric lock',
+                      l10n.settingsPasswordProtectionSubtitle,
                       style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                     value: lockEnabled,
@@ -165,19 +201,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _tile(
                       context,
                       icon: Icons.password_outlined,
-                      title: 'Change passcode',
-                      subtitle: 'Update your 4-digit PIN',
+                      title: l10n.settingsChangePasscode,
+                      subtitle: l10n.settingsChangePasscodeSubtitle,
                       onTap: () => Navigator.of(context).push(
                         AppPageRoute(
                           builder: (_) => const PinSetupScreen(isChange: true),
                         ),
                       ),
                     ),
-                  _sectionHeader(context, 'Appearance'),
+                  _sectionHeader(context, l10n.settingsSectionAppearance),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                     child: Text(
-                      'Theme color',
+                      l10n.settingsThemeColor,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: context.textMuted,
                       ),
@@ -196,21 +232,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     child: SegmentedButton<ThemeMode>(
-                      segments: const [
+                      segments: [
                         ButtonSegment(
                           value: ThemeMode.system,
-                          icon: Icon(Icons.settings_suggest_outlined, size: 18),
-                          label: Text('System'),
+                          icon: const Icon(Icons.settings_suggest_outlined,
+                              size: 18),
+                          label: Text(l10n.settingsThemeSystem),
                         ),
                         ButtonSegment(
                           value: ThemeMode.light,
-                          icon: Icon(Icons.light_mode_outlined, size: 18),
-                          label: Text('Light'),
+                          icon: const Icon(Icons.light_mode_outlined, size: 18),
+                          label: Text(l10n.settingsThemeLight),
                         ),
                         ButtonSegment(
                           value: ThemeMode.dark,
-                          icon: Icon(Icons.dark_mode_outlined, size: 18),
-                          label: Text('Dark'),
+                          icon: const Icon(Icons.dark_mode_outlined, size: 18),
+                          label: Text(l10n.settingsThemeDark),
                         ),
                       ],
                       selected: {themeMode},
@@ -221,9 +258,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   SwitchListTile(
                     secondary: const Icon(Icons.vibration_outlined),
-                    title: const Text('Haptic feedback'),
+                    title: Text(l10n.settingsHaptics),
                     subtitle: Text(
-                      'Vibrations on taps and actions',
+                      l10n.settingsHapticsSubtitle,
                       style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                     value: hapticsEnabled,
@@ -233,12 +270,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       if (v) HapticFeedback.mediumImpact();
                     },
                   ),
-                  _sectionHeader(context, 'Assistant'),
+                  _sectionHeader(context, l10n.settingsSectionAssistant),
                   SwitchListTile(
                     secondary: const Icon(Icons.auto_awesome_outlined),
-                    title: const Text('Smart category suggestions'),
+                    title: Text(l10n.settingsSmartSuggestions),
                     subtitle: Text(
-                      'Learn from your history to suggest categories',
+                      l10n.settingsSmartSuggestionsSubtitle,
                       style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                     value: AppPrefs.smartSuggestions,
@@ -247,11 +284,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       setState(() {});
                     },
                   ),
-                  _sectionHeader(context, 'General'),
+                  _sectionHeader(context, l10n.settingsSectionGeneral),
                   _tile(
                     context,
                     icon: Icons.attach_money,
-                    title: 'Currency',
+                    title: l10n.settingsCurrency,
                     subtitle: currencyByCode(AppPrefs.currencyCode).label,
                     onTap: () async {
                       final changed = await Navigator.of(context).push<bool>(
@@ -262,21 +299,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   _tile(
                     context,
+                    icon: Icons.language_outlined,
+                    title: l10n.languageTitle,
+                    subtitle: switch (languageCode) {
+                      'en' => l10n.languageEnglish,
+                      'id' => l10n.languageIndonesian,
+                      _ => l10n.languageSystem,
+                    },
+                    onTap: () => _pickLanguage(context, languageCode),
+                  ),
+                  _tile(
+                    context,
                     icon: Icons.notifications_outlined,
-                    title: 'Notifications',
-                    subtitle: 'Budget alerts & debt reminders',
+                    title: l10n.settingsNotifications,
+                    subtitle: l10n.settingsNotificationsSubtitle,
                     onTap: () => Navigator.of(context).push(
                       AppPageRoute(builder: (_) => const NotificationsScreen()),
                     ),
                   ),
-                  _sectionHeader(context, 'App'),
+                  _sectionHeader(context, l10n.settingsSectionApp),
                   ListTile(
                     leading: const Icon(Icons.system_update_outlined),
-                    title: const Text('Check for updates'),
+                    title: Text(l10n.settingsCheckUpdates),
                     subtitle: Text(
                       _version.isEmpty
-                          ? 'See if a newer version is available'
-                          : 'Installed version $_version',
+                          ? l10n.settingsCheckUpdatesSubtitle
+                          : l10n.settingsInstalledVersion(_version),
                       style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                     trailing: _checking
@@ -290,9 +338,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   SwitchListTile(
                     secondary: const Icon(Icons.autorenew_outlined),
-                    title: const Text('Auto-check for updates'),
+                    title: Text(l10n.settingsAutoCheck),
                     subtitle: Text(
-                      'Check once a day on app start',
+                      l10n.settingsAutoCheckSubtitle,
                       style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                     value: AppPrefs.autoCheckUpdate,
@@ -304,14 +352,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _tile(
                     context,
                     icon: Icons.explore_outlined,
-                    title: 'Feature tour',
-                    subtitle: 'See what Dmoney Manager can do',
+                    title: l10n.settingsFeatureTour,
+                    subtitle: l10n.settingsFeatureTourSubtitle,
                     onTap: () => FeatureTourScreen.show(context),
                   ),
                   _tile(
                     context,
                     icon: Icons.info_outline,
-                    title: 'About',
+                    title: l10n.settingsAbout,
                     subtitle: _version.isEmpty
                         ? 'Dmoney Manager'
                         : 'Dmoney Manager $_version',
@@ -319,7 +367,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       context: context,
                       applicationName: 'Dmoney Manager',
                       applicationVersion: _version.isEmpty ? '' : _version,
-                      applicationLegalese: 'A simple, modern money manager.',
+                      applicationLegalese: l10n.settingsAboutLegalese,
                     ),
                   ),
                 ],
@@ -352,23 +400,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _editProfile(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
     final ctrl = TextEditingController(text: ref.read(displayNameProvider));
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Your profile'),
+        title: Text(l10n.settingsProfileTitle),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(labelText: 'Display name'),
+          decoration: InputDecoration(labelText: l10n.settingsDisplayName),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
+            child: Text(l10n.commonSave),
           ),
         ],
       ),
@@ -378,7 +427,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Profile updated')));
+        ).showSnackBar(SnackBar(content: Text(l10n.settingsProfileUpdated)));
       }
     }
     ctrl.dispose();

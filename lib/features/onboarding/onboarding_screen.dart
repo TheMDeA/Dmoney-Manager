@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -36,21 +37,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   int _amount = 0;
   bool _finishing = false;
 
-  static const _welcomePages = [
+  static List<({OnboardingArtKind kind, String title, String subtitle})>
+  _welcomePages(AppLocalizations l10n) => [
     (
       kind: OnboardingArtKind.monitoring,
-      title: 'Financial monitoring',
-      subtitle: 'Keep your income and expenses on track.',
+      title: l10n.onboardWelcomeMonitoringTitle,
+      subtitle: l10n.onboardWelcomeMonitoringSubtitle,
     ),
     (
       kind: OnboardingArtKind.budgets,
-      title: 'Smart budgets',
-      subtitle: 'Set spending limits and get alerted before you overspend.',
+      title: l10n.onboardWelcomeBudgetsTitle,
+      subtitle: l10n.onboardWelcomeBudgetsSubtitle,
     ),
     (
       kind: OnboardingArtKind.savings,
-      title: 'Saving goals',
-      subtitle: 'Set your first savings goal and track the progress.',
+      title: l10n.onboardWelcomeSavingsTitle,
+      subtitle: l10n.onboardWelcomeSavingsSubtitle,
     ),
   ];
 
@@ -63,16 +65,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.bgBase,
       body: SafeArea(
         child: AnimatedSwitcher(
           duration: AppMotion.normal,
           child: switch (_step) {
-            0 => _welcomeStep(key: const ValueKey(0)),
-            1 => _nameStep(key: const ValueKey(1)),
-            2 => _currencyStep(key: const ValueKey(2)),
-            _ => _amountStep(key: const ValueKey(3)),
+            0 => _welcomeStep(key: const ValueKey(0), l10n: l10n),
+            1 => _nameStep(key: const ValueKey(1), l10n: l10n),
+            2 => _currencyStep(key: const ValueKey(2), l10n: l10n),
+            _ => _amountStep(key: const ValueKey(3), l10n: l10n),
           },
         ),
       ),
@@ -81,7 +84,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   // ------------------------------ welcome ------------------------------
 
-  Widget _welcomeStep({required Key key}) {
+  Widget _welcomeStep({required Key key, required AppLocalizations l10n}) {
+    final welcomePages = _welcomePages(l10n);
     return Container(
       key: key,
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -90,10 +94,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Expanded(
             child: PageView.builder(
               controller: _welcomeController,
-              itemCount: _welcomePages.length,
+              itemCount: welcomePages.length,
               onPageChanged: (i) => setState(() => _welcomePage = i),
               itemBuilder: (context, i) {
-                final page = _welcomePages[i];
+                final page = welcomePages[i];
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -125,7 +129,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
-              _welcomePages.length,
+              welcomePages.length,
               (i) => Container(
                 margin: const EdgeInsets.symmetric(horizontal: 5),
                 width: 9,
@@ -140,13 +144,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 28),
-          _primaryButton('GET STARTED', () => setState(() => _step = 1)),
+          _primaryButton(
+            l10n.onboardGetStarted,
+            () => setState(() => _step = 1),
+          ),
           const SizedBox(height: 8),
           TextButton(
             onPressed: _showRestoreSheet,
-            child: const Text(
-              'RESTORE DATA',
-              style: TextStyle(
+            child: Text(
+              l10n.onboardRestoreData,
+              style: const TextStyle(
                 color: AppColors.brandBlue,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.5,
@@ -178,7 +185,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   // ------------------------------- name --------------------------------
 
-  Widget _nameStep({required Key key}) {
+  Widget _nameStep({required Key key, required AppLocalizations l10n}) {
     final canNext = _nameController.text.trim().isNotEmpty;
     return Container(
       key: key,
@@ -194,7 +201,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          _stepTitle('Add Account', 'Choose a name for your account.'),
+          _stepTitle(l10n.onboardAddAccount, l10n.onboardAddAccountSubtitle),
           const SizedBox(height: 24),
           TextField(
             controller: _nameController,
@@ -202,7 +209,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             textCapitalization: TextCapitalization.words,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
             decoration: InputDecoration(
-              hintText: 'Name',
+              hintText: l10n.onboardNameHint,
               hintStyle:
                   TextStyle(color: AppColors.textMuted.withValues(alpha: 0.6)),
               filled: true,
@@ -220,7 +227,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             },
           ),
           const Spacer(),
-          _primaryButton('NEXT', canNext ? () => setState(() => _step = 2) : null),
+          _primaryButton(
+            l10n.onboardNext,
+            canNext ? () => setState(() => _step = 2) : null,
+          ),
         ],
       ),
     );
@@ -228,7 +238,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   // ------------------------------ currency ------------------------------
 
-  Widget _currencyStep({required Key key}) {
+  Widget _currencyStep({required Key key, required AppLocalizations l10n}) {
     final selected = currencyByCode(_currency);
     return Container(
       key: key,
@@ -244,10 +254,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          _stepTitle('Select Currency', 'What is your favourite currency?'),
+          _stepTitle(
+            l10n.onboardSelectCurrency,
+            l10n.onboardSelectCurrencySubtitle,
+          ),
           const SizedBox(height: 24),
           InkWell(
-            onTap: _pickCurrency,
+            onTap: () => _pickCurrency(l10n),
             borderRadius: BorderRadius.circular(12),
             child: Container(
               padding:
@@ -272,13 +285,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ),
           const Spacer(),
-          _primaryButton('NEXT', () => setState(() => _step = 3)),
+          _primaryButton(l10n.onboardNext, () => setState(() => _step = 3)),
         ],
       ),
     );
   }
 
-  void _pickCurrency() {
+  void _pickCurrency(AppLocalizations l10n) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.bgSurface,
@@ -320,7 +333,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   // ------------------------------- amount -------------------------------
 
-  Widget _amountStep({required Key key}) {
+  Widget _amountStep({required Key key, required AppLocalizations l10n}) {
     return Container(
       key: key,
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -331,9 +344,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: _finishing ? null : () => _finish(skip: true),
-              child: const Text(
-                'SKIP',
-                style: TextStyle(
+              child: Text(
+                l10n.onboardSkip,
+                style: const TextStyle(
                   color: AppColors.brandBlue,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5,
@@ -341,8 +354,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ),
             ),
           ),
-          _stepTitle('Initial Amount',
-              'How much money do you have in your cash wallet?'),
+          _stepTitle(
+            l10n.onboardInitialAmount,
+            l10n.onboardInitialAmountSubtitle,
+          ),
           const SizedBox(height: 20),
           Container(
             padding:
@@ -495,6 +510,7 @@ class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       child: Column(
@@ -513,7 +529,7 @@ class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
               color: AppColors.violet, size: 40),
           const SizedBox(height: 12),
           Text(
-            'Restore data',
+            l10n.onboardRestoreTitle,
             style: GoogleFonts.spaceGrotesk(
               color: AppColors.textPrimary,
               fontSize: 20,
@@ -521,11 +537,10 @@ class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Pick a backup file created by Dmoney Manager. '
-            'It replaces everything on this device.',
+          Text(
+            l10n.onboardRestoreBody,
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textMuted, height: 1.5),
+            style: const TextStyle(color: AppColors.textMuted, height: 1.5),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
@@ -555,7 +570,7 @@ class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
                     letterSpacing: 0.8,
                   ),
                 ),
-                child: const Text('CHOOSE BACKUP FILE'),
+                child: Text(l10n.onboardChooseBackupFile),
               ),
             ),
         ],
@@ -580,8 +595,9 @@ class _RestoreSheetState extends ConsumerState<_RestoreSheet> {
     } on BackupException catch (e) {
       setState(() => _error = e.message);
     } catch (_) {
-      setState(() => _error =
-          'Restore failed. Please try again with a valid backup file.');
+      setState(
+        () => _error = AppLocalizations.of(context)!.onboardRestoreFailed,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }

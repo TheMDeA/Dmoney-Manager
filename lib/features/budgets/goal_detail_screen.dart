@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +8,7 @@ import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/app_locale.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/form_sheet.dart';
@@ -30,19 +32,20 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final l10n = AppLocalizations.of(context)!;
     // Privacy mode: goal figures mask, deposit/withdrawal rows stay.
     final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Goal'),
+        title: Text(l10n.goalTitle),
         actions: [
           IconButton(
-            tooltip: 'Edit goal',
+            tooltip: l10n.goalEditTooltip,
             icon: const Icon(Icons.edit_outlined),
             onPressed: () => _editGoal(context, db),
           ),
           IconButton(
-            tooltip: 'Delete goal',
+            tooltip: l10n.goalDeleteTooltip,
             icon: const Icon(Icons.delete_outline),
             onPressed: () => _confirmDelete(context, db),
           ),
@@ -57,7 +60,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
           }
           if (goal == null) {
             return Center(
-              child: Text('Goal not found',
+              child: Text(l10n.goalNotFound,
                   style: TextStyle(color: context.textMuted)),
             );
           }
@@ -81,6 +84,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
     List<GoalDeposit> deposits,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final ratio =
@@ -119,8 +123,8 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _amountColumn(
-                  'Saved', m(goal.saved), context.textMuted),
-              _amountColumn('Remain', m(remain),
+                  l10n.goalSaved, m(goal.saved), context.textMuted),
+              _amountColumn(l10n.goalRemain, m(remain),
                   remain < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
@@ -156,15 +160,15 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _infoRow('Amount', m(goal.target)),
+          _infoRow(l10n.goalAmountLabel, m(goal.target)),
           _infoRow(
-            'Goal date',
+            l10n.goalDateLabel,
             goal.deadline == null ? '—' : formatDate(goal.deadline!),
             sub: daysLeft == null
                 ? null
                 : daysLeft < 0
-                    ? 'Overdue by ${-daysLeft} days'
-                    : '$daysLeft days left',
+                    ? l10n.goalOverdue(-daysLeft)
+                    : l10n.goalDaysLeft(daysLeft),
           ),
           const SizedBox(height: 20),
           Row(
@@ -173,7 +177,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 child: _actionButton(
                   context,
                   icon: Icons.savings_outlined,
-                  label: 'DEPOSIT',
+                  label: l10n.goalDepositAction,
                   onTap: () => _depositDialog(context, db, goal, true),
                 ),
               ),
@@ -182,7 +186,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 child: _actionButton(
                   context,
                   icon: Icons.atm_outlined,
-                  label: 'WITHDRAW',
+                  label: l10n.goalWithdrawAction,
                   onTap: () => _depositDialog(context, db, goal, false),
                 ),
               ),
@@ -193,7 +197,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
             Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Text('No deposits yet',
+                child: Text(l10n.goalNoDeposits,
                     style: TextStyle(
                         color: context.textMuted, fontSize: 15)),
               ),
@@ -300,13 +304,13 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      DateFormat('EEEE', currentCurrency.locale)
+                      DateFormat('EEEE', appLocaleCode)
                           .format(day),
                       style: TextStyle(
                           color: context.textPrimary, fontSize: 14),
                     ),
                     Text(
-                      DateFormat('MMM yyyy', currentCurrency.locale)
+                      DateFormat('MMM yyyy', appLocaleCode)
                           .format(day),
                       style: TextStyle(
                           color: context.textMuted, fontSize: 13),
@@ -332,6 +336,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
 
   Widget _depositRow(
       BuildContext context, AppDatabase db, GoalDeposit d) {
+    final l10n = AppLocalizations.of(context)!;
     final isDeposit = d.amount >= 0;
     final timeFmt = DateFormat('HH.mm');
     return Dismissible(
@@ -346,26 +351,28 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
       confirmDismiss: (_) async {
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete entry?'),
-            content: const Text(
-                'The goal\'s saved total will be adjusted back.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Haptics.medium();
-                  Navigator.pop(context, true);
-                },
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.expense),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
+          builder: (context) {
+            final l10n = AppLocalizations.of(context)!;
+            return AlertDialog(
+              title: Text(l10n.goalDeleteEntryTitle),
+              content: Text(l10n.goalDeleteEntryMessage),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(l10n.commonCancel),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Haptics.medium();
+                    Navigator.pop(context, true);
+                  },
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.expense),
+                  child: Text(l10n.commonDelete),
+                ),
+              ],
+            );
+          },
         );
         if (confirmed == true) {
           await db.deleteGoalDeposit(d);
@@ -394,7 +401,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
               child: Text(
                 d.note.isNotEmpty
                     ? d.note
-                    : (isDeposit ? 'Deposit' : 'Withdraw'),
+                    : (isDeposit ? l10n.goalDeposit : l10n.goalWithdraw),
                 style:
                     const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
               ),
@@ -424,6 +431,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
 
   Future<void> _depositDialog(
       BuildContext context, AppDatabase db, Goal goal, bool isDeposit) async {
+    final l10n = AppLocalizations.of(context)!;
     final result = await showFormSheet<GoalDepositInput>(
       context,
       (_) => GoalDepositSheet(goal: goal, isDeposit: isDeposit),
@@ -450,8 +458,9 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  '${formatMoney(amount)} ${isDeposit ? 'added to' : 'withdrawn from'} ${goal.name}')),
+              content: Text(isDeposit
+                  ? l10n.goalAddedTo(formatMoney(amount), goal.name)
+                  : l10n.goalWithdrawnFrom(formatMoney(amount), goal.name))),
         );
       }
     }
@@ -461,6 +470,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   /// in with an elastic bounce, a ripple ring expands behind it, and the
   /// phone buzzes. Shown once, at the moment of completion.
   Future<void> _celebrateGoal(BuildContext context, Goal goal) {
+    final l10n = AppLocalizations.of(context)!;
     Haptics.medium();
     // Modal dialog: capture the flag at open (the Home eye can't be
     // reached while it is up).
@@ -524,13 +534,13 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-              const Text(
-                'Goal complete!',
+              Text(
+                l10n.goalCompleteTitle,
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               Text(
-                '${goal.name} — ${m(goal.saved)} saved',
+                l10n.goalCompleteMessage(goal.name, m(goal.saved)),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: context.textMuted, fontSize: 14),
               ),
@@ -539,7 +549,7 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Awesome'),
+                  child: Text(l10n.goalAwesome),
                 ),
               ),
             ],
@@ -558,25 +568,27 @@ class _GoalDetailScreenState extends ConsumerState<GoalDetailScreen> {
   Future<void> _confirmDelete(BuildContext context, AppDatabase db) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete goal?'),
-        content: const Text(
-            'The goal and its deposit history will be removed permanently.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              Haptics.medium();
-              Navigator.pop(context, true);
-            },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return AlertDialog(
+          title: Text(l10n.goalDeleteTitle),
+          content: Text(l10n.goalDeleteMessage),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(l10n.commonCancel)),
+            FilledButton(
+              onPressed: () {
+                Haptics.medium();
+                Navigator.pop(context, true);
+              },
+              style:
+                  FilledButton.styleFrom(backgroundColor: AppColors.expense),
+              child: Text(l10n.commonDelete),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed == true && context.mounted) {
       await db.deleteGoal(widget.goalId);

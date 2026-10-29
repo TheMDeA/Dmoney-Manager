@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -12,6 +13,7 @@ import '../transactions/add_transaction_sheet.dart';
 import '../transactions/widgets/month_selector.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/app_locale.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/amount_text.dart';
@@ -37,8 +39,6 @@ class CalendarScreen extends ConsumerStatefulWidget {
 }
 
 class _CalendarScreenState extends ConsumerState<CalendarScreen> {
-  static const _weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
   late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
   int _slideDir = 1;
 
@@ -65,6 +65,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
     final hidden = ref.watch(balanceHiddenProvider);
@@ -83,7 +84,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ScreenHeader(
-              title: 'Calendar',
+              title: l10n.calendarTitle,
               tabIndex: 2,
               action: AnimatedSwitcher(
                 duration: AppMotion.normal,
@@ -91,7 +92,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     ? const SizedBox.shrink(key: ValueKey('no-today'))
                     : HeaderPillButton(
                         key: const ValueKey('today'),
-                        label: 'Today',
+                        label: l10n.commonToday,
                         onTap: _goToToday,
                       ),
               ),
@@ -209,6 +210,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   }
 
   Widget _summary(int income, int expense, bool hidden) {
+    final l10n = AppLocalizations.of(context)!;
     final total = income - expense;
     Widget cell(String label, Widget value) => Expanded(
       child: Column(
@@ -224,7 +226,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       child: Row(
         children: [
           cell(
-            'Income',
+            l10n.calendarIncome,
             CountUpMoney(
               amount: income,
               hidden: hidden,
@@ -235,7 +237,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             ),
           ),
           cell(
-            'Expense',
+            l10n.calendarExpense,
             CountUpMoney(
               amount: expense,
               hidden: hidden,
@@ -247,7 +249,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             ),
           ),
           cell(
-            'Total',
+            l10n.calendarTotal,
             CountUpMoney(
               amount: total,
               hidden: hidden,
@@ -276,7 +278,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Text(
-                  _weekdays[i],
+                  weekdayAbbreviations()[i],
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -453,6 +455,7 @@ class _DaySheetState extends State<_DaySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final items = widget.totals[_key]?.items ?? const <TransactionWithDetails>[];
     var net = 0;
     for (final d in items) {
@@ -482,7 +485,7 @@ class _DaySheetState extends State<_DaySheet> {
             child: Row(
               children: [
                 Text(
-                  DateFormat('EEE, d MMM yyyy').format(_day),
+                  DateFormat('EEE, d MMM yyyy', appLocaleCode).format(_day),
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 18,
@@ -503,9 +506,9 @@ class _DaySheetState extends State<_DaySheet> {
           ),
           Expanded(
             child: items.isEmpty
-                ? const EmptyState(
+                ? EmptyState(
                     icon: Icons.receipt_long_outlined,
-                    message: 'No transactions yet',
+                    message: l10n.calendarNoTransactions,
                   )
                 : ListView.builder(
                     controller: controller,
@@ -521,7 +524,7 @@ class _DaySheetState extends State<_DaySheet> {
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: 'Previous day',
+                    tooltip: l10n.calendarPreviousDay,
                     onPressed: () {
                       Haptics.select();
                       setState(
@@ -536,11 +539,11 @@ class _DaySheetState extends State<_DaySheet> {
                         Haptics.select();
                         widget.onAdd(_day);
                       },
-                      child: const Text('Add'),
+                      child: Text(l10n.commonAdd),
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Next day',
+                    tooltip: l10n.calendarNextDay,
                     onPressed: () {
                       Haptics.select();
                       setState(() => _day = _day.add(const Duration(days: 1)));
