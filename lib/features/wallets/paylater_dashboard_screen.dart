@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
@@ -54,22 +55,22 @@ class _PaylaterDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     final now = DateTime.now();
     return Scaffold(
-      appBar: AppBar(title: const Text('Paylater')),
+      appBar: AppBar(title: Text(l10n.paylaterTitle)),
       body: StreamBuilder<List<Wallet>>(
         stream: db.watchWallets(),
         builder: (context, walSnap) {
           final wallets = walSnap.data ?? const <Wallet>[];
           final paylater = paylaterWallets(wallets);
           if (paylater.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.credit_card_outlined,
-              title: 'No paylater wallets',
-              message:
-                  'Add a paylater wallet from the Wallets screen to track what you owe here.',
+              title: l10n.paylaterNoWallets,
+              message: l10n.paylaterNoWalletsMessage,
             );
           }
           final outstanding = totalPaylaterOutstanding(wallets);
@@ -112,7 +113,7 @@ class _PaylaterDashboardScreenState
                             next.wallet, next.dueDate, wallets, plans, hidden),
                         const SizedBox(height: 12),
                       ],
-                      const _SectionLabel('Providers'),
+                      _SectionLabel(l10n.paylaterProviders),
                       const SizedBox(height: 8),
                       for (final w in paylater) ...[
                         _providerCard(w, hidden),
@@ -137,6 +138,7 @@ class _PaylaterDashboardScreenState
 
   Widget _heroCard(
       int outstanding, int dueCycle, double? ratio, bool hidden) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
@@ -144,7 +146,7 @@ class _PaylaterDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Total outstanding',
+            l10n.paylaterTotalOutstanding,
             style: TextStyle(color: context.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 4),
@@ -159,12 +161,12 @@ class _PaylaterDashboardScreenState
           Row(
             children: [
               Expanded(
-                child: _heroStat('Due this cycle', m(dueCycle)),
+                child: _heroStat(l10n.paylaterDueThisCycle, m(dueCycle)),
               ),
               Expanded(
                 child: _heroStat(
-                  'Limit used',
-                  ratio == null ? 'No limit set' : '${(ratio * 100).round()}%',
+                  l10n.paylaterLimitUsedLabel,
+                  ratio == null ? l10n.paylaterNoLimitSet : '${(ratio * 100).round()}%',
                 ),
               ),
             ],
@@ -199,6 +201,7 @@ class _PaylaterDashboardScreenState
     List<InstallmentPlan> plans,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     // The button pays what this card shows: one installment when the
     // wallet has a single payable plan, otherwise the full outstanding.
     // The date follows the same rule: the plan's next installment date
@@ -217,7 +220,7 @@ class _PaylaterDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Next due',
+            l10n.paylaterNextDue,
             style: TextStyle(color: context.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 4),
@@ -231,7 +234,7 @@ class _PaylaterDashboardScreenState
           ),
           const SizedBox(height: 2),
           Text(
-            '${m(amount)} · due ${formatDate(shownDue)}',
+            l10n.paylaterNextDueDetail(m(amount), formatDate(shownDue)),
             style: TextStyle(color: context.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -239,7 +242,9 @@ class _PaylaterDashboardScreenState
             width: double.infinity,
             child: FilledButton(
               onPressed: () => _payDue(wallet, wallets),
-              child: Text(plan == null ? 'Mark as paid' : 'Pay installment'),
+              child: Text(plan == null
+                  ? l10n.paylaterMarkAsPaid
+                  : l10n.paylaterPayInstallment),
             ),
           ),
         ],
@@ -254,6 +259,7 @@ class _PaylaterDashboardScreenState
   /// refreshed with the new outstanding amount (or cancelled when
   /// nothing is owed anymore).
   Future<void> _payDue(Wallet wallet, List<Wallet> allWallets) async {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.read(databaseProvider);
     final plan = singlePayablePlan(
       await db.plansForWallet(wallet.id),
@@ -269,13 +275,13 @@ class _PaylaterDashboardScreenState
     if (amount <= 0) return;
     final payers = allWallets.where((w) => w.kind != 'paylater').toList();
     if (payers.isEmpty) {
-      _snack('Add a bank or cash wallet to pay from first.');
+      _snack(l10n.paylaterNeedPayer);
       return;
     }
     final payer = await showDialog<Wallet>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Pay from'),
+        title: Text(AppLocalizations.of(context)!.paylaterPayFrom),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -301,7 +307,7 @@ class _PaylaterDashboardScreenState
     );
     await _refreshDueReminder(wallet.id);
     if (!mounted) return;
-    _snack('Paid ${formatMoney(amount)} to ${wallet.name}');
+    _snack(l10n.paylaterPaidTo(formatMoney(amount), wallet.name));
   }
 
   /// Reschedules the wallet's due reminder with its current outstanding
@@ -336,8 +342,9 @@ class _PaylaterDashboardScreenState
     Wallet? planWallet,
     List<Wallet> allWallets,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
     if (planWallet == null) {
-      _snack('Wallet not found for this plan.');
+      _snack(l10n.paylaterWalletNotFound);
       return;
     }
     final db = ref.read(databaseProvider);
@@ -345,13 +352,13 @@ class _PaylaterDashboardScreenState
     if (amount <= 0) return;
     final payers = allWallets.where((w) => w.kind != 'paylater').toList();
     if (payers.isEmpty) {
-      _snack('Add a bank or cash wallet to pay from first.');
+      _snack(l10n.paylaterNeedPayer);
       return;
     }
     final payer = await showDialog<Wallet>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Pay from'),
+        title: Text(AppLocalizations.of(context)!.paylaterPayFrom),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -378,10 +385,11 @@ class _PaylaterDashboardScreenState
     );
     await db.markInstallmentPaid(p.id);
     if (!mounted) return;
-    _snack('Paid ${formatMoney(amount)} installment for ${p.name}');
+    _snack(l10n.paylaterPaidInstallment(formatMoney(amount), p.name));
   }
 
   Widget _providerCard(Wallet w, bool hidden) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final outstanding = paylaterOutstanding(w);
@@ -429,17 +437,19 @@ class _PaylaterDashboardScreenState
             _LimitBar(ratio: ratio),
             const SizedBox(height: 4),
             Text(
-              '${m(outstanding)} of ${m(w.creditLimit!)} used',
+              l10n.paylaterOfLimitUsed(m(w.creditLimit!), m(outstanding)),
               style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
           ] else
             Text(
-              'No limit set',
+              l10n.paylaterNoLimitSet,
               style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
           const SizedBox(height: 4),
           Text(
-            due == null ? 'No due date set' : 'Due ${formatDate(due)}',
+            due == null
+                ? l10n.paylaterNoDueDate
+                : l10n.paylaterDueDate(formatDate(due)),
             style: TextStyle(color: context.textMuted, fontSize: 12),
           ),
         ],
@@ -453,23 +463,24 @@ class _PaylaterDashboardScreenState
     List<Wallet> allWallets,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Expanded(child: _SectionLabel('Installment plans')),
+            Expanded(child: _SectionLabel(l10n.paylaterPlans)),
             TextButton.icon(
               onPressed: () => _addPlanSheet(paylater),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add plan'),
+              label: Text(l10n.paylaterAddPlan),
             ),
           ],
         ),
         const SizedBox(height: 8),
         if (plans.isEmpty)
           Text(
-            'No plans yet. Add one to track a multi-month purchase.',
+            l10n.paylaterNoPlans,
             style: TextStyle(color: context.textMuted, fontSize: 13),
           )
         else
@@ -487,6 +498,7 @@ class _PaylaterDashboardScreenState
     List<Wallet> allWallets,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     Wallet? wallet;
@@ -518,7 +530,7 @@ class _PaylaterDashboardScreenState
                 ),
               ),
               Text(
-                '${m(planRemaining(p))} left',
+                l10n.paylaterRemainingLeft(m(planRemaining(p))),
                 style: TextStyle(color: context.textMuted, fontSize: 12),
               ),
             ],
@@ -536,19 +548,21 @@ class _PaylaterDashboardScreenState
               Expanded(
                 child: Text(
                   due == null
-                      ? '${p.paidCount} of ${p.totalCount} paid · ${m(p.installmentAmount)}/mo'
-                      : '${p.paidCount} of ${p.totalCount} paid · ${m(p.installmentAmount)}/mo · Due ${formatDate(due)}',
+                      ? l10n.paylaterPlanProgress(m(p.installmentAmount),
+                          p.paidCount, p.totalCount)
+                      : l10n.paylaterPlanProgressDue(m(p.installmentAmount),
+                          formatDate(due), p.paidCount, p.totalCount),
                   style: TextStyle(color: context.textMuted, fontSize: 12),
                 ),
               ),
               if (!complete)
                 TextButton(
                   onPressed: () => _payInstallment(p, wallet, allWallets),
-                  child: const Text('Pay installment'),
+                  child: Text(l10n.paylaterPayInstallment),
                 )
               else
                 Text(
-                  'Complete',
+                  l10n.paylaterComplete,
                   style: TextStyle(
                     color: AppColors.income,
                     fontSize: 12,
@@ -556,7 +570,7 @@ class _PaylaterDashboardScreenState
                   ),
                 ),
               IconButton(
-                tooltip: 'Delete plan',
+                tooltip: l10n.paylaterDeletePlan,
                 icon: const Icon(Icons.delete_outline, size: 20),
                 onPressed: () => _confirmDeletePlan(p),
               ),
@@ -600,7 +614,7 @@ class _PaylaterDashboardScreenState
                     return Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        'No transactions linked to this plan yet.',
+                        AppLocalizations.of(context)!.paylaterNoPlanTransactions,
                         style: TextStyle(
                           color: context.textMuted,
                           fontSize: 13,
@@ -626,27 +640,26 @@ class _PaylaterDashboardScreenState
   }
 
   Future<void> _confirmDeletePlan(InstallmentPlan p) async {
+    final l10n = AppLocalizations.of(context)!;
     final linked = await ref.read(databaseProvider).planTransactions(p.id);
     if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete plan?'),
+        title: Text(l10n.paylaterDeletePlanTitle),
         content: Text(
           linked.isEmpty
-              ? '“${p.name}” and its progress will be removed.'
-              : '“${p.name}” and its ${linked.length} linked '
-                  '${linked.length == 1 ? 'transaction' : 'transactions'} '
-                  'will be removed, and wallet balances restored.',
+              ? l10n.paylaterDeletePlanSimple(p.name)
+              : l10n.paylaterDeletePlanLinked(linked.length, p.name),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -666,26 +679,26 @@ class _PaylaterDashboardScreenState
       context,
       (context) => StatefulBuilder(
         builder: (context, setSheetState) => FormSheet(
-          title: 'Add installment plan',
-          actionLabel: 'Add plan',
+          title: AppLocalizations.of(context)!.paylaterAddPlanTitle,
+          actionLabel: AppLocalizations.of(context)!.paylaterAddPlan,
           onAction: () async {
             final name = nameCtrl.text.trim();
             if (name.isEmpty) {
-              _snack('Enter a name for the plan');
+              _snack(AppLocalizations.of(context)!.paylaterEnterPlanName);
               return;
             }
             final total = parseAmountInput(totalCtrl.text);
             final count = int.tryParse(countCtrl.text.trim()) ?? 0;
             if (total <= 0) {
-              _snack('Enter the total amount');
+              _snack(AppLocalizations.of(context)!.paylaterEnterTotal);
               return;
             }
             if (count < 2) {
-              _snack('Plans need at least 2 installments');
+              _snack(AppLocalizations.of(context)!.paylaterPlansNeed2);
               return;
             }
             if (selectedCategoryId == null) {
-              _snack('Pick a category for the purchase');
+              _snack(AppLocalizations.of(context)!.paylaterPickCategory);
               return;
             }
             // A plan's purchase is a new paylater expense, so the freeze
@@ -694,19 +707,20 @@ class _PaylaterDashboardScreenState
               final unfreeze = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('Paylater is frozen'),
-                  content: const Text(
-                    'New paylater purchases are blocked while frozen. '
-                    'Unfreeze to add this plan?',
+                  title: Text(
+                      AppLocalizations.of(context)!.paylaterFrozenTitle),
+                  content: Text(
+                    AppLocalizations.of(context)!.paylaterFrozenMessage,
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('Cancel'),
+                      child: Text(AppLocalizations.of(context)!.commonCancel),
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text('Unfreeze'),
+                      child:
+                          Text(AppLocalizations.of(context)!.paylaterUnfreeze),
                     ),
                   ],
                 ),
@@ -728,10 +742,12 @@ class _PaylaterDashboardScreenState
             TextField(
               controller: nameCtrl,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context)!.walletFormName),
             ),
             const SizedBox(height: 16),
-            const FormSectionLabel('Paylater wallet'),
+            FormSectionLabel(
+                AppLocalizations.of(context)!.paylaterPaylaterWalletLabel),
             FormChoiceChips<Wallet>(
               options: paylater,
               selected: paylater.firstWhere((w) => w.id == selectedWalletId),
@@ -740,14 +756,16 @@ class _PaylaterDashboardScreenState
                   setSheetState(() => selectedWalletId = w.id),
             ),
             const SizedBox(height: 16),
-            const FormSectionLabel('Total amount'),
+            FormSectionLabel(
+                AppLocalizations.of(context)!.paylaterTotalAmountLabel),
             FormAmountEntry(controller: totalCtrl),
             const SizedBox(height: 16),
             TextField(
               controller: countCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Number of installments',
+              decoration: InputDecoration(
+                labelText:
+                    AppLocalizations.of(context)!.paylaterInstallmentCountLabel,
               ),
             ),
             const SizedBox(height: 16),
@@ -761,10 +779,13 @@ class _PaylaterDashboardScreenState
         ),
       ),
     );
-    if (saved == true && mounted) _snack('Installment plan added');
+    if (saved == true && mounted) {
+      _snack(AppLocalizations.of(context)!.paylaterPlanAdded);
+    }
   }
 
   Widget _costsCard(int monthSpending, int monthRepayments, bool hidden) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
@@ -772,12 +793,12 @@ class _PaylaterDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Costs',
+            l10n.paylaterCosts,
             style: TextStyle(color: context.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 4),
           Text(
-            'Spent on paylater this month',
+            l10n.paylaterSpentThisMonth,
             style: TextStyle(color: context.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 2),
@@ -791,7 +812,7 @@ class _PaylaterDashboardScreenState
           ),
           const SizedBox(height: 8),
           Text(
-            'Paid this month',
+            l10n.paylaterPaidThisMonth,
             style: TextStyle(color: context.textMuted, fontSize: 12),
           ),
           const SizedBox(height: 2),
@@ -809,14 +830,13 @@ class _PaylaterDashboardScreenState
   }
 
   Widget _freezeCard() {
+    final l10n = AppLocalizations.of(context)!;
     final frozen = AppPrefs.paylaterFrozen;
     return GlassCard(
       child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
-        title: const Text('Freeze paylater'),
-        subtitle: const Text(
-          'While frozen, new expenses on paylater wallets are blocked until you unfreeze.',
-        ),
+        title: Text(l10n.paylaterFreezeTitle),
+        subtitle: Text(l10n.paylaterFreezeSubtitle),
         value: frozen,
         onChanged: (v) async {
           Haptics.select();

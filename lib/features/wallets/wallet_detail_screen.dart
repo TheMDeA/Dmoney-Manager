@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math' as math;
 import '../../core/widgets/app_page_route.dart';
@@ -63,12 +64,13 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
         actions: [
           IconButton(
-            tooltip: 'Edit wallet',
+            tooltip: l10n.walletEditWallet,
             icon: const Icon(Icons.edit_outlined),
             onPressed: () {
               Haptics.select();
@@ -76,7 +78,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             },
           ),
           IconButton(
-            tooltip: 'Delete wallet',
+            tooltip: l10n.walletDeleteWallet,
             icon: const Icon(Icons.delete_outline),
             onPressed: () {
               Haptics.select();
@@ -119,7 +121,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           }
           if (wallet == null) {
             return Center(
-              child: Text('Wallet not found',
+              child: Text(l10n.walletWalletNotFound,
                   style: TextStyle(color: context.textMuted)),
             );
           }
@@ -143,6 +145,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     List<Wallet> allWallets,
     List<TransactionWithDetails> txs,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final income = txs.where((d) => d.transaction.kind == 'income').toList();
     final expense = txs.where((d) => d.transaction.kind == 'expense').toList();
     final transfer =
@@ -256,27 +259,27 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(28)),
               ),
-              child: const Text('ADJUST BALANCE',
+              child: Text(l10n.walletAdjustBalance,
                   style: TextStyle(
                       fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             ),
           ),
           const SizedBox(height: 20),
-          _statRow('Initial Amount', m(wallet.initialAmount), null,
+          _statRow(l10n.walletInitialAmount, m(wallet.initialAmount), null,
               null),
           _statRow(
-              'Income',
-              '${income.length} transaction${income.length == 1 ? '' : 's'}',
+              l10n.walletIncome,
+              l10n.walletTransactionCount(income.length),
               AppColors.brandBlue,
               () => _openTransactions(context, wallet, 'income')),
           _statRow(
-              'Expense',
-              '${expense.length} transaction${expense.length == 1 ? '' : 's'}',
+              l10n.walletExpense,
+              l10n.walletTransactionCount(expense.length),
               AppColors.expense,
               () => _openTransactions(context, wallet, 'expense')),
           _statRow(
-              'Transfer',
-              '${transfer.length} transaction${transfer.length == 1 ? '' : 's'}',
+              l10n.walletTransfer,
+              l10n.walletTransactionCount(transfer.length),
               null,
               () => _openTransactions(context, wallet, 'transfer')),
           if (showGrowthProjection(wallet) || (actuals?.total ?? 0) > 0)
@@ -286,7 +289,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Transaction list',
+                l10n.walletTransactionList,
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -298,7 +301,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                   Haptics.select();
                   _openTransactions(context, wallet, null);
                 },
-                child: Text('View all'),
+                child: Text(l10n.walletViewAll),
               ),
             ],
           ),
@@ -306,7 +309,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           if (grouped.isEmpty)
             Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text('No transactions yet',
+              child: Text(l10n.walletNoTransactionsYet,
                   style:
                       TextStyle(color: context.textMuted, fontSize: 15)),
             )
@@ -360,6 +363,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     ({int year, int total})? actuals,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final rate = wallet.interestRateAnnual;
     String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final curve = rate == null
@@ -384,7 +388,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       children: [
         const SizedBox(height: 24),
         Text(
-          'Growth projection',
+          l10n.walletGrowthProjection,
           style: GoogleFonts.spaceGrotesk(
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -393,14 +397,14 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         ),
         const SizedBox(height: 4),
         if (rate != null)
-          _statRow('Annual rate', formatAnnualRate(rate), null, null),
+          _statRow(l10n.walletAnnualRate, formatAnnualRate(rate), null, null),
         if (rate != null)
-          _statRow('In 6 months (projected)', m(curve[6]), null, null),
+          _statRow(l10n.walletGrowthIn6Months, m(curve[6]), null, null),
         if (rate != null)
-          _statRow('In 12 months (projected)', m(curve[12]), null, null),
+          _statRow(l10n.walletGrowthIn12Months, m(curve[12]), null, null),
         if (rate != null)
           _statRow(
-              'Interest in a year (projected)',
+              l10n.walletGrowthInterestYear,
               m(projectedYearInterest(
                 balance: wallet.balance,
                 annualRatePct: rate,
@@ -409,13 +413,13 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               null),
         if (actuals != null)
           _statRow(
-              'Interest earned this year (actual)',
+              l10n.walletInterestYearActual,
               m(actuals.year),
               AppColors.income,
               null),
         if (actuals != null)
           _statRow(
-              'Total interest earned (actual)',
+              l10n.walletInterestTotalActual,
               m(actuals.total),
               AppColors.income,
               null),
@@ -442,8 +446,9 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                     getTooltipItems: (items) => items
                         .map((s) {
                           final month = s.x.toInt();
-                          final label =
-                              month == 0 ? 'Now' : 'Month $month';
+                          final label = month == 0
+                              ? l10n.walletGrowthNow
+                              : l10n.walletGrowthMonth(month);
                           return LineTooltipItem(
                             '$label\n${m(s.y.toInt())}',
                             TextStyle(
@@ -475,10 +480,8 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           v == 0
-                              ? 'Now'
-                              : v == 6
-                                  ? '6 mo'
-                                  : '12 mo',
+                              ? l10n.walletGrowthNow
+                              : l10n.walletGrowthMonthsShort(v.toInt()),
                           style: TextStyle(
                             fontSize: 10,
                             color: context.textMuted,
@@ -510,8 +513,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         if (rate != null) ...[
           const SizedBox(height: 8),
           Text(
-            'Estimate only — assumes your balance and rate stay unchanged. '
-            'Not guaranteed.',
+            l10n.walletGrowthDisclaimer,
             style: TextStyle(color: context.textMuted, fontSize: 13),
           ),
         ],
@@ -521,6 +523,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
 
   Widget _groupRow(
       BuildContext context, List<TransactionWithDetails> ds, bool hidden) {
+    final l10n = AppLocalizations.of(context)!;
     final d = ds.first;
     final catColor = colorFromHex(d.category.colorHex);
     final total = _groupTotal(ds);
@@ -568,7 +571,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                   Text(d.category.name,
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   Text(
-                    '${ds.length} transaction${ds.length == 1 ? '' : 's'}',
+                    l10n.walletTransactionCount(ds.length),
                     style: TextStyle(
                         color: context.textMuted, fontSize: 12),
                   ),
@@ -607,6 +610,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
 
   Future<void> _switchWallet(
       BuildContext context, List<Wallet> wallets) async {
+    final l10n = AppLocalizations.of(context)!;
     if (wallets.length < 2) return;
     // Captured at open: the sheet is modal, so the Home eye can't be
     // reached while it is up — no live update needed.
@@ -623,10 +627,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('Switch wallet',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(l10n.walletSwitchWallet,
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
             for (final w in wallets)
               ListTile(
@@ -668,16 +672,16 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
   }
 
   Future<void> _confirmDelete(BuildContext context, AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete wallet?'),
-        content: const Text(
-            'Wallets with transactions cannot be deleted. An empty wallet will be removed permanently.'),
+        title: Text(l10n.walletDeleteTitle),
+        content: Text(l10n.walletDeleteMessage),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.commonCancel)),
           FilledButton(
             onPressed: () {
               Haptics.medium();
@@ -685,7 +689,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
             },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -697,9 +701,8 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       Navigator.pop(context);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'This wallet has transactions and cannot be deleted.')),
+        SnackBar(
+            content: Text(l10n.walletDeleteHasTransactions)),
       );
     }
   }
@@ -756,6 +759,7 @@ class _WalletTransactionsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final start = DateTime(_month.year, _month.month);
     final end = DateTime(_month.year, _month.month + 1)
@@ -763,8 +767,8 @@ class _WalletTransactionsScreenState
     return Scaffold(
       appBar: AppBar(
           title: Text(widget.walletName.isEmpty
-              ? 'Transactions'
-              : '${widget.walletName} transactions')),
+              ? l10n.walletTransactions
+              : l10n.walletTransactionsFor(widget.walletName))),
       body: StreamBuilder<List<TransactionWithDetails>>(
         stream: db.watchTransactionsForWalletInRange(
             widget.walletId, start, end),
@@ -803,10 +807,10 @@ class _WalletTransactionsScreenState
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    _chip('All', null),
-                    _chip('Income', 'income'),
-                    _chip('Expense', 'expense'),
-                    _chip('Transfer', 'transfer'),
+                    _chip(l10n.commonAll, null),
+                    _chip(l10n.walletIncome, 'income'),
+                    _chip(l10n.walletExpense, 'expense'),
+                    _chip(l10n.walletTransfer, 'transfer'),
                   ],
                 ),
               ),
@@ -814,11 +818,10 @@ class _WalletTransactionsScreenState
                 child: !snap.hasData
                     ? const SkeletonTransactionList()
                     : list.isEmpty
-                        ? const EmptyState(
+                        ? EmptyState(
                             icon: Icons.receipt_long_outlined,
-                            title: 'No transactions',
-                            message:
-                                'Nothing recorded in this wallet this month.',
+                            title: l10n.walletNoTransactions,
+                            message: l10n.walletNoTransactionsMonth,
                           )
                         : MonthScrubber(
                             month: _month,
