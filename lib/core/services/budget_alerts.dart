@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/providers.dart';
+import '../utils/app_locale.dart';
 import '../utils/formatters.dart';
 import 'app_prefs.dart';
 import 'notification_service.dart';
@@ -34,7 +35,8 @@ Future<void> checkBudgetAlerts(WidgetRef ref) async {
           !AppPrefs.budgetLevelNotified(b.id, mk, level)) {
         await NotificationService.showBudgetAlert(
           budgetId: b.id,
-          categoryName: cats[b.categoryId] ?? 'Budget',
+          categoryName: cats[b.categoryId] ??
+              localizedOrFallback((l) => l.notifBudgetFallback, 'Budget'),
           percent: percent,
           over: level == 100,
         );

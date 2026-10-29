@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,16 +42,17 @@ class _MoveWalletsSheetState extends ConsumerState<MoveWalletsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final hidden = ref.watch(balanceHiddenProvider);
     return FormSheet(
-      title: 'Move wallets',
-      subtitle: 'From ${widget.source.name}',
-      actionLabel: 'Move',
+      title: l10n.accountMoveWalletsTitle,
+      subtitle: l10n.accountMoveFrom(widget.source.name),
+      actionLabel: l10n.accountMoveAction,
       onAction: _save,
       busy: _saving,
       actionEnabled: _picked.isNotEmpty && !_saving,
       children: [
-        const FormSectionLabel('Wallets'),
+        FormSectionLabel(l10n.accountWalletsLabel),
         for (final w in widget.wallets)
           CheckboxListTile(
             value: _picked.contains(w.id),
@@ -69,7 +71,7 @@ class _MoveWalletsSheetState extends ConsumerState<MoveWalletsSheet> {
             dense: true,
           ),
         const SizedBox(height: 8),
-        const FormSectionLabel('Move to'),
+        FormSectionLabel(l10n.accountMoveToLabel),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,

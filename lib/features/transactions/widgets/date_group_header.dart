@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/app_locale.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/amount_text.dart';
 import '../../../state/providers.dart';
@@ -38,12 +39,12 @@ class DateGroupHeader extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                DateFormat('EEEE').format(day),
+                DateFormat('EEEE', appLocaleCode).format(day),
                 style: const TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w600),
               ),
               Text(
-                DateFormat('MMM yyyy').format(day),
+                DateFormat('MMM yyyy', appLocaleCode).format(day),
                 style: TextStyle(
                     fontSize: 12, color: context.textMuted),
               ),

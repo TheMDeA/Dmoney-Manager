@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -28,10 +29,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   Future<bool> _ensurePermission() async {
     final granted = await NotificationService.requestPermission();
     if (!granted && mounted) {
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Notification permission denied — enable it in system settings'),
+        SnackBar(
+          content: Text(l10n.settingsNotifPermissionDenied),
         ),
       );
     }
@@ -40,16 +41,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(title: Text(l10n.settingsNotifications)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
         children: [
           SwitchListTile(
             secondary: const Icon(Icons.savings_outlined),
-            title: const Text('Budget alerts'),
+            title: Text(l10n.settingsBudgetAlerts),
             subtitle: Text(
-              'Notify when a budget reaches 80% and 100%',
+              l10n.settingsBudgetAlertsSubtitle,
               style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
             value: _budgetAlerts,
@@ -61,9 +63,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           ),
           SwitchListTile(
             secondary: const Icon(Icons.alarm_outlined),
-            title: const Text('Debt reminders'),
+            title: Text(l10n.settingsDebtReminders),
             subtitle: Text(
-              'Remind me a day before a debt is due',
+              l10n.settingsDebtRemindersSubtitle,
               style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
             value: _debtReminders,
@@ -76,7 +78,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           Padding(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Text(
-              'Reminders are scheduled on this device when you add a debt with a due date.',
+              l10n.settingsNotifFootnote,
               style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
           ),

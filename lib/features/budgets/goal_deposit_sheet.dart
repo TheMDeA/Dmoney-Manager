@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/formatters.dart';
@@ -47,11 +48,12 @@ class _GoalDepositSheetState extends ConsumerState<GoalDepositSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return FormSheet(
       title: widget.isDeposit
-          ? 'Deposit to "${widget.goal.name}"'
-          : 'Withdraw from "${widget.goal.name}"',
-      actionLabel: widget.isDeposit ? 'Deposit' : 'Withdraw',
+          ? l10n.goalDepositTo(widget.goal.name)
+          : l10n.goalWithdrawFrom(widget.goal.name),
+      actionLabel: widget.isDeposit ? l10n.goalDeposit : l10n.goalWithdraw,
       onAction: _save,
       busy: _saving,
       children: [
@@ -71,13 +73,13 @@ class _GoalDepositSheetState extends ConsumerState<GoalDepositSheet> {
             ),
           ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Note (optional)'),
+        FormSectionLabel(l10n.commonNoteOptional),
         const SizedBox(height: 8),
         TextField(
           controller: _noteCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'What is this for?',
+          decoration: InputDecoration(
+            hintText: l10n.commonNoteHint,
           ),
         ),
       ],
@@ -85,9 +87,10 @@ class _GoalDepositSheetState extends ConsumerState<GoalDepositSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0) {
-      setState(() => _amountError = 'Please enter an amount');
+      setState(() => _amountError = l10n.commonEnterAmount);
       _amountShake.shake();
       return;
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/app_accents.dart';
 import '../../../core/utils/haptics.dart';
 
@@ -21,11 +22,12 @@ class QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final actions = [
-      (Icons.swap_horiz, 'Transfer', onTransfer),
-      (Icons.add_card, 'Top up', onTopUp),
-      (Icons.receipt_long_outlined, 'Scan', onScan),
-      (Icons.handshake_outlined, 'Debt', onDebt),
+      (Icons.swap_horiz, l10n.homeQuickTransfer, onTransfer),
+      (Icons.add_card, l10n.homeQuickTopUp, onTopUp),
+      (Icons.receipt_long_outlined, l10n.homeQuickScan, onScan),
+      (Icons.handshake_outlined, l10n.homeQuickDebt, onDebt),
     ];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,

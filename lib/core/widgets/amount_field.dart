@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/formatters.dart';
@@ -45,6 +46,7 @@ class AmountField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final textStyle =
         style ?? Theme.of(context).textTheme.titleLarge;
     return Row(
@@ -70,7 +72,7 @@ class AmountField extends StatelessWidget {
         ),
         if (showCalculator)
           IconButton(
-            tooltip: 'Calculator',
+            tooltip: l10n.formCalculator,
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.calculate_outlined, size: 22),
             onPressed: () {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -21,6 +22,7 @@ class MonthOverview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final hidden = ref.watch(balanceHiddenProvider);
     final total = income - expense;
     return Padding(
@@ -28,14 +30,14 @@ class MonthOverview extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Overview',
+          Text(
+            l10n.txOverview,
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
           ),
           const SizedBox(height: 8),
           _row(
             context,
-            'Income',
+            l10n.txIncome,
             Text(hidden ? maskMoneyText(formatMoney(income)) : formatMoney(income),
                 style: AppTextStyles.amount(size: 15)
                     .copyWith(color: AppColors.income)),
@@ -43,7 +45,7 @@ class MonthOverview extends ConsumerWidget {
           const SizedBox(height: 6),
           _row(
             context,
-            'Expense',
+            l10n.txExpense,
             Text('-${hidden ? maskMoneyText(formatMoney(expense)) : formatMoney(expense)}',
                 style: AppTextStyles.amount(size: 15)
                     .copyWith(color: AppColors.expense)),
@@ -51,7 +53,7 @@ class MonthOverview extends ConsumerWidget {
           const SizedBox(height: 6),
           _row(
             context,
-            'Total',
+            l10n.txTotal,
             total == 0
                 ? Text(hidden ? maskMoneyText(formatMoney(0)) : formatMoney(0),
                     style: AppTextStyles.amount(size: 15)

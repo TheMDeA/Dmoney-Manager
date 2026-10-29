@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -53,13 +54,14 @@ class _NewAccountSheetState extends ConsumerState<NewAccountSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return FormSheet(
-      title: 'New account',
-      actionLabel: 'Create',
+      title: l10n.accountNewTitle,
+      actionLabel: l10n.accountCreateAction,
       onAction: _save,
       busy: _saving,
       children: [
-        const FormSectionLabel('Name'),
+        FormSectionLabel(l10n.accountNameLabel),
         const SizedBox(height: 8),
         Shaker(
           controller: _nameShake,
@@ -68,13 +70,13 @@ class _NewAccountSheetState extends ConsumerState<NewAccountSheet> {
             autofocus: true,
             textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
-              hintText: 'e.g. Work',
+              hintText: l10n.accountNameHint,
               errorText: _nameError,
             ),
           ),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Color'),
+        FormSectionLabel(l10n.accountColorLabel),
         const SizedBox(height: 8),
         Wrap(
           spacing: 12,
@@ -111,7 +113,8 @@ class _NewAccountSheetState extends ConsumerState<NewAccountSheet> {
   Future<void> _save() async {
     final name = _ctrl.text.trim();
     if (name.isEmpty) {
-      setState(() => _nameError = 'Please enter a name');
+      final l10n = AppLocalizations.of(context)!;
+      setState(() => _nameError = l10n.accountEnterName);
       _nameShake.shake();
       return;
     }
