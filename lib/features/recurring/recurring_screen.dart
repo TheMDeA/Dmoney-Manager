@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,7 +16,20 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'recurring_form_screen.dart';
 
-String _freqLabel(String f) => '${f[0].toUpperCase()}${f.substring(1)}';
+String _freqLabel(AppLocalizations l10n, String f) {
+  switch (f) {
+    case 'daily':
+      return l10n.recurringFreqDaily;
+    case 'weekly':
+      return l10n.recurringFreqWeekly;
+    case 'monthly':
+      return l10n.recurringFreqMonthly;
+    case 'yearly':
+      return l10n.recurringFreqYearly;
+    default:
+      return '${f[0].toUpperCase()}${f.substring(1)}';
+  }
+}
 
 /// All recurring transaction rules, with pause/resume and delete — plus a
 /// subscription detector that mines the history for repeating charges and
@@ -33,6 +47,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
   /// Mines the history for repeating charges and shows the candidates.
   Future<void> _scan() async {
     if (_scanning) return;
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _scanning = true);
     try {
       final db = ref.read(databaseProvider);
@@ -53,8 +68,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
       if (!mounted) return;
       if (found.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('No repeating charges found in your history')),
+          SnackBar(content: Text(l10n.recurringNoChargesFound)),
         );
         return;
       }
@@ -72,10 +86,11 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Recurring transactions'),
+        title: Text(l10n.recurringTitle),
         actions: [
           if (_scanning)
             const Padding(
@@ -90,7 +105,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
             )
           else
             IconButton(
-              tooltip: 'Detect subscriptions',
+              tooltip: l10n.recurringDetectSubscriptions,
               icon: const Icon(Icons.manage_search_outlined),
               onPressed: _scan,
             ),
@@ -116,14 +131,14 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
                     Icon(Icons.repeat_outlined,
                         size: 56, color: context.textMuted),
                     const SizedBox(height: 16),
-                    const Text(
-                      'No recurring transactions yet',
+                    Text(
+                      l10n.recurringEmptyTitle,
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Subscriptions, salary, rent — due amounts are added automatically when you open the app.',
+                      l10n.recurringEmptyMessage,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           color: context.textMuted, fontSize: 13),
@@ -133,7 +148,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
                       onPressed: _scan,
                       icon: const Icon(Icons.manage_search_outlined,
                           size: 18),
-                      label: const Text('Detect subscriptions'),
+                      label: Text(l10n.recurringDetectSubscriptions),
                     ),
                   ],
                 ),
@@ -168,6 +183,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
 
   Widget _ruleTile(BuildContext context, AppDatabase db,
       RecurringTransaction r, String? categoryName) {
+    final l10n = AppLocalizations.of(context)!;
     return Opacity(
       opacity: r.active ? 1 : 0.55,
       child: Card(
@@ -177,14 +193,14 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
             child: Icon(Icons.repeat, color: context.accent, size: 20),
           ),
           title: Text(
-            r.note.isEmpty ? (categoryName ?? 'Recurring') : r.note,
+            r.note.isEmpty ? (categoryName ?? l10n.recurringFallbackTitle) : r.note,
             style: const TextStyle(fontWeight: FontWeight.w600),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           subtitle: Text(
-            '${_freqLabel(r.frequency)} · next ${formatDate(r.nextDue)}'
-            '${r.endDate == null ? '' : ' · ends ${formatDate(r.endDate!)}'}',
+            '${_freqLabel(l10n, r.frequency)} · ${l10n.recurringNextDue(formatDate(r.nextDue))}'
+            '${r.endDate == null ? '' : ' · ${l10n.recurringEnds(formatDate(r.endDate!))}'}',
             style: TextStyle(color: context.textMuted, fontSize: 12),
           ),
           trailing: Row(
@@ -216,16 +232,16 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
 
   Future<void> _confirmDelete(
       BuildContext context, AppDatabase db, RecurringTransaction r) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete recurring rule?'),
-        content: const Text(
-            'Future occurrences stop. Transactions already created are kept.'),
+        title: Text(l10n.recurringDeleteTitle),
+        content: Text(l10n.recurringDeleteMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () {
@@ -235,7 +251,7 @@ class _RecurringScreenState extends ConsumerState<RecurringScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.expense,
             ),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -269,6 +285,7 @@ class _DetectionSheetState extends ConsumerState<_DetectionSheet> {
   }
 
   Future<void> _createRule(DetectedSubscription d) async {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.read(databaseProvider);
     await db.addRecurringTransaction(
       RecurringTransactionsCompanion.insert(
@@ -286,7 +303,7 @@ class _DetectionSheetState extends ConsumerState<_DetectionSheet> {
     if (mounted) {
       setState(() => _candidates.remove(d));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Rule created for "${d.note}"')),
+        SnackBar(content: Text(l10n.recurringRuleCreated(d.note))),
       );
       if (_candidates.isEmpty) Navigator.of(context).pop();
     }
@@ -294,6 +311,7 @@ class _DetectionSheetState extends ConsumerState<_DetectionSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
@@ -324,7 +342,7 @@ class _DetectionSheetState extends ConsumerState<_DetectionSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Possible subscriptions',
+                    l10n.recurringPossibleTitle,
                     style: Theme.of(context)
                         .textTheme
                         .titleLarge
@@ -332,7 +350,7 @@ class _DetectionSheetState extends ConsumerState<_DetectionSheet> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Repeating charges found in your history. Add the ones you recognize as subscriptions.',
+                    l10n.recurringPossibleMessage,
                     style: TextStyle(
                         color: context.textMuted, fontSize: 13),
                   ),
@@ -364,8 +382,15 @@ class _DetectionSheetState extends ConsumerState<_DetectionSheet> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
-                        '${_freqLabel(d.frequency)} · ${formatMoney(d.amount)} · '
-                        '${d.occurrences} found · next ~${formatDate(d.nextExpected)}',
+                        // gen-l10n orders parameters ALPHABETICALLY by
+                        // placeholder name, not by appearance in the string:
+                        // (amount, count, date, frequency).
+                        l10n.recurringDetectionSubtitle(
+                          formatMoney(d.amount),
+                          d.occurrences,
+                          formatDate(d.nextExpected),
+                          _freqLabel(l10n, d.frequency),
+                        ),
                         style: TextStyle(
                             color: context.textMuted, fontSize: 12),
                       ),
@@ -373,13 +398,13 @@ class _DetectionSheetState extends ConsumerState<_DetectionSheet> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            tooltip: 'Not a subscription',
+                            tooltip: l10n.recurringNotSubscription,
                             icon: const Icon(Icons.close, size: 20),
                             onPressed: () => _dismiss(d),
                           ),
                           FilledButton(
                             onPressed: () => _createRule(d),
-                            child: const Text('Add'),
+                            child: Text(l10n.commonAdd),
                           ),
                         ],
                       ),

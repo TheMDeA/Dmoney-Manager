@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' show Value;
 
@@ -31,13 +32,23 @@ Future<bool> showWalletFormSheet(
 
 const _walletKinds = ['cash', 'bank', 'ewallet', 'credit', 'paylater'];
 
-String _kindLabel(String kind) => switch (kind) {
-  'cash' => 'Cash',
-  'bank' => 'Bank account',
-  'ewallet' => 'E-wallet',
-  'credit' => 'Credit card',
-  'paylater' => 'Paylater',
+String _kindLabel(AppLocalizations l10n, String kind) => switch (kind) {
+  'cash' => l10n.walletKindCash,
+  'bank' => l10n.walletKindBank,
+  'ewallet' => l10n.walletKindEwallet,
+  'credit' => l10n.walletKindCredit,
+  'paylater' => l10n.walletKindPaylater,
   _ => kind,
+};
+
+/// Section header for a brand group. The group keys in
+/// [walletBrandGroups] are stable ids ('Banks', 'E-wallets', 'General'),
+/// translated here so wallet_brands.dart stays brand data only.
+String _brandGroupLabel(AppLocalizations l10n, String key) => switch (key) {
+  'Banks' => l10n.walletBrandGroupBanks,
+  'E-wallets' => l10n.walletBrandGroupEwallets,
+  'General' => l10n.walletBrandGroupGeneral,
+  _ => key,
 };
 
 class _WalletFormSheet extends ConsumerStatefulWidget {
@@ -116,14 +127,15 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      _snack('Enter a wallet name');
+      _snack(l10n.walletEnterName);
       return;
     }
     final accountId = _accountId;
     if (!_editing && accountId == null) {
-      _snack('Pick an account for this wallet');
+      _snack(l10n.walletPickAccount);
       return;
     }
     // Paylater-only fields: empty means unset. Days must be 1-31, the
@@ -137,7 +149,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
       if (limitText.isNotEmpty) {
         creditLimit = parseAmountInput(limitText);
         if (creditLimit < 0) {
-          _snack('Credit limit can\'t be negative');
+          _snack(l10n.walletCreditLimitNegative);
           return;
         }
       }
@@ -145,21 +157,22 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
         if (text.trim().isEmpty) return null;
         final day = int.tryParse(text.trim());
         if (day == null || day < 1 || day > 31) {
-          _snack('$label must be a day of the month (1-31)');
+          _snack(l10n.walletDayMustBe(label));
           return -1;
         }
         return day;
       }
 
-      statementDay = parseDay(_statementDayCtrl.text, 'Statement day');
+      statementDay =
+          parseDay(_statementDayCtrl.text, l10n.walletFormStatementDayLabel);
       if (statementDay == -1) return;
-      dueDay = parseDay(_dueDayCtrl.text, 'Due day');
+      dueDay = parseDay(_dueDayCtrl.text, l10n.walletFormDueDayLabel);
       if (dueDay == -1) return;
       final rateText = _rateCtrl.text.trim();
       if (rateText.isNotEmpty) {
         rate = double.tryParse(rateText.replaceAll(',', '.'));
         if (rate == null || rate < 0) {
-          _snack('Monthly rate must be a non-negative number');
+          _snack(l10n.walletMonthlyRateInvalid);
           return;
         }
       }
@@ -173,7 +186,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
       if (annualText.isNotEmpty) {
         annualRate = double.tryParse(annualText.replaceAll(',', '.'));
         if (annualRate == null || annualRate < 0) {
-          _snack('Annual rate must be a non-negative number');
+          _snack(l10n.walletAnnualRateInvalid);
           return;
         }
       }
@@ -269,6 +282,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return StreamBuilder<List<Account>>(
       stream: db.watchAccounts(),
@@ -285,8 +299,9 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
               : (_accounts.isNotEmpty ? _accounts.first.id : null);
         }
         return FormSheet(
-          title: _editing ? 'Edit wallet' : 'Add wallet',
-          actionLabel: _editing ? 'Save changes' : 'Add wallet',
+          title: _editing ? l10n.walletEditWallet : l10n.walletAddWallet,
+          actionLabel:
+              _editing ? l10n.commonSaveChanges : l10n.walletAddWallet,
           onAction: _save,
           busy: _saving,
           children: [
@@ -294,19 +309,19 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
               controller: _nameCtrl,
               autofocus: !_editing,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: InputDecoration(labelText: l10n.walletFormName),
             ),
             const SizedBox(height: 16),
-            const FormSectionLabel('Type'),
+            FormSectionLabel(l10n.walletFormType),
             FormChoiceChips<String>(
               options: _walletKinds,
               selected: _kind,
-              labelFor: _kindLabel,
+              labelFor: (kind) => _kindLabel(l10n, kind),
               onSelected: (v) => setState(() => _kind = v),
             ),
             if (_kind == 'paylater') ...[
               const SizedBox(height: 16),
-              const FormSectionLabel('Credit limit (optional)'),
+              FormSectionLabel(l10n.walletFormCreditLimit),
               FormAmountEntry(controller: _limitCtrl),
               const SizedBox(height: 16),
               Row(
@@ -315,8 +330,8 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
                     child: TextField(
                       controller: _statementDayCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Statement day (1-31)',
+                      decoration: InputDecoration(
+                        labelText: l10n.walletFormStatementDay,
                       ),
                     ),
                   ),
@@ -325,8 +340,8 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
                     child: TextField(
                       controller: _dueDayCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Due day (1-31)',
+                      decoration: InputDecoration(
+                        labelText: l10n.walletFormDueDay,
                       ),
                     ),
                   ),
@@ -338,32 +353,32 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Monthly interest rate % (optional)',
-                  hintText: 'e.g. 2.5',
+                decoration: InputDecoration(
+                  labelText: l10n.walletFormMonthlyRate,
+                  hintText: l10n.walletFormRateHint,
                 ),
               ),
             ],
             if (_kind == 'bank' || _kind == 'ewallet') ...[
               const SizedBox(height: 16),
-              const FormSectionLabel('Annual interest rate (optional)'),
+              FormSectionLabel(l10n.walletFormAnnualRateSection),
               TextField(
                 controller: _annualRateCtrl,
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(
-                  labelText: 'Annual interest rate %',
-                  hintText: 'e.g. 4.0',
+                decoration: InputDecoration(
+                  labelText: l10n.walletFormAnnualRate,
+                  hintText: l10n.walletFormAnnualRateHint,
                 ),
               ),
             ],
             if (!_editing) ...[
               const SizedBox(height: 16),
-              const FormSectionLabel('Account'),
+              FormSectionLabel(l10n.walletFormAccount),
               if (_accounts.isEmpty)
                 Text(
-                  'No accounts yet.',
+                  l10n.walletFormNoAccounts,
                   style: TextStyle(color: context.textMuted, fontSize: 13),
                 )
               else
@@ -379,13 +394,13 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
               const SizedBox(height: 16),
               FormSectionLabel(
                 _kind == 'paylater'
-                    ? 'Initial outstanding (optional)'
-                    : 'Initial amount (optional)',
+                    ? l10n.walletFormInitialOutstanding
+                    : l10n.walletFormInitialAmount,
               ),
               FormAmountEntry(controller: _initialCtrl),
             ],
             const SizedBox(height: 16),
-            const FormSectionLabel('Color'),
+            FormSectionLabel(l10n.walletFormColor),
             ColorDots(
               selected: _colorHex,
               onSelected: (hex) => setState(() => _colorHex = hex),
@@ -394,7 +409,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const FormSectionLabel('Logo'),
+                FormSectionLabel(l10n.walletFormLogo),
                 if (_logoTemplate != null)
                   GestureDetector(
                     onTap: () => setState(() => _logoTemplate = null),
@@ -404,7 +419,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
                         vertical: 4,
                       ),
                       child: Text(
-                        'Clear',
+                        l10n.commonClear,
                         style: TextStyle(
                           color: context.textMuted,
                           fontSize: 12,
@@ -418,7 +433,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
             const SizedBox(height: 8),
             for (final group in walletBrandGroups.entries) ...[
               Text(
-                group.key,
+                _brandGroupLabel(l10n, group.key),
                 style: TextStyle(
                   color: context.textMuted,
                   fontSize: 11,

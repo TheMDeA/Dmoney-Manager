@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
@@ -83,22 +84,23 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     return Stack(
       key: _stackKey,
       children: [
         FormSheet(
-          title: 'Transfer',
-          subtitle: 'Move money between two wallets.',
-          actionLabel: 'Transfer',
+          title: l10n.txTransfer,
+          subtitle: l10n.txMoveMoney,
+          actionLabel: l10n.txTransfer,
           onAction: _save,
           busy: _saving,
           children: [
-            const FormSectionLabel('Amount'),
+            FormSectionLabel(l10n.txAmountLabel),
             FormAmountEntry(controller: _amountCtrl),
             const SizedBox(height: 16),
-            const FormSectionLabel('Wallets'),
+            FormSectionLabel(l10n.txWallets),
             StreamBuilder<List<Wallet>>(
               stream: db.watchWallets(),
               builder: (context, snap) {
@@ -134,7 +136,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                       child: DropdownButtonFormField<int>(
                         key: ValueKey('from-$_fromId'),
                         initialValue: _fromId,
-                        decoration: const InputDecoration(labelText: 'From'),
+                        decoration: InputDecoration(labelText: l10n.txFrom),
                         items: [
                           for (final w in wallets)
                             DropdownMenuItem(
@@ -167,7 +169,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                           duration: AppMotion.normal,
                           curve: AppMotion.enter,
                           child: IconButton(
-                            tooltip: 'Swap wallets',
+                            tooltip: l10n.txSwapWallets,
                             icon: const Icon(Icons.swap_vert),
                             color: context.accent,
                             onPressed: (_fromId == null || _toId == null)
@@ -195,7 +197,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
                       child: DropdownButtonFormField<int>(
                         key: ValueKey('to-$_toId'),
                         initialValue: _toId,
-                        decoration: const InputDecoration(labelText: 'To'),
+                        decoration: InputDecoration(labelText: l10n.txTo),
                         items: [
                           for (final w in wallets.where((w) => w.id != _fromId))
                             DropdownMenuItem(
@@ -215,14 +217,14 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
             const SizedBox(height: 16),
             TextField(
               controller: _noteCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
+              decoration: InputDecoration(
+                labelText: l10n.txDescriptionOptional,
               ),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                const Expanded(child: FormSectionLabel('Fee')),
+                Expanded(child: FormSectionLabel(l10n.txFee)),
                 Switch(
                   value: _feeEnabled,
                   onChanged: (v) {
@@ -236,7 +238,7 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
               FormAmountEntry(controller: _feeCtrl),
               const SizedBox(height: 6),
               Text(
-                'Charged to the From wallet as an expense.',
+                l10n.txFeeCharged,
                 style: TextStyle(color: context.textMuted, fontSize: 12),
               ),
             ],
@@ -250,14 +252,15 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _fromId == null || _toId == null || _fromId == _toId) {
-      _snack('Enter an amount and two different wallets');
+      _snack(l10n.txEnterAmountWallets);
       return;
     }
     final fee = _feeEnabled ? parseAmountInput(_feeCtrl.text) : 0;
     if (_feeEnabled && fee <= 0) {
-      _snack('Enter a fee amount, or turn the fee off');
+      _snack(l10n.txEnterFee);
       return;
     }
     // Overpay warning for transfers into a paylater wallet: the fee is
@@ -274,18 +277,16 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
         final proceed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Overpaying this paylater wallet?'),
-            content: Text(
-              'This exceeds what you owe by ${formatMoney(overpay)}.',
-            ),
+            title: Text(l10n.txOverpayTitle),
+            content: Text(l10n.txOverpayBody(formatMoney(overpay))),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
+                child: Text(l10n.commonCancel),
               ),
               TextButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Pay anyway'),
+                child: Text(l10n.txPayAnyway),
               ),
             ],
           ),
@@ -321,8 +322,8 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(fee > 0
-              ? 'Transferred ${formatMoney(amount)} (fee ${formatMoney(fee)})'
-              : 'Transferred ${formatMoney(amount)}')),
+              ? l10n.txTransferredFee(formatMoney(amount), formatMoney(fee))
+              : l10n.txTransferred(formatMoney(amount)))),
     );
   }
 }

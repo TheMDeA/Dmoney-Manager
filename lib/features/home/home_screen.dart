@@ -14,6 +14,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/database/app_database.dart';
+import '../../l10n/app_localizations.dart';
 import '../../state/providers.dart';
 import '../accounts/account_switcher_sheet.dart';
 import '../debts/add_debt_sheet.dart';
@@ -39,6 +40,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final range = ref.watch(dateRangeProvider);
     final accountId = ref.watch(selectedAccountProvider);
@@ -54,7 +56,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _header(context),
+                _header(context, l10n),
                 const SizedBox(height: 12),
                 BalanceCard(
                   balanceHidden: balanceHidden,
@@ -64,7 +66,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   },
                 ),
                 const SizedBox(height: 12),
-                _rangeSwitcher(context, range),
+                _rangeSwitcher(context, range, l10n),
                 const SizedBox(height: 16),
                 QuickActions(
                   onTransfer: () =>
@@ -75,7 +77,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     builder: (_) =>
                         const AddTransactionSheet(initialKind: 'income'),
                   ),
-                  onScan: _scanReceipt,
+                  onScan: () => _scanReceipt(l10n),
                   onDebt: () => showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
@@ -87,7 +89,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 const GoalSpotlightCard(),
                 const AiInsightCard(),
                 SectionHeader(
-                  title: 'Recent transactions',
+                  title: l10n.homeRecentTransactions,
                   action: TextButton(
                     onPressed: () {
                       Haptics.select();
@@ -97,7 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       );
                     },
-                    child: const Text('View all'),
+                    child: Text(l10n.homeViewAll),
                   ),
                 ),
                 StreamBuilder<List<TransactionWithDetails>>(
@@ -105,9 +107,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   builder: (context, snap) {
                     final items = snap.data ?? const <TransactionWithDetails>[];
                     if (items.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Center(child: Text('No transactions yet')),
+                      return Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Center(child: Text(l10n.homeNoTransactionsYet)),
                       );
                     }
                     return Column(
@@ -133,7 +135,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<void> _scanReceipt() async {
+  Future<void> _scanReceipt(AppLocalizations l10n) async {
     try {
       // Let the user pick camera or an existing photo.
       final source = await showModalBottomSheet<ImageSource>(
@@ -144,12 +146,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('Take photo'),
+                title: Text(l10n.homeTakePhoto),
                 onTap: () => Navigator.of(context).pop(ImageSource.camera),
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Choose from gallery'),
+                title: Text(l10n.homeChooseFromGallery),
                 onTap: () => Navigator.of(context).pop(ImageSource.gallery),
               ),
             ],
@@ -163,7 +165,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // entry when nothing useful is read.
       ReceiptScan? scan;
       try {
-        scan = await _readReceipt(picked.path);
+        scan = await _readReceipt(picked.path, l10n);
       } on ReceiptOcrException catch (e) {
         // Text recognition itself broke — tell the user instead of
         // failing silently, then continue with manual entry.
@@ -171,10 +173,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         debugPrint('Receipt OCR failed: ${e.message}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Could not read the receipt. You can enter it manually.',
-              ),
+            SnackBar(
+              content: Text(l10n.homeReceiptUnreadable),
             ),
           );
         }
@@ -197,7 +197,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Could not open camera: $e')));
+        ).showSnackBar(
+          SnackBar(content: Text(l10n.homeCouldNotOpenCamera('$e'))),
+        );
       }
     }
   }
@@ -207,20 +209,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// Throws [ReceiptOcrException] when recognition itself failed.
   /// The indicator stays up for at least ~700ms so it's always perceptible
   /// (a fast failure used to pop it before it ever painted).
-  Future<ReceiptScan?> _readReceipt(String path) async {
+  Future<ReceiptScan?> _readReceipt(String path, AppLocalizations l10n) async {
     if (!mounted) return null;
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Dialog(
+      builder: (context) => Dialog(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text('Reading receipt…'),
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Text(l10n.homeReadingReceipt),
             ],
           ),
         ),
@@ -247,7 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return null;
   }
 
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, AppLocalizations l10n) {
     final selectedAccountId = ref.watch(selectedAccountProvider);
     final db = ref.watch(databaseProvider);
     return Row(
@@ -290,7 +292,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _greeting(),
+                _greeting(l10n),
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: context.textMuted),
@@ -368,10 +370,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 context,
               ).push(AppPageRoute(builder: (_) => const SettingsScreen()));
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Enable Password protection in More to use the lock',
-                  ),
+                SnackBar(
+                  content: Text(l10n.homeEnablePasswordLock),
                 ),
               );
             }
@@ -382,19 +382,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  String _greeting() {
+  String _greeting(AppLocalizations l10n) {
     final h = DateTime.now().hour;
-    if (h < 11) return 'Good morning,';
-    if (h < 15) return 'Good afternoon,';
-    if (h < 19) return 'Good evening,';
-    return 'Good night,';
+    if (h < 11) return l10n.homeGreetingMorning;
+    if (h < 15) return l10n.homeGreetingAfternoon;
+    if (h < 19) return l10n.homeGreetingEvening;
+    return l10n.homeGreetingNight;
   }
 
-  Widget _rangeSwitcher(BuildContext context, String range) {
+  Widget _rangeSwitcher(
+    BuildContext context,
+    String range,
+    AppLocalizations l10n,
+  ) {
     return Center(
       child: SlidingSegmented<String>(
         values: const ['day', 'week', 'month'],
-        labels: const ['Day', 'Week', 'Month'],
+        labels: [l10n.homeRangeDay, l10n.homeRangeWeek, l10n.homeRangeMonth],
         selected: range,
         onChanged: (v) {
           Haptics.select();

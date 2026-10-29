@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/database/app_database.dart';
+import '../utils/app_locale.dart';
 import 'backup_service.dart';
 
 /// Thrown when a Google Drive backup operation fails.
@@ -124,8 +125,10 @@ class DriveBackupService {
   /// Interactive sign-in, including consent for Drive access.
   Future<GoogleSignInAccount> signIn() async {
     if (serverClientId.isEmpty) {
-      throw DriveException(
-          'Google Drive is not configured in this build yet.');
+      throw DriveException(localizedOrFallback(
+        (l) => l.backupDriveNotConfigured,
+        'Google Drive is not configured in this build yet.',
+      ));
     }
     await init();
     final account = await GoogleSignIn.instance.authenticate();
@@ -154,7 +157,10 @@ class DriveBackupService {
   /// pass true from a user-initiated action.
   Future<Map<String, String>> _headers({bool promptIfNecessary = false}) async {
     if (!isSignedIn) {
-      throw DriveException('Not signed in to Google.');
+      throw DriveException(localizedOrFallback(
+        (l) => l.backupDriveNotSignedIn,
+        'Not signed in to Google.',
+      ));
     }
     // Prefer the account-bound client after a live sign-in; for a
     // session restored from the persisted identity, the instance-level
@@ -166,7 +172,10 @@ class DriveBackupService {
       promptIfNecessary: promptIfNecessary,
     );
     if (headers == null) {
-      throw DriveException('Google Drive access has not been granted.');
+      throw DriveException(localizedOrFallback(
+        (l) => l.backupDriveAccessNotGranted,
+        'Google Drive access has not been granted.',
+      ));
     }
     return headers;
   }
@@ -283,7 +292,10 @@ class DriveBackupService {
       body: body,
     );
     if (response.statusCode != 200) {
-      throw DriveException(_errorMessage(response, 'Upload failed'));
+      throw DriveException(_errorMessage(
+          response,
+          localizedOrFallback(
+              (l) => l.backupDriveUploadFailed, 'Upload failed')));
     }
     return DriveBackup.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>);
@@ -300,7 +312,10 @@ class DriveBackupService {
       body: bytes,
     );
     if (response.statusCode != 200) {
-      throw DriveException(_errorMessage(response, 'Upload failed'));
+      throw DriveException(_errorMessage(
+          response,
+          localizedOrFallback(
+              (l) => l.backupDriveUploadFailed, 'Upload failed')));
     }
     return DriveBackup.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>);
@@ -326,7 +341,10 @@ class DriveBackupService {
       headers: headers,
     );
     if (response.statusCode != 200) {
-      throw DriveException(_errorMessage(response, 'Could not list backups'));
+      throw DriveException(_errorMessage(
+          response,
+          localizedOrFallback(
+              (l) => l.backupDriveListFailed, 'Could not list backups')));
     }
     final files = (jsonDecode(response.body)
         as Map<String, dynamic>)['files'] as List<dynamic>? ?? [];
@@ -347,7 +365,10 @@ class DriveBackupService {
       headers: headers,
     );
     if (response.statusCode != 200) {
-      throw DriveException(_errorMessage(response, 'Download failed'));
+      throw DriveException(_errorMessage(
+          response,
+          localizedOrFallback(
+              (l) => l.backupDriveDownloadFailed, 'Download failed')));
     }
     final tmp = await getTemporaryDirectory();
     final file = File('${tmp.path}/${backup.name}');
@@ -362,7 +383,10 @@ class DriveBackupService {
       headers: headers,
     );
     if (response.statusCode != 204 && response.statusCode != 200) {
-      throw DriveException(_errorMessage(response, 'Delete failed'));
+      throw DriveException(_errorMessage(
+          response,
+          localizedOrFallback(
+              (l) => l.backupDriveDeleteFailed, 'Delete failed')));
     }
   }
 
@@ -411,13 +435,22 @@ class DriveBackupService {
 
   static String _errorMessage(http.Response response, String fallback) {
     if (response.statusCode == 401) {
-      return 'Google session expired — sign out and sign in again.';
+      return localizedOrFallback(
+        (l) => l.backupDriveSessionExpired,
+        'Google session expired — sign out and sign in again.',
+      );
     }
     if (response.statusCode == 403) {
-      return 'Google Drive access was denied or quota exceeded.';
+      return localizedOrFallback(
+        (l) => l.backupDriveAccessDenied,
+        'Google Drive access was denied or quota exceeded.',
+      );
     }
     if (response.statusCode == 404) {
-      return 'That backup is no longer in Google Drive.';
+      return localizedOrFallback(
+        (l) => l.backupDriveBackupGone,
+        'That backup is no longer in Google Drive.',
+      );
     }
     return '$fallback (${response.statusCode}).';
   }
