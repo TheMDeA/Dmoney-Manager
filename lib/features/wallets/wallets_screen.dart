@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/widgets/coin_refresh_indicator.dart';
 import '../../core/widgets/entrance.dart';
@@ -36,6 +37,7 @@ class WalletsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final selectedAccount = ref.watch(selectedAccountProvider);
     final hidden = ref.watch(balanceHiddenProvider);
@@ -46,13 +48,13 @@ class WalletsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ScreenHeader(
-              title: 'Wallets',
+              title: l10n.walletTitle,
               tabIndex: 1,
               action: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    tooltip: 'Arrange wallets',
+                    tooltip: l10n.walletArrangeWallets,
                     onPressed: () {
                       Haptics.select();
                       ArrangeWalletsScreen.open(context);
@@ -60,7 +62,7 @@ class WalletsScreen extends ConsumerWidget {
                     icon: const Icon(Icons.reorder),
                   ),
                   IconButton(
-                    tooltip: 'Add wallet',
+                    tooltip: l10n.walletAddWallet,
                     onPressed: () {
                       Haptics.select();
                       _addWalletDialog(context, ref);
@@ -119,7 +121,7 @@ class WalletsScreen extends ConsumerWidget {
                                         context,
                                         ref,
                                         null,
-                                        'All',
+                                        l10n.commonAll,
                                         selectedAccount == null,
                                       ),
                                       for (final a in accounts)
@@ -140,7 +142,7 @@ class WalletsScreen extends ConsumerWidget {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Combined balance',
+                                        l10n.walletCombinedBalance,
                                         style: TextStyle(
                                           color: context.textMuted,
                                           fontSize: 13,
@@ -158,7 +160,7 @@ class WalletsScreen extends ConsumerWidget {
                                       ),
                                       SizedBox(height: 4),
                                       Text(
-                                        '${displayed.length} wallets · tap a card to focus it',
+                                        l10n.walletCountTapToFocus(displayed.length),
                                         style: TextStyle(
                                           color: context.textMuted,
                                           fontSize: 12,
@@ -176,10 +178,9 @@ class WalletsScreen extends ConsumerWidget {
                                     paylaterWallets(wallets).isEmpty)
                                   EmptyState(
                                     icon: Icons.wallet_outlined,
-                                    title: 'No wallets',
-                                    message:
-                                        'Add your first wallet to start tracking money.',
-                                    actionLabel: 'Add wallet',
+                                    title: l10n.walletNoWallets,
+                                    message: l10n.walletNoWalletsMessage,
+                                    actionLabel: l10n.walletAddWallet,
                                     onAction: () =>
                                         _addWalletDialog(context, ref),
                                   )
@@ -217,6 +218,7 @@ class WalletsScreen extends ConsumerWidget {
   /// the full Paylater dashboard.
   Widget _paylaterSummaryCard(
       BuildContext context, List<Wallet> wallets, bool hidden) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final outstanding = totalPaylaterOutstanding(wallets);
@@ -234,7 +236,7 @@ class WalletsScreen extends ConsumerWidget {
             Row(
               children: [
                 Text(
-                  'Paylater',
+                  l10n.paylaterTitle,
                   style: TextStyle(
                     color: context.textMuted,
                     fontSize: 13,
@@ -250,7 +252,7 @@ class WalletsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Owe ${m(outstanding)}',
+              l10n.walletPaylaterOwe(m(outstanding)),
               style: AppTextStyles.displayBalance.copyWith(
                 fontSize: 24,
                 color: context.textPrimary,
@@ -260,9 +262,10 @@ class WalletsScreen extends ConsumerWidget {
             Text(
               [
                 if (ratio != null)
-                  '${(ratio * 100).round()}% of limit used',
+                  l10n.walletLimitUsed((ratio * 100).round()),
                 if (next != null)
-                  'Next due: ${next.wallet.name} · ${formatDate(next.dueDate)} · ${m(paylaterOutstanding(next.wallet))}',
+                  l10n.walletPaylaterNextDue(m(paylaterOutstanding(next.wallet)),
+                      formatDate(next.dueDate), next.wallet.name),
               ].join(' · '),
               style: TextStyle(
                 color: context.textMuted,
@@ -626,12 +629,13 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     bool isDark,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final negative = w.balance < 0;
     final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
     final last = recent.isNotEmpty ? recent.first : null;
     final meta = last != null
         ? '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}'
-        : 'No transactions yet';
+        : l10n.walletNoTransactionsYet;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -666,7 +670,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
         ),
         const SizedBox(height: 3),
         Text(
-          '${_kindLabel(w.kind)} · $meta',
+          '${_kindLabel(l10n, w.kind)} · $meta',
           style: TextStyle(color: context.textMuted, fontSize: 11.5),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -684,6 +688,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     bool isDark,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final negative = w.balance < 0;
     final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
     final last = recent.isNotEmpty ? recent.first : null;
@@ -717,7 +722,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _kindLabel(w.kind),
+                    _kindLabel(l10n, w.kind),
                     style: TextStyle(
                       color: context.textMuted,
                       fontSize: 12,
@@ -754,7 +759,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
           )
         else
           Text(
-            'No transactions yet',
+            l10n.walletNoTransactionsYet,
             style: TextStyle(
               color: context.textMuted,
               fontSize: 11.5,
@@ -766,7 +771,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
             _action(
               context,
               icon: Icons.swap_horiz,
-              label: 'Transfer',
+              label: l10n.walletTransfer,
               onTap: () => _transfer(w),
             ),
             // No Top up on paylater cards: a paylater bill is paid via
@@ -777,7 +782,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
               _action(
                 context,
                 icon: Icons.add_card_outlined,
-                label: 'Top up',
+                label: l10n.walletTopUp,
                 onTap: () => _topUp(w),
               ),
             ],
@@ -785,7 +790,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
             _action(
               context,
               icon: Icons.history,
-              label: 'History',
+              label: l10n.walletHistory,
               onTap: () => _history(w),
             ),
           ],
@@ -933,12 +938,12 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     };
   }
 
-  String _kindLabel(String kind) => switch (kind) {
-    'cash' => 'Cash',
-    'bank' => 'Bank account',
-    'ewallet' => 'E-wallet',
-    'credit' => 'Credit card',
-    'paylater' => 'Paylater',
+  String _kindLabel(AppLocalizations l10n, String kind) => switch (kind) {
+    'cash' => l10n.walletKindCash,
+    'bank' => l10n.walletKindBank,
+    'ewallet' => l10n.walletKindEwallet,
+    'credit' => l10n.walletKindCredit,
+    'paylater' => l10n.walletKindPaylater,
     _ => kind,
   };
 }
