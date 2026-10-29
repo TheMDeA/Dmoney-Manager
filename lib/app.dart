@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/services/auto_backup_listener.dart';
+import 'core/utils/app_locale.dart';
+import 'l10n/app_localizations.dart';
 import 'core/services/quick_add.dart';
 import 'core/theme/app_accents.dart';
 import 'core/theme/app_theme.dart';
@@ -23,6 +25,7 @@ class MoneyManagerApp extends ConsumerWidget {
     final locked = ref.watch(lockedProvider);
     final accounts = ref.watch(accountsStreamProvider);
     final accentId = ref.watch(accentProvider);
+    final languageOverride = ref.watch(appLocaleProvider);
 
     return DynamicColorBuilder(
       builder: (lightDynamic, darkDynamic) {
@@ -38,6 +41,9 @@ class MoneyManagerApp extends ConsumerWidget {
         return MaterialApp(
           title: 'Dmoney Manager',
           debugShowCheckedModeBanner: false,
+          locale: languageOverride == null ? null : Locale(languageOverride),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           navigatorKey: appNavigatorKey,
           theme: AppTheme.light(resolve(lightDynamic)),
           darkTheme: AppTheme.dark(resolve(darkDynamic)),
@@ -45,14 +51,19 @@ class MoneyManagerApp extends ConsumerWidget {
           // Screens without an AppBar (e.g. Home) get their status-bar
           // icon style from here; AppBar screens use the theme's
           // AppBarTheme.systemOverlayStyle instead.
-          builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-            value:
-                AppTheme.overlayStyle(Theme.of(context).brightness),
-            // Binds the launcher-shortcut / Quick Settings tile channel,
-            // and runs Drive auto backups on app enter/exit.
-            child: QuickAddListener(
-                child: AutoBackupListener(child: child!)),
-          ),
+          builder: (context, child) {
+            // Keep context-free formatters (formatDate, month names) on
+            // the resolved app locale. localeOf here is already resolved
+            // to one of supportedLocales, never the raw device locale.
+            appLocaleCode = Localizations.localeOf(context).languageCode;
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: AppTheme.overlayStyle(Theme.of(context).brightness),
+              // Binds the launcher-shortcut / Quick Settings tile channel,
+              // and runs Drive auto backups on app enter/exit.
+              child: QuickAddListener(
+                  child: AutoBackupListener(child: child!)),
+            );
+          },
           home: accounts.when(
             // No accounts yet -> first-launch onboarding. Existing installs that
             // already have (seeded) accounts skip straight to the app.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -39,6 +40,7 @@ class WalletCategoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     final catColor = colorFromHex(colorHex);
@@ -78,7 +80,7 @@ class WalletCategoryScreen extends ConsumerWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: const SectionHeader(title: 'Overview'),
+                child: SectionHeader(title: l10n.walletOverview),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -86,8 +88,8 @@ class WalletCategoryScreen extends ConsumerWidget {
                   child: GlassCard(
                     child: Row(
                       children: [
-                        const Text('Total',
-                            style: TextStyle(fontSize: 15)),
+                        Text(l10n.walletTotal,
+                            style: const TextStyle(fontSize: 15)),
                         const Spacer(),
                         Text(
                           hidden
@@ -111,11 +113,10 @@ class WalletCategoryScreen extends ConsumerWidget {
                 child: !snap.hasData
                     ? const SkeletonTransactionList()
                     : items.isEmpty
-                        ? const EmptyState(
+                        ? EmptyState(
                             icon: Icons.receipt_long_outlined,
-                            title: 'No transactions',
-                            message:
-                                'Nothing recorded in this category yet.',
+                            title: l10n.walletNoTransactions,
+                            message: l10n.walletCategoryNoTransactions,
                           )
                         : GroupedTransactionList(items: items),
               ),

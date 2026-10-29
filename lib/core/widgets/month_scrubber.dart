@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_accents.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
+import '../utils/app_locale.dart';
 import '../utils/haptics.dart';
 
 /// Fast-scroll date scrubber for month-paged lists: a slim drag strip on the
@@ -108,7 +109,7 @@ class _MonthScrubberState extends State<MonthScrubber> {
                   ],
                 ),
                 child: Text(
-                  DateFormat('MMM yyyy').format(widget.month),
+                  DateFormat('MMM yyyy', appLocaleCode).format(widget.month),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,

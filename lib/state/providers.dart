@@ -26,6 +26,21 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
 final themeModeProvider =
     NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
 
+class AppLocaleNotifier extends Notifier<String?> {
+  @override
+  String? build() => AppPrefs.languageCode;
+
+  Future<void> setLanguage(String? code) async {
+    await AppPrefs.setLanguageCode(code);
+    state = code;
+  }
+}
+
+/// UI language override: null means "follow the device language".
+/// MaterialApp resolves null to the device locale via supportedLocales.
+final appLocaleProvider =
+    NotifierProvider<AppLocaleNotifier, String?>(AppLocaleNotifier.new);
+
 class AccentNotifier extends Notifier<String> {
   @override
   String build() => AppPrefs.accentId;

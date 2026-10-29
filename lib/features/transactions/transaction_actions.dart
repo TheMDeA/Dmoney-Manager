@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/haptics.dart';
@@ -14,19 +15,17 @@ import 'add_transaction_sheet.dart';
 /// restrictions. Returns true when the sheet was opened.
 Future<bool> editTransaction(
     BuildContext context, TransactionWithDetails details) async {
+  final l10n = AppLocalizations.of(context)!;
   final t = details.transaction;
   if (t.kind == 'transfer') {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text(
-              'Transfers can\'t be edited — delete and create a new one')),
+      SnackBar(content: Text(l10n.txTransferEdit)),
     );
     return false;
   }
   if (t.debtId != null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text('Debt entries are managed from the debt itself')),
+      SnackBar(content: Text(l10n.txDebtManaged)),
     );
     return false;
   }
@@ -47,32 +46,31 @@ Future<void> deleteTransactionFlow(
   TransactionWithDetails details, {
   VoidCallback? afterDelete,
 }) async {
+  final l10n = AppLocalizations.of(context)!;
   final db = ref.read(databaseProvider);
   final t = details.transaction;
   if (t.debtId != null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-          content: Text(
-              'Debt entries can\'t be deleted here — delete the debt itself')),
+      SnackBar(content: Text(l10n.txDebtDeleteHere)),
     );
     return;
   }
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
-      title: const Text('Delete record?'),
-      content: const Text('You can undo this right after deleting.'),
+      title: Text(l10n.txDeleteRecordTitle),
+      content: Text(l10n.txUndoDeleteHint),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel')),
+            child: Text(l10n.commonCancel)),
         FilledButton(
           onPressed: () {
             Haptics.medium();
             Navigator.pop(context, true);
           },
           style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
-          child: const Text('Delete')),
+          child: Text(l10n.commonDelete)),
       ],
     ),
   );
@@ -93,10 +91,10 @@ Future<void> deleteTransactionFlow(
   messenger.clearSnackBars();
   messenger.showSnackBar(
     SnackBar(
-      content: const Text('Record deleted'),
+      content: Text(l10n.txRecordDeleted),
       duration: const Duration(seconds: 5),
       action: SnackBarAction(
-        label: 'Undo',
+        label: l10n.txUndo,
         onPressed: () async {
           Haptics.light();
           await db.restoreTransaction(t, photos);
@@ -105,8 +103,8 @@ Future<void> deleteTransactionFlow(
           }
           messenger.clearSnackBars();
           messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Record restored'),
+            SnackBar(
+              content: Text(l10n.txRecordsRestored),
               duration: Duration(seconds: 2),
             ),
           );

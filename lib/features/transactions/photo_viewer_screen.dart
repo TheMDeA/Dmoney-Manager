@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -43,6 +44,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return Scaffold(
       backgroundColor: Colors.black,
@@ -53,7 +55,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
           stream: db.watchPhotos(widget.transactionId),
           builder: (context, snap) {
             final photos = snap.data ?? const <TransactionPhoto>[];
-            if (photos.isEmpty) return const Text('Photos');
+            if (photos.isEmpty) return Text(l10n.txPhotos);
             final i = _index.clamp(0, photos.length - 1);
             return Text('${i + 1} / ${photos.length}');
           },
@@ -66,7 +68,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
               if (photos.isEmpty) return const SizedBox.shrink();
               final i = _index.clamp(0, photos.length - 1);
               return IconButton(
-                tooltip: 'Delete photo',
+                tooltip: l10n.txDeletePhoto,
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () {
                   Haptics.select();
@@ -121,7 +123,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
                           color: context.textMuted, size: 64),
                       SizedBox(height: 12),
                       Text(
-                        'This photo is no longer available',
+                        l10n.txPhotoUnavailable,
                         style: TextStyle(color: context.textMuted),
                       ),
                     ],
@@ -140,18 +142,16 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
     AppDatabase db,
     TransactionPhoto photo,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete photo?'),
-        content: const Text(
-          'This removes the attached copy from the record. '
-          'Your original photo in the gallery is kept.',
-        ),
+        title: Text(l10n.txDeletePhotoTitle),
+        content: Text(l10n.txDeletePhotoBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () {
@@ -161,7 +161,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.expense,
             ),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),

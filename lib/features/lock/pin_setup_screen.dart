@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,7 +44,11 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
             _pin = '';
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Passcodes do not match, try again')),
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)!.lockPasscodesMismatch,
+              ),
+            ),
           );
         }
       });
@@ -60,15 +65,22 @@ class _PinSetupScreenState extends ConsumerState<PinSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final accent = context.accent;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.isChange ? 'Change passcode' : 'Set passcode')),
+      appBar: AppBar(
+        title: Text(
+          widget.isChange ? l10n.lockChangePasscode : l10n.lockSetPasscode,
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
             const SizedBox(height: 48),
             Text(
-              _confirming ? 'Confirm your passcode' : 'Enter a 4-digit passcode',
+              _confirming
+                  ? l10n.lockConfirmPasscode
+                  : l10n.lockEnterPasscode,
               style: AppTextStyles.displaySection.copyWith(fontSize: 20),
             ),
             const SizedBox(height: 32),

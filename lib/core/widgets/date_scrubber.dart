@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_accents.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_motion.dart';
+import '../utils/app_locale.dart';
 import '../utils/haptics.dart';
 
 /// Fast-scroll date scrubber for long transaction lists: a slim drag strip
@@ -162,7 +163,7 @@ class _DateScrubberState extends State<DateScrubber> {
                   ],
                 ),
                 child: Text(
-                  DateFormat('d MMM yyyy').format(_bubbleDate!),
+                  DateFormat('d MMM yyyy', appLocaleCode).format(_bubbleDate!),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,

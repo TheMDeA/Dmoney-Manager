@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,8 +26,9 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Currency')),
+      appBar: AppBar(title: Text(l10n.settingsCurrency)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
@@ -38,9 +40,7 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Amounts are stored as plain numbers. Switching '
-                    'currency only changes the symbol and formatting — '
-                    'existing amounts are not converted.',
+                    l10n.settingsCurrencyInfo,
                     style: TextStyle(
                         color: context.textMuted, height: 1.5),
                   ),
@@ -76,25 +76,28 @@ class _CurrencyScreenState extends ConsumerState<CurrencyScreen> {
   }
 
   Future<void> _confirmSwitch(AppCurrency c) async {
+    final l10n = AppLocalizations.of(context)!;
     final current = currencyByCode(AppPrefs.currencyCode);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Switch currency?'),
+        title: Text(l10n.settingsCurrencySwitchTitle),
         content: Text(
-          'Amounts will be shown in ${c.name} (${c.code}).\n\n'
-          'Existing amounts are not converted — e.g. '
-          '${formatMoneyWith(current.code, 100000)} becomes '
-          '${formatMoneyWith(c.code, 100000)}.',
+          l10n.settingsCurrencySwitchBody(
+            c.code,
+            c.name,
+            formatMoneyWith(c.code, 100000),
+            formatMoneyWith(current.code, 100000),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Switch'),
+            child: Text(l10n.settingsCurrencySwitch),
           ),
         ],
       ),

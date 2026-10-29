@@ -1,3 +1,4 @@
+import 'app_locale.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -117,8 +118,12 @@ Color colorFromHex(String hex) {
   return Color(int.parse('FF$clean', radix: 16));
 }
 
-String formatDateTime(DateTime d) => DateFormat('dd MMM yyyy, HH:mm').format(d);
-String formatDate(DateTime d) => DateFormat('dd MMM yyyy').format(d);
+/// Date labels follow the app language, not the device language or the
+/// currency: 'dd MMM yyyy' renders Oct in English, Okt in Indonesian.
+String formatDateTime(DateTime d) =>
+    DateFormat('dd MMM yyyy, HH:mm', appLocaleCode).format(d);
+String formatDate(DateTime d) =>
+    DateFormat('dd MMM yyyy', appLocaleCode).format(d);
 
 /// "19.42" — matches the app's HH.mm time convention.
 String formatTime(DateTime d) => DateFormat('HH.mm').format(d);

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/formatters.dart';
@@ -81,10 +82,11 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final name = _nameCtrl.text.trim();
     final target = parseAmountInput(_targetCtrl.text);
     if (name.isEmpty || target <= 0) {
-      _snack('Enter a name and a target amount');
+      _snack(l10n.goalEnterNameTarget);
       return;
     }
     setState(() => _saving = true);
@@ -118,10 +120,11 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return FormSheet(
-      title: _editing ? 'Edit savings goal' : 'Add savings goal',
-      subtitle: _editing ? null : 'Set aside money for something that matters.',
-      actionLabel: _editing ? 'Save changes' : 'Add goal',
+      title: _editing ? l10n.goalEditTitle : l10n.budgetsAddSavingsGoal,
+      subtitle: _editing ? null : l10n.goalAddSubtitle,
+      actionLabel: _editing ? l10n.commonSaveChanges : l10n.goalAddGoal,
       onAction: _save,
       busy: _saving,
       children: [
@@ -129,21 +132,21 @@ class _GoalFormSheetState extends ConsumerState<_GoalFormSheet> {
           controller: _nameCtrl,
           autofocus: !_editing,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Name'),
+          decoration: InputDecoration(labelText: l10n.commonNameLabel),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Target amount'),
+        FormSectionLabel(l10n.goalTargetLabel),
         FormAmountEntry(controller: _targetCtrl),
         const SizedBox(height: 16),
-        const FormSectionLabel('Goal date (optional)'),
+        FormSectionLabel(l10n.goalDateOptional),
         FormDatePill(
           date: _deadline,
-          placeholder: 'Pick a goal date',
+          placeholder: l10n.goalPickDate,
           onTap: _pickDeadline,
           onClear: () => setState(() => _deadline = null),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Color'),
+        FormSectionLabel(l10n.commonColorLabel),
         ColorDots(
           selected: _colorHex,
           onSelected: (hex) => setState(() => _colorHex = hex),

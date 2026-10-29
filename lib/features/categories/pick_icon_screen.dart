@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_accents.dart';
@@ -18,6 +19,33 @@ class PickIconScreen extends StatefulWidget {
 class _PickIconScreenState extends State<PickIconScreen> {
   late String _selected;
 
+  /// The section titles live in the const [iconPickerSections] list
+  /// (lib/core/utils/category_icons.dart, outside this batch), so they
+  /// are translated at the display site. An unknown title falls back to
+  /// itself so a future section still renders instead of breaking.
+  String _sectionTitle(AppLocalizations l10n, String title) {
+    switch (title) {
+      case 'General':
+        return l10n.categoryIconGeneral;
+      case 'Food & Drinks':
+        return l10n.categoryIconFoodDrinks;
+      case 'Home & Living':
+        return l10n.categoryIconHomeLiving;
+      case 'Transport':
+        return l10n.categoryIconTransport;
+      case 'Shopping':
+        return l10n.categoryIconShopping;
+      case 'Money & Work':
+        return l10n.categoryIconMoneyWork;
+      case 'Health & Fitness':
+        return l10n.categoryIconHealthFitness;
+      case 'Fun & Hobbies':
+        return l10n.categoryIconFunHobbies;
+      default:
+        return title;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -26,13 +54,14 @@ class _PickIconScreenState extends State<PickIconScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pick Icon'),
+        title: Text(l10n.categoryPickIconTitle),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, _selected),
-            child: const Text('DONE'),
+            child: Text(l10n.categoryDoneAction),
           ),
         ],
       ),
@@ -45,7 +74,7 @@ class _PickIconScreenState extends State<PickIconScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
-                  section.title,
+                  _sectionTitle(l10n, section.title),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600),

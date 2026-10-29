@@ -7,6 +7,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../data/database/app_database.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../state/providers.dart';
 
 /// Home savings-goal spotlight: first *incomplete* goal with a progress ring.
@@ -16,6 +17,7 @@ class GoalSpotlightCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     return StreamBuilder<List<Goal>>(
@@ -66,7 +68,7 @@ class GoalSpotlightCard extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Savings goal',
+                        Text(l10n.homeSavingsGoal,
                             style: TextStyle(
                                 color: context.textMuted, fontSize: 12)),
                         const SizedBox(height: 2),
@@ -75,7 +77,14 @@ class GoalSpotlightCard extends ConsumerWidget {
                                 fontWeight: FontWeight.w700, fontSize: 16)),
                         const SizedBox(height: 2),
                         Text(
-                          '${hidden ? maskMoneyText(formatMoney(g.saved)) : formatMoney(g.saved)} of ${hidden ? maskMoneyText(formatMoney(g.target)) : formatMoney(g.target)}',
+                          l10n.homeGoalProgress(
+                            hidden
+                                ? maskMoneyText(formatMoney(g.saved))
+                                : formatMoney(g.saved),
+                            hidden
+                                ? maskMoneyText(formatMoney(g.target))
+                                : formatMoney(g.target),
+                          ),
                           style: AppTextStyles.amount(size: 12)
                               .copyWith(color: context.textMuted),
                         ),

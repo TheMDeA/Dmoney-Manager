@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -60,6 +61,7 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
   int get _diff => _newBalance - widget.wallet.balance;
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final diff = _diff;
     if (diff == 0 || _saving) return;
     Haptics.medium();
@@ -82,8 +84,9 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
       SnackBar(
         content: Text(
           _mode == _AdjustMode.byTransaction
-              ? 'Adjustment of ${formatSignedMoney(diff.abs(), isIncome: diff > 0)} recorded'
-              : 'Initial amount updated',
+              ? l10n.walletAdjustmentRecorded(
+                  formatSignedMoney(diff.abs(), isIncome: diff > 0))
+              : l10n.walletInitialUpdated,
         ),
       ),
     );
@@ -91,14 +94,15 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final diff = _diff;
     final hidden = ref.watch(balanceHiddenProvider);
     final diffColor = diff == 0
         ? context.textMuted
         : (diff > 0 ? AppColors.income : AppColors.expense);
     return FormSheet(
-      title: 'Adjust balance',
-      actionLabel: 'Done',
+      title: l10n.walletAdjustTitle,
+      actionLabel: l10n.commonDone,
       onAction: _save,
       busy: _saving,
       actionEnabled: diff != 0 && !_saving,
@@ -106,7 +110,7 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Current balance',
+            Text(l10n.walletCurrentBalance,
                 style: TextStyle(color: context.textMuted, fontSize: 13)),
             Text(
               hidden
@@ -118,14 +122,15 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
           ],
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('New balance'),
+        FormSectionLabel(l10n.walletNewBalance),
         const SizedBox(height: 8),
         FormAmountEntry(controller: _ctrl, autofocus: true),
         const SizedBox(height: 8),
         Text(
           diff == 0
-              ? 'No change'
-              : 'Difference: ${formatSignedMoney(diff.abs(), isIncome: diff > 0)}',
+              ? l10n.walletNoChange
+              : l10n.walletDifference(
+                  formatSignedMoney(diff.abs(), isIncome: diff > 0)),
           style: TextStyle(color: diffColor, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
@@ -140,17 +145,15 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
             children: [
               RadioListTile<_AdjustMode>(
                 value: _AdjustMode.byTransaction,
-                title: const Text('Adjust by transaction'),
-                subtitle: const Text(
-                    'Creates an income/expense record for the difference.'),
+                title: Text(l10n.walletAdjustByTransaction),
+                subtitle: Text(l10n.walletAdjustByTransactionHint),
                 contentPadding: EdgeInsets.zero,
                 dense: true,
               ),
               RadioListTile<_AdjustMode>(
                 value: _AdjustMode.initialAmount,
-                title: const Text('Change initial amount'),
-                subtitle: const Text(
-                    'Shifts the starting amount; history untouched.'),
+                title: Text(l10n.walletChangeInitialAmount),
+                subtitle: Text(l10n.walletChangeInitialHint),
                 contentPadding: EdgeInsets.zero,
                 dense: true,
               ),
