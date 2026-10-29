@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,6 +53,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final selectedId = ref.watch(selectedAccountProvider);
     final hidden = ref.watch(balanceHiddenProvider);
@@ -69,7 +71,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
-                'Accounts',
+                l10n.accountTitle,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
@@ -107,9 +109,8 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
                           _row(
                             context,
                             leading: _dot(context, context.accent),
-                            title: 'All accounts',
-                            subtitle:
-                                '${wallets.length} wallet${wallets.length == 1 ? '' : 's'}',
+                            title: l10n.accountAll,
+                            subtitle: l10n.accountWalletCount(wallets.length),
                             trailing: m(totalBalance),
                             selected: selectedId == null,
                             onTap: () => _select(null),
@@ -120,8 +121,9 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
                               context,
                               leading: _dot(context, colorFromHex(a.colorHex)),
                               title: a.name,
-                              subtitle:
-                                  '${(byAccount[a.id] ?? const <Wallet>[]).length} wallet${(byAccount[a.id] ?? const <Wallet>[]).length == 1 ? '' : 's'}',
+                              subtitle: l10n.accountWalletCount(
+                                (byAccount[a.id] ?? const <Wallet>[]).length,
+                              ),
                               trailing: m(
                                 (byAccount[a.id] ?? const <Wallet>[]).fold<int>(
                                   0,
@@ -139,9 +141,9 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
                           const Divider(),
                           ListTile(
                             leading: const Icon(Icons.add_circle_outline),
-                            title: const Text('New account'),
+                            title: Text(l10n.accountNewTitle),
                             subtitle: Text(
-                              'Group wallets, e.g. Work',
+                              l10n.accountNewSubtitle,
                               style: TextStyle(
                                 color: context.textMuted,
                                 fontSize: 12,
@@ -230,6 +232,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
   }
 
   Future<void> _newAccount(List<Account> accounts) async {
+    final l10n = AppLocalizations.of(context)!;
     final result = await showFormSheet<NewAccountResult>(
       context,
       (_) => NewAccountSheet(palette: accountPalette),
@@ -246,7 +249,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
         );
     Haptics.medium();
     if (mounted) {
-      _snack('Account "${result.name}" created');
+      _snack(l10n.accountCreated(result.name));
     }
     // Stay on the current scope; the new account starts empty.
   }
@@ -256,6 +259,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
     List<Wallet> wallets,
     List<Account> accounts,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     Haptics.light();
     return showModalBottomSheet(
       context: context,
@@ -273,7 +277,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
             const SizedBox(height: 8),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Rename'),
+              title: Text(l10n.accountManageRename),
               onTap: () {
                 Navigator.of(context).pop();
                 _rename(account);
@@ -281,7 +285,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
             ),
             ListTile(
               leading: const Icon(Icons.palette_outlined),
-              title: const Text('Change color'),
+              title: Text(l10n.accountManageColor),
               onTap: () {
                 Navigator.of(context).pop();
                 _changeColor(account);
@@ -289,9 +293,9 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
             ),
             ListTile(
               leading: const Icon(Icons.drive_file_move_outlined),
-              title: const Text('Move wallets…'),
+              title: Text(l10n.accountManageMove),
               subtitle: Text(
-                '${wallets.length} wallet${wallets.length == 1 ? '' : 's'} in this account',
+                l10n.accountWalletsInAccount(wallets.length),
                 style: TextStyle(color: context.textMuted, fontSize: 12),
               ),
               onTap: () {
@@ -302,7 +306,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
             ListTile(
               leading: Icon(Icons.delete_outline, color: AppColors.expense),
               title: Text(
-                'Delete account',
+                l10n.accountManageDelete,
                 style: TextStyle(color: AppColors.expense),
               ),
               onTap: () {
@@ -318,10 +322,11 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
   }
 
   Future<void> _rename(Account account) async {
+    final l10n = AppLocalizations.of(context)!;
     final name = await showDialog<String>(
       context: context,
       builder: (_) =>
-          _NameDialog(title: 'Rename account', initial: account.name),
+          _NameDialog(title: l10n.accountRenameTitle, initial: account.name),
     );
     if (name == null || name == account.name) return;
     await ref.read(databaseProvider).renameAccount(account.id, name);
@@ -329,10 +334,11 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
   }
 
   Future<void> _changeColor(Account account) async {
+    final l10n = AppLocalizations.of(context)!;
     final hex = await showDialog<String>(
       context: context,
       builder: (_) =>
-          _ColorDialog(title: 'Account color', initial: account.colorHex),
+          _ColorDialog(title: l10n.accountColorTitle, initial: account.colorHex),
     );
     if (hex == null || hex == account.colorHex) return;
     await ref.read(databaseProvider).setAccountColor(account.id, hex);
@@ -344,13 +350,14 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
     List<Wallet> wallets,
     List<Account> accounts,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
     if (wallets.isEmpty) {
-      _snack('No wallets in this account yet');
+      _snack(l10n.accountNoWalletsYet);
       return;
     }
     final destinations = accounts.where((a) => a.id != account.id).toList();
     if (destinations.isEmpty) {
-      _snack('Create another account first to move wallets');
+      _snack(l10n.accountCreateAnotherFirst);
       return;
     }
     final result = await showFormSheet<MoveWalletsResult>(
@@ -367,9 +374,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
         .moveWalletsToAccount(result.walletIds, result.destinationId);
     Haptics.medium();
     if (mounted) {
-      _snack(
-        'Moved ${result.walletIds.length} wallet${result.walletIds.length == 1 ? '' : 's'}',
-      );
+      _snack(l10n.accountMoved(result.walletIds.length));
     }
   }
 
@@ -378,8 +383,9 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
     List<Wallet> wallets,
     List<Account> accounts,
   ) async {
+    final l10n = AppLocalizations.of(context)!;
     if (accounts.length <= 1) {
-      _snack("Can't delete the last account");
+      _snack(l10n.accountCantDeleteLast);
       return;
     }
     final destinations = accounts.where((a) => a.id != account.id).toList();
@@ -401,7 +407,7 @@ class _AccountSwitcherSheetState extends ConsumerState<_AccountSwitcherSheet> {
     }
     Haptics.medium();
     if (mounted) {
-      _snack('Deleted "${account.name}"');
+      _snack(l10n.accountDeleted(account.name));
     }
   }
 }
@@ -429,26 +435,27 @@ class _NameDialogState extends State<_NameDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
       title: Text(widget.title),
       content: TextField(
         controller: _ctrl,
         autofocus: true,
         textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(labelText: 'Name'),
+        decoration: InputDecoration(labelText: l10n.accountNameLabel),
         onChanged: (_) => setState(() {}),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           onPressed:
               _ctrl.text.trim().isEmpty || _ctrl.text.trim() == widget.initial
               ? null
               : () => Navigator.of(context).pop(_ctrl.text.trim()),
-          child: const Text('Save'),
+          child: Text(l10n.commonSave),
         ),
       ],
     );
@@ -470,6 +477,7 @@ class _ColorDialogState extends State<_ColorDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
       title: Text(widget.title),
       content: Wrap(
@@ -506,11 +514,11 @@ class _ColorDialogState extends State<_ColorDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_hex),
-          child: const Text('Save'),
+          child: Text(l10n.commonSave),
         ),
       ],
     );
@@ -537,20 +545,21 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: Text('Delete "${widget.account.name}"?'),
+      title: Text(l10n.accountDeleteTitle(widget.account.name)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             widget.walletCount == 0
-                ? 'This account has no wallets.'
-                : '${widget.walletCount} wallet${widget.walletCount == 1 ? '' : 's'} will be moved — never deleted.',
+                ? l10n.accountNoWallets
+                : l10n.accountWalletsWillMove(widget.walletCount),
           ),
           if (widget.walletCount > 0) ...[
             const SizedBox(height: 12),
-            const Text('Move wallets to'),
+            Text(l10n.accountMoveWalletsTo),
             DropdownButton<int>(
               value: _destinationId,
               isExpanded: true,
@@ -567,12 +576,12 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
           onPressed: () => Navigator.of(context).pop(_destinationId),
-          child: const Text('Delete'),
+          child: Text(l10n.commonDelete),
         ),
       ],
     );

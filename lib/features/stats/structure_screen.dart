@@ -9,6 +9,7 @@ import '../../../core/theme/app_motion.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/app_page_route.dart';
@@ -106,12 +107,13 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
     final hidden = ref.watch(balanceHiddenProvider);
+    final l10n = AppLocalizations.of(context)!;
     final from = DateTime(_month.year, _month.month);
     final to = DateTime(_month.year, _month.month + 1)
         .subtract(const Duration(seconds: 1));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Structure')),
+      appBar: AppBar(title: Text(l10n.statsStructure)),
       body: Column(
         children: [
           MonthSelector(month: _month, onShift: _shift, onPick: _pickMonth),
@@ -121,7 +123,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
               width: double.infinity,
               child: SlidingSegmented<String>(
                 values: const ['income', 'expense'],
-                labels: const ['INCOME', 'EXPENSE'],
+                labels: [l10n.statsIncomeSegment, l10n.statsExpenseSegment],
                 selected: _kind,
                 onChanged: (v) => setState(() {
                   _kind = v;
@@ -143,7 +145,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                       for (final c in (catSnap.data ?? const <Category>[]))
                         c.id: c,
                     };
-                    return _body(stats, cats, hidden);
+                    return _body(stats, cats, hidden, l10n);
                   },
                 );
               },
@@ -154,7 +156,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     );
   }
 
-  Widget _body(List<CategoryStat> stats, Map<int, Category> cats, bool hidden) {
+  Widget _body(List<CategoryStat> stats, Map<int, Category> cats, bool hidden, AppLocalizations l10n) {
     final total = stats.fold<int>(0, (s, e) => s + e.total);
     return SingleChildScrollView(
       // Replay the stagger whenever month or kind changes.
@@ -163,7 +165,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _donutCard(stats, cats, total, hidden),
+          _donutCard(stats, cats, total, hidden, l10n),
           const SizedBox(height: 8),
           if (total == 0)
             Entrance(
@@ -174,8 +176,8 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 28),
                     child: Text(
                       _isIncome
-                          ? 'No income this month'
-                          : 'No expenses this month',
+                          ? l10n.statsNoIncomeThisMonth
+                          : l10n.statsNoExpensesThisMonth,
                       style: TextStyle(color: context.textMuted),
                     ),
                   ),
@@ -187,7 +189,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
               Entrance(
                 delay: Duration(milliseconds: 80 + (i * 45).clamp(0, 450)),
                 child: _categoryRow(stats[i], cats[stats[i].categoryId],
-                    total, i == stats.length - 1, hidden),
+                    total, i == stats.length - 1, hidden, l10n),
               ),
         ],
       ),
@@ -195,7 +197,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   }
 
   Widget _donutCard(
-      List<CategoryStat> stats, Map<int, Category> cats, int total, bool hidden) {
+      List<CategoryStat> stats, Map<int, Category> cats, int total, bool hidden, AppLocalizations l10n) {
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     if (total == 0) {
@@ -204,7 +206,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     final slices = [
       for (final s in stats)
         _Slice(
-          name: cats[s.categoryId]?.name ?? 'Unknown',
+          name: cats[s.categoryId]?.name ?? l10n.statsUnknown,
           color: cats[s.categoryId] != null
               ? colorFromHex(cats[s.categoryId]!.colorHex)
               : Colors.grey,
@@ -285,7 +287,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  touched?.name ?? (_isIncome ? 'Income' : 'Expense'),
+                  touched?.name ?? (_isIncome ? l10n.statsIncome : l10n.statsExpense),
                   style: TextStyle(color: context.textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 2),
@@ -315,7 +317,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   }
 
   Widget _categoryRow(
-      CategoryStat s, Category? c, int total, bool last, bool hidden) {
+      CategoryStat s, Category? c, int total, bool last, bool hidden, AppLocalizations l10n) {
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final color =
@@ -326,7 +328,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
         InkWell(
           onTap: () {
             Haptics.select();
-            _openCategory(s, c);
+            _openCategory(s, c, l10n);
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
@@ -351,7 +353,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      c?.name ?? 'Unknown',
+                      c?.name ?? l10n.statsUnknown,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
@@ -382,7 +384,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${s.count} ${s.count == 1 ? 'transaction' : 'transactions'}',
+                    l10n.statsTransactionCount(s.count),
                     style: TextStyle(
                         color: context.textMuted, fontSize: 12),
                   ),
@@ -398,13 +400,13 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   }
 
   /// Drill-down: the category's transactions for the shown month.
-  void _openCategory(CategoryStat s, Category? c) {
+  void _openCategory(CategoryStat s, Category? c, AppLocalizations l10n) {
     final db = ref.read(databaseProvider);
     final accountId = ref.read(selectedAccountProvider);
     final from = DateTime(_month.year, _month.month);
     final to =
         DateTime(_month.year, _month.month + 1).subtract(const Duration(seconds: 1));
-    final name = c?.name ?? 'Unknown';
+    final name = c?.name ?? l10n.statsUnknown;
     // Modal sheet: capture the flag at open (the Home eye can't be
     // reached while it is up).
     final hidden = ref.read(balanceHiddenProvider);
@@ -474,9 +476,9 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                 builder: (context, snap) {
                   final items = snap.data ?? const <TransactionWithDetails>[];
                   if (items.isEmpty) {
-                    return const EmptyState(
+                    return EmptyState(
                       icon: Icons.receipt_long_outlined,
-                      message: 'No transactions',
+                      message: l10n.statsNoTransactions,
                     );
                   }
                   return ListView.builder(

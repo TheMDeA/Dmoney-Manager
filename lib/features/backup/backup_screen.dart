@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -67,9 +68,10 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Backup & restore')),
+      appBar: AppBar(title: Text(l10n.backupTitle)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         child: Column(
@@ -86,7 +88,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Keep a copy of everything',
+                          l10n.backupHeroTitle,
                           style: TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 16),
                         ),
@@ -95,10 +97,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'A backup contains your full database, receipt photos, '
-                    'and app preferences in a single zip file. Save it to '
-                    'your cloud drive or send it to another device, then '
-                    'restore it here any time.',
+                    l10n.backupHeroMessage,
                     style: TextStyle(
                         color: context.textMuted, height: 1.5),
                   ),
@@ -110,14 +109,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               onPressed:
                   _busy ? null : () => _createBackup(context, db),
               icon: const Icon(Icons.backup_outlined),
-              label: const Text('Create backup'),
+              label: Text(l10n.backupCreate),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed:
                   _busy ? null : () => _restoreFromFile(context, db),
               icon: const Icon(Icons.restore_outlined),
-              label: const Text('Restore from file'),
+              label: Text(l10n.backupRestoreFile),
             ),
             const SizedBox(height: 28),
             _driveSection(context, db),
@@ -140,6 +139,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 
   Widget _driveSection(BuildContext context, AppDatabase db) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -148,16 +148,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             Icon(Icons.cloud_sync_outlined,
                 color: AppColors.violet, size: 22),
             const SizedBox(width: 8),
-            const Text(
-              'Google Drive',
+            Text(
+              l10n.backupDriveTitle,
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
-          'Backups are stored in a private app folder in your Drive — '
-          'only this app can see them. The 3 most recent are kept.',
+          l10n.backupDriveMessage,
           style: TextStyle(color: context.textMuted, height: 1.5),
         ),
         const SizedBox(height: 12),
@@ -168,15 +167,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Automatically backup',
+                  Text(
+                    l10n.backupAutoTitle,
                     style: TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Backup to Google Drive when entering and exiting '
-                    'the application.',
+                    l10n.backupAutoMessage,
                     style:
                         TextStyle(color: context.textMuted, height: 1.4),
                   ),
@@ -192,8 +190,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         if (_autoBackup) ...[
           const SizedBox(height: 4),
           Text(
-            'Warning: This will overwrite the existing auto backup '
-            'file every time a backup occurs.',
+            l10n.backupAutoWarning,
             style: TextStyle(color: context.textMuted, height: 1.4),
           ),
         ],
@@ -207,7 +204,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           OutlinedButton.icon(
             onPressed: _busy ? null : () => _signInToDrive(db),
             icon: const Icon(Icons.login_outlined),
-            label: const Text('Sign in with Google'),
+            label: Text(l10n.backupSignIn),
           ),
         ] else ...[
           Row(
@@ -222,33 +219,33 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               ),
               TextButton(
                 onPressed: _busy ? null : _signOutOfDrive,
-                child: const Text('Sign out'),
+                child: Text(l10n.backupSignOut),
               ),
             ],
           ),
           const SizedBox(height: 4),
           if (_driveNeedsReconnect) ...[
             Text(
-              'Drive access needs a quick reconnect.',
+              l10n.backupReconnectNote,
               style: TextStyle(color: context.textMuted),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: _busy ? null : () => _signInToDrive(db),
               icon: const Icon(Icons.refresh_outlined),
-              label: const Text('Reconnect Google Drive'),
+              label: Text(l10n.backupReconnect),
             ),
             const SizedBox(height: 8),
           ],
           FilledButton.icon(
             onPressed: _busy ? null : () => _backUpToDrive(db),
             icon: const Icon(Icons.cloud_upload_outlined),
-            label: const Text('Back up now'),
+            label: Text(l10n.backupNow),
           ),
           if (_lastDriveBackupAt != null) ...[
             const SizedBox(height: 8),
             Text(
-              'Last backup: ${formatDateTime(_lastDriveBackupAt!.toLocal())}',
+              l10n.backupLastBackup(formatDateTime(_lastDriveBackupAt!.toLocal())),
               style: TextStyle(color: context.textMuted),
             ),
           ],
@@ -256,7 +253,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             const SizedBox(height: 8),
             if (_driveBackups!.isEmpty)
               Text(
-                'No cloud backups yet.',
+                l10n.backupNoCloud,
                 style: TextStyle(color: context.textMuted),
               )
             else
@@ -267,7 +264,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                   title: Text(formatDateTime(backup.createdAt.toLocal())),
                   subtitle: Text(
                     backup.name == DriveBackupService.autoFileName
-                        ? 'Auto backup · ${_formatSize(backup.sizeBytes)}'
+                        ? l10n.backupAutoBackupSize(_formatSize(backup.sizeBytes))
                         : _formatSize(backup.sizeBytes),
                   ),
                   trailing: Row(
@@ -275,13 +272,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.restore_outlined),
-                        tooltip: 'Restore this backup',
+                        tooltip: l10n.backupRestoreTooltip,
                         onPressed:
                             _busy ? null : () => _restoreFromDrive(db, backup),
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        tooltip: 'Delete this backup',
+                        tooltip: l10n.backupDeleteTooltip,
                         onPressed:
                             _busy ? null : () => _deleteDriveBackup(backup),
                       ),
@@ -304,6 +301,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   /// Signs in; returns false when the user cancels or it fails.
   Future<bool> _signInToDrive(AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() => _status = null);
     try {
       await _drive.signIn();
@@ -318,11 +316,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         // mismatch) instead of a generic failure.
         final detail = e.description;
         setState(() => _status = detail != null && detail.isNotEmpty
-            ? 'Sign-in failed: $detail'
-            : 'Sign-in failed. Please try again.');
+            ? l10n.backupSignInFailedDetail(detail)
+            : l10n.backupSignInFailed);
       }
     } catch (_) {
-      setState(() => _status = 'Sign-in failed. Please try again.');
+      setState(() => _status = l10n.backupSignInFailed);
     }
     return false;
   }
@@ -342,9 +340,10 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   /// Immediate auto backup with user feedback (the lifecycle-triggered
   /// ones run silently in the service).
   Future<void> _runAutoBackupNow(AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _busy = true;
-      _status = 'Backing up to Google Drive…';
+      _status = l10n.backupBackingUpDrive;
     });
     try {
       final backup = await _drive.backUpAuto(db);
@@ -353,12 +352,12 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       setState(() {
         _driveBackups = backups;
         _lastDriveBackupAt = backup.createdAt;
-        _status = 'Backup saved to Google Drive.';
+        _status = l10n.backupSavedDrive;
       });
     } on DriveException catch (e) {
       setState(() => _status = e.message);
     } catch (_) {
-      setState(() => _status = 'Drive backup failed. Please try again.');
+      setState(() => _status = l10n.backupDriveFailed);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -380,9 +379,10 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 
   Future<void> _backUpToDrive(AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _busy = true;
-      _status = 'Backing up to Google Drive…';
+      _status = l10n.backupBackingUpDrive;
     });
     try {
       final backup = await _drive.backUpNow(db);
@@ -391,12 +391,12 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       setState(() {
         _driveBackups = backups;
         _lastDriveBackupAt = backup.createdAt;
-        _status = 'Backup saved to Google Drive.';
+        _status = l10n.backupSavedDrive;
       });
     } on DriveException catch (e) {
       setState(() => _status = e.message);
     } catch (_) {
-      setState(() => _status = 'Drive backup failed. Please try again.');
+      setState(() => _status = l10n.backupDriveFailed);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -404,9 +404,10 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   Future<void> _restoreFromDrive(
       AppDatabase db, DriveBackup backup) async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _busy = true;
-      _status = 'Downloading backup…';
+      _status = l10n.backupDownloading;
     });
     final File file;
     try {
@@ -420,7 +421,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     } catch (_) {
       setState(() {
         _busy = false;
-        _status = 'Download failed. Please try again.';
+        _status = l10n.backupDownloadFailed;
       });
       return;
     }
@@ -430,23 +431,23 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 
   Future<void> _deleteDriveBackup(DriveBackup backup) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete cloud backup?'),
+        title: Text(l10n.backupDeleteTitle),
         content: Text(
-          'The backup from ${formatDateTime(backup.createdAt.toLocal())} '
-          'will be permanently deleted from Google Drive.',
+          l10n.backupDeleteMessage(formatDateTime(backup.createdAt.toLocal())),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.commonCancel)),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
                 backgroundColor: AppColors.expense),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -459,12 +460,12 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       if (!mounted) return;
       setState(() {
         _driveBackups = backups;
-        _status = 'Cloud backup deleted.';
+        _status = l10n.backupDeleted;
       });
     } on DriveException catch (e) {
       setState(() => _status = e.message);
     } catch (_) {
-      setState(() => _status = 'Delete failed. Please try again.');
+      setState(() => _status = l10n.backupDeleteFailed);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -472,22 +473,23 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   Future<void> _createBackup(
       BuildContext context, AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _busy = true;
-      _status = 'Creating backup…';
+      _status = l10n.backupCreating;
     });
     try {
       final file = await BackupService.createBackup(db);
       if (!context.mounted) return;
       await SharePlus.instance.share(
         ShareParams(
-          text: 'Dmoney Manager backup',
+          text: l10n.backupShareText,
           files: [XFile(file.path)],
         ),
       );
-      setState(() => _status = 'Backup ready — save it somewhere safe.');
+      setState(() => _status = l10n.backupReady);
     } catch (e) {
-      setState(() => _status = 'Backup failed: $e');
+      setState(() => _status = l10n.backupFailed('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -507,24 +509,21 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   /// Confirm dialog + the restore itself, shared by the file picker
   /// and Google Drive restore paths.
   Future<void> _confirmAndRestore(AppDatabase db, File file) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Restore backup?'),
-        content: const Text(
-          'This replaces ALL current data — transactions, wallets, '
-          'budgets, debts, photos, and settings — with the backup. '
-          'This cannot be undone.',
-        ),
+        title: Text(l10n.backupRestoreTitle),
+        content: Text(l10n.backupRestoreMessage),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.commonCancel)),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
                 backgroundColor: AppColors.expense),
-            child: const Text('Restore'),
+            child: Text(l10n.backupRestoreAction),
           ),
         ],
       ),
@@ -533,7 +532,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
     setState(() {
       _busy = true;
-      _status = 'Restoring…';
+      _status = l10n.backupRestoring;
     });
     try {
       await BackupService.restoreBackup(db, file);
@@ -542,13 +541,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       ref.invalidate(lockEnabledProvider);
       ref.invalidate(displayNameProvider);
       ref.invalidate(selectedAccountProvider);
-      setState(() => _status =
-          'Restore complete. Your data is back.');
+      setState(() => _status = l10n.backupRestoreComplete);
     } on BackupException catch (e) {
       setState(() => _status = e.message);
     } catch (_) {
-      setState(() => _status =
-          'Restore failed. Please try again with a valid backup file.');
+      setState(() => _status = l10n.backupRestoreFailed);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

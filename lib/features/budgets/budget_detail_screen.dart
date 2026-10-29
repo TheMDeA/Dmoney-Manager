@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +10,7 @@ import '../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
+import '../../core/utils/app_locale.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -36,14 +38,15 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final l10n = AppLocalizations.of(context)!;
     // Privacy mode: budget figures mask, transaction rows stay.
     final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Budget'),
+        title: Text(l10n.budgetsDetailTitle),
         actions: [
           IconButton(
-            tooltip: 'Edit limit',
+            tooltip: l10n.budgetsEditLimitTooltip,
             icon: const Icon(Icons.edit_outlined),
             onPressed: () {
               Haptics.select();
@@ -51,7 +54,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             },
           ),
           IconButton(
-            tooltip: 'Delete budget',
+            tooltip: l10n.budgetsDeleteTooltip,
             icon: const Icon(Icons.delete_outline),
             onPressed: () {
               Haptics.select();
@@ -71,7 +74,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           final budget = found;
           if (budget == null) {
             return Center(
-              child: Text('Budget not found',
+              child: Text(l10n.budgetsNotFound,
                   style: TextStyle(color: context.textMuted)),
             );
           }
@@ -115,6 +118,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     List<TransactionWithDetails> txs,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final spent = txs.fold<int>(0, (s, d) => s + d.transaction.amount);
@@ -146,7 +150,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            cat?.name ?? 'Budget',
+            cat?.name ?? l10n.budgetsFallbackName,
             style: GoogleFonts.spaceGrotesk(
               fontSize: 30,
               fontWeight: FontWeight.w700,
@@ -157,8 +161,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _amountColumn('Spent', m(spent), context.textMuted),
-              _amountColumn('Left', m(left),
+              _amountColumn(l10n.budgetsSpent, m(spent), context.textMuted),
+              _amountColumn(l10n.budgetsLeftLabel, m(left),
                   left < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
@@ -196,12 +200,12 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _infoRow('Category', cat?.name ?? '—'),
-          _infoRow('Budget', m(budget.limit)),
+          _infoRow(l10n.budgetsCategoryLabel, cat?.name ?? '—'),
+          _infoRow(l10n.budgetsDetailTitle, m(budget.limit)),
           _infoRow(
-            'Period',
-            '01–${daysInMonth.toString().padLeft(2, '0')} ${_monthName(month)} $year',
-            sub: isCurrentMonth ? '$daysLeft days left' : null,
+            l10n.budgetsPeriod,
+            l10n.budgetsPeriodValue(daysInMonth.toString().padLeft(2, '0'), monthAbbreviations()[month - 1], year),
+            sub: isCurrentMonth ? l10n.budgetsDaysLeft(daysLeft) : null,
           ),
           const SizedBox(height: 8),
           _dailyChart(
@@ -210,16 +214,16 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           Row(
             children: [
               Expanded(
-                child: _paceStat('Recommended', recommended, hidden),
+                child: _paceStat(l10n.budgetsRecommended, recommended, hidden),
               ),
               Expanded(
-                child: _paceStat('Average', average, hidden),
+                child: _paceStat(l10n.budgetsAverage, average, hidden),
               ),
             ],
           ),
           const SizedBox(height: 28),
           Text(
-            'Transaction list',
+            l10n.budgetsTransactionList,
             style: GoogleFonts.spaceGrotesk(
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -228,7 +232,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           ),
           const SizedBox(height: 12),
           if (txs.isEmpty)
-            Text('No transactions in this budget yet.',
+            Text(l10n.budgetsNoTransactions,
                 style: TextStyle(color: context.textMuted))
           else
             for (final d in txs)
@@ -292,6 +296,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     Color catColor,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     // Cumulative spend per day.
@@ -326,7 +331,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
               getTooltipColor: (_) => context.raised,
               getTooltipItems: (items) => items
                   .map((s) => LineTooltipItem(
-                        'Day ${s.x.toInt()}\n${m(s.y.toInt())}',
+                        l10n.budgetsChartTooltip(m(s.y.toInt()), s.x.toInt()),
                         TextStyle(
                             color: context.textPrimary,
                             fontSize: 12,
@@ -502,14 +507,6 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     );
   }
 
-  String _monthName(int m) {
-    const names = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return names[m - 1];
-  }
-
   Future<void> _editLimit(BuildContext context, AppDatabase db) async {
     final result = await showEditBudgetLimitSheet(
       context,
@@ -524,26 +521,28 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
   Future<void> _confirmDelete(BuildContext context, AppDatabase db) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete budget?'),
-        content: const Text(
-            'The budget and its alerts will be removed. Transactions stay.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Haptics.medium();
-              Navigator.pop(context, true);
-            },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return AlertDialog(
+          title: Text(l10n.budgetsDeleteTitle),
+          content: Text(l10n.budgetsDeleteMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l10n.commonCancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Haptics.medium();
+                Navigator.pop(context, true);
+              },
+              style:
+                  FilledButton.styleFrom(backgroundColor: AppColors.expense),
+              child: Text(l10n.commonDelete),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed == true && context.mounted) {
       await db.deleteBudget(widget.budgetId);
