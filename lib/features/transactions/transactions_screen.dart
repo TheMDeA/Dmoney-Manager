@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/app_page_route.dart';
@@ -93,6 +94,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   /// Bulk delete with a single undo that restores everything.
   /// Debt-linked entries can't be deleted here — they're skipped.
   Future<void> _bulkDelete() async {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.read(databaseProvider);
     final targets = _targets;
     final deletable =
@@ -101,21 +103,19 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     if (deletable.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                "Debt entries can't be deleted here — delete the debt itself")),
+        SnackBar(content: Text(l10n.txDebtDeleteHere)),
       );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Delete ${deletable.length} records?'),
-        content: const Text('You can undo this right after deleting.'),
+        title: Text(l10n.txDeleteRecordsTitle(deletable.length)),
+        content: Text(l10n.txUndoDeleteHint),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.commonCancel)),
           FilledButton(
             onPressed: () {
               Haptics.medium();
@@ -123,7 +123,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             },
             style:
                 FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete')),
+            child: Text(l10n.commonDelete)),
         ],
       ),
     );
@@ -157,11 +157,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(skipped > 0
-            ? '${deletable.length} deleted ($skipped debt entries skipped)'
-            : '${deletable.length} records deleted'),
+            ? l10n.txDeletedWithSkipped(deletable.length, skipped)
+            : l10n.txRecordsDeleted(deletable.length)),
         duration: const Duration(seconds: 5),
         action: SnackBarAction(
-          label: 'Undo',
+          label: l10n.txUndo,
           onPressed: () async {
             Haptics.light();
             for (final b in backup) {
@@ -169,8 +169,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             }
             messenger.clearSnackBars();
             messenger.showSnackBar(
-              const SnackBar(
-                content: Text('Records restored'),
+              SnackBar(
+                content: Text(l10n.txRecordsRestored),
                 duration: Duration(seconds: 2),
               ),
             );
@@ -183,6 +183,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   /// Moves every selected record to one picked category. Only offered for
   /// a uniform selection (all income or all expense, no transfers/debt).
   Future<void> _bulkRecategorize() async {
+    final l10n = AppLocalizations.of(context)!;
     final targets = _targets;
     final kinds = {for (final d in targets) d.transaction.kind};
     final uniform = targets.isNotEmpty &&
@@ -192,9 +193,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     if (!uniform) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text(
-                'Select income or expense records of one type to change category')),
+        SnackBar(content: Text(l10n.txSelectOneType)),
       );
       return;
     }
@@ -226,12 +225,14 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     _clearSelection();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$count records moved to ${picked.name}')),
+      // gen-l10n orders params alphabetically: category, count.
+      SnackBar(content: Text(l10n.txRecordsMoved(picked.name, count))),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final accountId = ref.watch(selectedAccountProvider);
     final all = _view == 'all';
@@ -249,34 +250,34 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       appBar: selecting
           ? AppBar(
               leading: IconButton(
-                tooltip: 'Clear selection',
+                tooltip: l10n.txClearSelection,
                 icon: const Icon(Icons.close),
                 onPressed: _clearSelection,
               ),
-              title: Text('${_selected.length} selected'),              actions: [
+              title: Text(l10n.txSelected(_selected.length)),              actions: [
                 IconButton(
-                  tooltip: 'Select all',
+                  tooltip: l10n.txSelectAll,
                   icon: const Icon(Icons.select_all),
                   onPressed: _selectAll,
                 ),
                 IconButton(
-                  tooltip: 'Delete',
+                  tooltip: l10n.commonDelete,
                   icon: const Icon(Icons.delete_outline),
                   onPressed: _bulkDelete,
                 ),
                 IconButton(
-                  tooltip: 'Change category',
+                  tooltip: l10n.txChangeCategory,
                   icon: const Icon(Icons.category_outlined),
                   onPressed: _bulkRecategorize,
                 ),
               ],
             )
           : AppBar(
-        title: const Text('Transactions'),
+        title: Text(l10n.txTransactions),
         actions: [
           if (!all)
             IconButton(
-              tooltip: 'Pick month',
+              tooltip: l10n.txPickMonth,
               icon: const Icon(Icons.calendar_month_outlined),
               onPressed: _pickMonth,
             ),
@@ -307,7 +308,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 child: Center(
                   child: SlidingSegmented<String>(
                     values: const ['month', 'all'],
-                    labels: const ['Month', 'All'],
+                    labels: [l10n.txMonth, l10n.commonAll],
                     selected: _view,
                     onChanged: _setView,
                   ),
@@ -326,11 +327,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                     : items.isEmpty
                         ? EmptyState(
                             icon: Icons.receipt_long_outlined,
-                            title: 'No transactions',
+                            title: l10n.txNoTransactions,
                             message: all
-                                ? 'Nothing recorded yet.'
-                                : 'Nothing recorded this month yet.',
-                            actionLabel: 'Add transaction',
+                                ? l10n.txNothingYet
+                                : l10n.txNothingThisMonth,
+                            actionLabel: l10n.txAddTransaction,
                             onAction: () => showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,

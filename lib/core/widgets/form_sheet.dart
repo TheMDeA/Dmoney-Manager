@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_accents.dart';
@@ -267,6 +268,7 @@ class FormDatePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
         Expanded(
@@ -296,7 +298,7 @@ class FormDatePill extends StatelessWidget {
         if (date != null && onClear != null) ...[
           const SizedBox(width: 8),
           IconButton(
-            tooltip: 'Clear date',
+            tooltip: l10n.formClearDate,
             icon: const Icon(Icons.close),
             onPressed: () {
               Haptics.light();

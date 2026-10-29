@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -32,19 +33,20 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final db = ref.watch(databaseProvider);
+    final l10n = AppLocalizations.of(context)!;
     // Privacy mode: debt figures mask, payment rows stay.
     final hidden = ref.watch(balanceHiddenProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Debt'),
+        title: Text(l10n.debtTitle),
         actions: [
           IconButton(
-            tooltip: 'Edit debt',
+            tooltip: l10n.debtEditTooltip,
             icon: const Icon(Icons.edit_outlined),
             onPressed: () => _editDebt(context, db),
           ),
           IconButton(
-            tooltip: 'Delete debt',
+            tooltip: l10n.debtDeleteTooltip,
             icon: const Icon(Icons.delete_outline),
             onPressed: () => _confirmDelete(context, db),
           ),
@@ -63,7 +65,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
           }
           if (debt == null) {
             return Center(
-              child: Text('Debt not found',
+              child: Text(l10n.debtNotFound,
                   style: TextStyle(color: context.textMuted)),
             );
           }
@@ -99,6 +101,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
     Wallet? wallet,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final received = payments.fold<int>(0, (s, p) => s + p.amount);
@@ -140,7 +143,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
                       ),
                     ),
                     Text(
-                      receivable ? 'I lent' : 'I owe',
+                      receivable ? l10n.debtILent : l10n.debtIOwe,
                       style: TextStyle(
                           color: context.textMuted, fontSize: 14),
                     ),
@@ -153,9 +156,9 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _amountColumn(receivable ? 'Received' : 'Paid',
+              _amountColumn(receivable ? l10n.debtReceived : l10n.debtPaid,
                   m(received), context.textMuted),
-              _amountColumn('Left', m(left),
+              _amountColumn(l10n.debtLeftLabel, m(left),
                   left < 0 ? AppColors.expense : context.textMuted),
             ],
           ),
@@ -195,13 +198,13 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _infoRow('Amount', m(debt.amount)),
-          _infoRow('Date', dateFmt.format(debt.createdAt)),
-          _infoRow('Wallet', wallet?.name ?? '—'),
-          if (debt.note.isNotEmpty) _infoRow('Note', debt.note),
+          _infoRow(l10n.debtAmountLabel, m(debt.amount)),
+          _infoRow(l10n.debtDateLabel, dateFmt.format(debt.createdAt)),
+          _infoRow(l10n.commonWallet, wallet?.name ?? '—'),
+          if (debt.note.isNotEmpty) _infoRow(l10n.debtNoteLabel, debt.note),
           const SizedBox(height: 28),
           Text(
-            'Transactions',
+            l10n.debtTransactionsTitle,
             style: GoogleFonts.spaceGrotesk(
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -213,7 +216,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
             Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Text('No transaction yet',
+                child: Text(l10n.debtNoTransactions,
                     style: TextStyle(color: context.textMuted, fontSize: 15)),
               ),
             )
@@ -261,6 +264,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
 
   Widget _paymentRow(BuildContext context, AppDatabase db, Debt debt,
       DebtPayment p, List<Wallet> wallets) {
+    final l10n = AppLocalizations.of(context)!;
     Wallet? w;
     for (final x in wallets) {
       if (x.id == p.walletId) w = x;
@@ -277,26 +281,28 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
       confirmDismiss: (_) async {
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Delete payment?'),
-            content: const Text(
-                'The payment will be removed and the wallet balance adjusted back.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Haptics.medium();
-                  Navigator.pop(context, true);
-                },
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.expense),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
+          builder: (context) {
+            final l10n = AppLocalizations.of(context)!;
+            return AlertDialog(
+              title: Text(l10n.debtDeletePaymentTitle),
+              content: Text(l10n.debtDeletePaymentMessage),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(l10n.commonCancel),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Haptics.medium();
+                    Navigator.pop(context, true);
+                  },
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.expense),
+                  child: Text(l10n.commonDelete),
+                ),
+              ],
+            );
+          },
         );
         if (confirmed == true) {
           await db.deleteDebtPayment(p, debt);
@@ -326,7 +332,7 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(p.note.isNotEmpty ? p.note : 'Payment'),
+                  Text(p.note.isNotEmpty ? p.note : l10n.debtPaymentFallback),
                   Text(
                     '${formatDate(p.date)}${w != null ? ' · ${w.name}' : ''}',
                     style: TextStyle(
@@ -399,26 +405,28 @@ class _DebtDetailScreenState extends ConsumerState<DebtDetailScreen> {
   Future<void> _confirmDelete(BuildContext context, AppDatabase db) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete debt?'),
-        content: const Text(
-            'The debt and its payment history will be removed, and wallet balances adjusted back.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Haptics.medium();
-              Navigator.pop(context, true);
-            },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return AlertDialog(
+          title: Text(l10n.debtDeleteTitle),
+          content: Text(l10n.debtDeleteMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l10n.commonCancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Haptics.medium();
+                Navigator.pop(context, true);
+              },
+              style:
+                  FilledButton.styleFrom(backgroundColor: AppColors.expense),
+              child: Text(l10n.commonDelete),
+            ),
+          ],
+        );
+      },
     );
     if (confirmed == true && context.mounted) {
       await NotificationService.cancelDebtReminder(widget.debtId);

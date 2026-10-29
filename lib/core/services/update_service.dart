@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_prefs.dart';
+import '../utils/app_locale.dart';
 
 /// In-app update check against the public GitHub releases feed, plus
 /// in-app APK download and install (no browser involved).
@@ -201,7 +202,10 @@ Future<void> _downloadResumable(
   http.Client? client,
 }) async {
   if (apkUrl.isEmpty) {
-    throw StateError('This release has no APK attached.');
+    throw StateError(localizedOrFallback(
+      (l) => l.updateNoApkAttached,
+      'This release has no APK attached.',
+    ));
   }
   final file = await _apkFile(version);
   final fileName = file.path.split('/').last;
@@ -303,8 +307,10 @@ Future<void> installApk(File file) async {
     await _updateChannel.invokeMethod('installApk', {'path': file.path});
   } on PlatformException catch (e) {
     if (e.code == 'UNKNOWN_SOURCES') {
-      throw StateError(
-          'Allow "Install unknown apps" for Dmoney Manager in system settings, then try again.');
+      throw StateError(localizedOrFallback(
+        (l) => l.updateAllowUnknownSources,
+        'Allow "Install unknown apps" for Dmoney Manager in system settings, then try again.',
+      ));
     }
     rethrow;
   }

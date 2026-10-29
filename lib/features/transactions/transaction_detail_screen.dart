@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -72,13 +73,14 @@ class _TransactionDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Record'),
+        title: Text(l10n.txRecord),
         actions: [
           IconButton(
-            tooltip: 'Duplicate',
+            tooltip: l10n.txDuplicate,
             onPressed: () {
               Haptics.select();
               _duplicate(context, ref);
@@ -86,7 +88,7 @@ class _TransactionDetailScreenState
             icon: const Icon(Icons.copy_outlined),
           ),
           IconButton(
-            tooltip: 'Edit',
+            tooltip: l10n.commonEdit,
             onPressed: () async {
               Haptics.select();
               final d = await _future;
@@ -96,7 +98,7 @@ class _TransactionDetailScreenState
             icon: const Icon(Icons.edit_outlined),
           ),
           IconButton(
-            tooltip: 'Delete',
+            tooltip: l10n.commonDelete,
             onPressed: () async {
               final d = await _future;
               if (!context.mounted || d == null) return;
@@ -165,13 +167,13 @@ class _TransactionDetailScreenState
                       color: context.raised,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(Icons.handshake_outlined, size: 18),
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Linked to a debt — view or manage it from the debt detail.',
+                            l10n.txLinkedDebt,
                             style: TextStyle(fontSize: 13),
                           ),
                         ),
@@ -180,10 +182,10 @@ class _TransactionDetailScreenState
                   ),
                 ],
                 const SizedBox(height: 24),
-                _row(context, 'Category', c.name),
+                _row(context, l10n.txCategory, c.name),
                 _row(
                   context,
-                  'Amount',
+                  l10n.txAmount,
                   isTransfer
                       ? formatMoney(t.amount)
                       : formatSignedMoney(t.amount, isIncome: isIncome),
@@ -191,16 +193,16 @@ class _TransactionDetailScreenState
                       ? null
                       : (isIncome ? AppColors.income : AppColors.expense),
                 ),
-                _row(context, 'Date', formatDateTime(t.date)),
+                _row(context, l10n.txDate, formatDateTime(t.date)),
                 if (isTransfer)
-                  _transferWalletRow(context, db, t)
+                  _transferWalletRow(context, db, t, l10n)
                 else
-                  _row(context, 'Wallet', d.wallet.name),
-                _row(context, 'Type',
-                    isTransfer ? 'Transfer' : (isIncome ? 'Income' : 'Expense')),
-                if (t.memo.isNotEmpty) _row(context, 'Memo', t.memo),
+                  _row(context, l10n.txWallet, d.wallet.name),
+                _row(context, l10n.txType,
+                    isTransfer ? l10n.txTransfer : (isIncome ? l10n.txIncome : l10n.txExpense)),
+                if (t.memo.isNotEmpty) _row(context, l10n.txMemoLabel, t.memo),
                 const SizedBox(height: 24),
-                Text('Receipt photos',
+                Text(l10n.txReceiptPhotos,
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
@@ -222,8 +224,8 @@ class _TransactionDetailScreenState
       db.getTransactionDetailById(widget.transactionId);
 
   Widget _transferWalletRow(
-      BuildContext context, AppDatabase db, Transaction t) {
-    if (t.toWalletId == null) return _row(context, 'Wallet', '');
+      BuildContext context, AppDatabase db, Transaction t, AppLocalizations l10n) {
+    if (t.toWalletId == null) return _row(context, l10n.txWallet, '');
     return FutureBuilder<Wallet?>(
       future: db.getWalletById(t.toWalletId!),
       builder: (context, snap) {
@@ -232,7 +234,7 @@ class _TransactionDetailScreenState
           future: db.getWalletById(t.walletId),
           builder: (context, fromSnap) {
             final from = fromSnap.data?.name ?? '…';
-            return _row(context, 'Wallet', '$from → $to');
+            return _row(context, l10n.txWallet, '$from → $to');
           },
         );
       },
@@ -337,6 +339,7 @@ class _TransactionDetailScreenState
   }
 
   Future<void> _addPhoto(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
     Haptics.select();
     try {
       final picked =
@@ -349,13 +352,14 @@ class _TransactionDetailScreenState
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not add photo: $e')),
+          SnackBar(content: Text(l10n.txCouldNotAddPhoto('$e'))),
         );
       }
     }
   }
 
   Future<void> _duplicate(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.read(databaseProvider);
     final d = await db.getTransactionDetailById(widget.transactionId);
     if (d == null) return;
@@ -363,9 +367,7 @@ class _TransactionDetailScreenState
     if (t.debtId != null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Debt entries can\'t be duplicated — add a new debt')),
+          SnackBar(content: Text(l10n.txDebtDuplicate)),
         );
       }
       return;
@@ -389,7 +391,7 @@ class _TransactionDetailScreenState
     }
     if (context.mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Record duplicated')));
+          .showSnackBar(SnackBar(content: Text(l10n.txRecordDuplicated)));
       Navigator.of(context).pop();
     }
   }
