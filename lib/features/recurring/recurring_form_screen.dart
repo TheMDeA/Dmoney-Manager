@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,7 +15,20 @@ import '../../state/providers.dart';
 
 const _frequencies = ['daily', 'weekly', 'monthly', 'yearly'];
 
-String _freqLabel(String f) => '${f[0].toUpperCase()}${f.substring(1)}';
+String _freqLabel(AppLocalizations l10n, String f) {
+  switch (f) {
+    case 'daily':
+      return l10n.recurringFreqDaily;
+    case 'weekly':
+      return l10n.recurringFreqWeekly;
+    case 'monthly':
+      return l10n.recurringFreqMonthly;
+    case 'yearly':
+      return l10n.recurringFreqYearly;
+    default:
+      return '${f[0].toUpperCase()}${f.substring(1)}';
+  }
+}
 
 /// Add/edit a recurring transaction rule (subscription, salary, rent…).
 /// Due occurrences are materialized as real transactions on app start.
@@ -74,14 +88,15 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_editing ? 'Edit recurring' : 'New recurring'),
+        title: Text(_editing ? l10n.recurringEditTitle : l10n.recurringNewTitle),
         actions: [
           TextButton(
             onPressed: _saving ? null : () => _save(db),
-            child: const Text('SAVE'),
+            child: Text(l10n.recurringSaveAction),
           ),
         ],
       ),
@@ -98,9 +113,11 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'expense', label: Text('Expense')),
-                    ButtonSegment(value: 'income', label: Text('Income')),
+                  segments: [
+                    ButtonSegment(
+                        value: 'expense', label: Text(l10n.recurringExpense)),
+                    ButtonSegment(
+                        value: 'income', label: Text(l10n.recurringIncome)),
                   ],
                   selected: {_kind},
                   showSelectedIcon: false,
@@ -116,18 +133,18 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                       AppTextStyles.displayBalance.copyWith(fontSize: 36),
                 ),
                 const SizedBox(height: 8),
-                Text('Note',
+                Text(l10n.recurringNoteLabel,
                     style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _noteCtrl,
                   textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. Netflix subscription',
+                  decoration: InputDecoration(
+                    hintText: l10n.recurringNoteHint,
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('Category',
+                Text(l10n.recurringCategoryLabel,
                     style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 StreamBuilder<List<Category>>(
@@ -146,7 +163,7 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                Text('Wallet',
+                Text(l10n.recurringWalletLabel,
                     style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 Wrap(
@@ -155,7 +172,7 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                   children: [for (final w in wallets) _walletChip(w)],
                 ),
                 const SizedBox(height: 16),
-                Text('Repeats',
+                Text(l10n.recurringRepeatsLabel,
                     style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 Wrap(
@@ -164,7 +181,7 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                   children: [
                     for (final f in _frequencies)
                       ChoiceChip(
-                        label: Text(_freqLabel(f)),
+                        label: Text(_freqLabel(l10n, f)),
                         selected: _frequency == f,
                         selectedColor: context.accent,
                         labelStyle: TextStyle(
@@ -183,7 +200,7 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                   children: [
                     Expanded(
                       child: _dateField(
-                        label: 'First due',
+                        label: l10n.recurringFirstDue,
                         date: _firstDue,
                         onPick: (d) => setState(() => _firstDue = d),
                       ),
@@ -191,9 +208,9 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: _dateField(
-                        label: 'Ends',
+                        label: l10n.recurringEndsField,
                         date: _endDate,
-                        emptyText: 'Never',
+                        emptyText: l10n.recurringNever,
                         onPick: (d) => setState(() => _endDate = d),
                         onClear: _endDate == null
                             ? null
@@ -206,9 +223,9 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Active'),
+                    title: Text(l10n.recurringActiveTitle),
                     subtitle: Text(
-                      'Paused rules stop generating transactions',
+                      l10n.recurringActiveSubtitle,
                       style: TextStyle(
                           color: context.textMuted, fontSize: 12),
                     ),
@@ -219,7 +236,7 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
                 ],
                 const SizedBox(height: 8),
                 Text(
-                  'Due occurrences are added automatically when you open the app.',
+                  l10n.recurringAutoNote,
                   style: TextStyle(
                       color: context.textMuted, fontSize: 12),
                 ),
@@ -273,6 +290,7 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
     String emptyText = '',
     VoidCallback? onClear,
   }) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -295,24 +313,24 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
         if (onClear != null)
           TextButton(
             onPressed: onClear,
-            child: const Text('Clear end date'),
+            child: Text(l10n.recurringClearEndDate),
           ),
       ],
     );
   }
 
   Future<void> _save(AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     final amount = parseAmountInput(_amountCtrl.text);
     if (amount <= 0 || _categoryId == null || _walletId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Enter an amount, category and wallet')),
+        SnackBar(content: Text(l10n.recurringValidationMissing)),
       );
       return;
     }
     if (_endDate != null && _endDate!.isBefore(_firstDue)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End date is before the first due date')),
+        SnackBar(content: Text(l10n.recurringValidationEndBefore)),
       );
       return;
     }

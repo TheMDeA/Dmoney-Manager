@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,11 +41,13 @@ class _CategoryFormScreenState
   bool get _isSub => widget.parentId != null;
   bool get _isEdit => widget.existing != null;
 
-  String get _title {
-    if (_isEdit && _isSub) return 'Edit Subcategory';
-    if (_isEdit) return 'Edit Category';
-    if (_isSub) return 'New Subcategory';
-    return '${widget.kind == 'income' ? 'Income' : 'Expense'} Category';
+  String _title(AppLocalizations l10n) {
+    if (_isEdit && _isSub) return l10n.categoryEditSubcategory;
+    if (_isEdit) return l10n.categoryEditTitle;
+    if (_isSub) return l10n.categoryNewSubcategory;
+    return widget.kind == 'income'
+        ? l10n.categoryNewIncome
+        : l10n.categoryNewExpense;
   }
 
   @override
@@ -64,14 +67,15 @@ class _CategoryFormScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_title),
+        title: Text(_title(l10n)),
         actions: [
           TextButton(
             onPressed: () => _save(db),
-            child: const Text('SAVE'),
+            child: Text(l10n.categorySaveAction),
           ),
         ],
       ),
@@ -80,12 +84,12 @@ class _CategoryFormScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _label('Name'),
+            _label(l10n.categoryNameLabel),
             TextField(
               controller: _nameCtrl,
               textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                hintText: "Category's name",
+              decoration: InputDecoration(
+                hintText: l10n.categoryNameHint,
               ),
             ),
             const SizedBox(height: 20),
@@ -96,7 +100,7 @@ class _CategoryFormScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('Color'),
+                      _label(l10n.categoryColorLabel),
                       _colorButton(),
                     ],
                   ),
@@ -107,7 +111,7 @@ class _CategoryFormScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('Icon'),
+                      _label(l10n.categoryIconLabel),
                       _iconButton(),
                     ],
                   ),
@@ -116,15 +120,15 @@ class _CategoryFormScreenState
             ),
             const SizedBox(height: 12),
             Text(
-              'Tips: Pick different colour for each category to easily identify the category by the colour.',
+              l10n.categoryColorTip,
               style:
                   TextStyle(fontSize: 12, color: context.textMuted),
             ),
             if (_isEdit && !_isSub) ...[
               const SizedBox(height: 28),
-              _label('Subcategories'),
+              _label(l10n.categorySubcategoriesLabel),
               const SizedBox(height: 8),
-              _subcategorySection(db),
+              _subcategorySection(db, l10n),
             ],
           ],
         ),
@@ -196,13 +200,15 @@ class _CategoryFormScreenState
   Future<void> _pickColor() async {
     final picked = await showModalBottomSheet<String>(
       context: context,
-      builder: (context) => Padding(
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Pick a colour',
+            Text(l10n.categoryPickColor,
                 style:
                     TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             const SizedBox(height: 16),
@@ -236,12 +242,13 @@ class _CategoryFormScreenState
             ),
           ],
         ),
-      ),
+      );
+      },
     );
     if (picked != null) setState(() => _colorHex = picked);
   }
 
-  Widget _subcategorySection(AppDatabase db) {
+  Widget _subcategorySection(AppDatabase db, AppLocalizations l10n) {
     final parentId = widget.existing!.id;
     return StreamBuilder<List<Category>>(
       stream: db.watchSubcategories(parentId),
@@ -283,7 +290,7 @@ class _CategoryFormScreenState
                     IconButton(
                       icon: const Icon(Icons.delete_outline,
                           size: 20, color: AppColors.expense),
-                      onPressed: () => _confirmDeleteSub(db, s),
+                      onPressed: () => _confirmDeleteSub(db, s, l10n),
                     ),
                   ],
                 ),
@@ -291,7 +298,7 @@ class _CategoryFormScreenState
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.add),
-              title: const Text('Add subcategory'),
+              title: Text(l10n.categoryAddSubcategory),
               onTap: () => Navigator.of(context).push(
                 AppPageRoute(
                   builder: (_) => CategoryFormScreen(
@@ -307,20 +314,20 @@ class _CategoryFormScreenState
     );
   }
 
-  Future<void> _confirmDeleteSub(AppDatabase db, Category s) async {
+  Future<void> _confirmDeleteSub(
+      AppDatabase db, Category s, AppLocalizations l10n) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Delete "${s.name}"?'),
-        content:
-            const Text('Transactions using it are moved to Uncategorized.'),
+        title: Text(l10n.categoryDeleteTitle(s.name)),
+        content: Text(l10n.categoryDeleteSubMessage),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(l10n.commonCancel)),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete')),
+              child: Text(l10n.commonDelete)),
         ],
       ),
     );
@@ -328,10 +335,11 @@ class _CategoryFormScreenState
   }
 
   Future<void> _save(AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a name')),
+        SnackBar(content: Text(l10n.categoryEnterName)),
       );
       return;
     }

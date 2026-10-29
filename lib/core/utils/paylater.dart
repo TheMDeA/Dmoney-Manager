@@ -1,3 +1,4 @@
+import '../../core/utils/app_locale.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
 
@@ -294,7 +295,12 @@ DateTime? nextInstallmentDueDate(InstallmentPlan plan, int? walletDueDay) {
 /// presented as if it were money owned.
 String paylaterBalanceLabel(Wallet w) {
   if (w.balance < 0) return formatMoney(-w.balance);
-  if (w.balance > 0) return 'Overpaid ${formatMoney(w.balance)}';
+  if (w.balance > 0) {
+    return localizedOrFallback(
+      (l) => l.paylaterOverpaid(formatMoney(w.balance)),
+      'Overpaid ${formatMoney(w.balance)}',
+    );
+  }
   return formatMoney(0);
 }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
@@ -114,21 +115,22 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     return FormSheet(
-      title: 'Add debt',
-      actionLabel: 'Save',
+      title: l10n.debtAddTitle,
+      actionLabel: l10n.commonSave,
       onAction: _save,
       busy: _saving,
       children: [
         SlidingSegmented<String>(
           values: const ['payable', 'receivable'],
-          labels: const ['I borrowed', 'I lent'],
+          labels: [l10n.debtIBorrowed, l10n.debtILent],
           selected: _direction,
           onChanged: (v) => setState(() => _direction = v),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Name'),
+        FormSectionLabel(l10n.commonNameLabel),
         const SizedBox(height: 8),
         Shaker(
           controller: _nameShake,
@@ -137,7 +139,7 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
             textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
               hintText:
-                  _isBorrowing ? 'Who do you borrow from?' : 'Who owes you?',
+                  _isBorrowing ? l10n.debtBorrowFromHint : l10n.debtOwesYouHint,
               errorText: _nameError,
             ),
           ),
@@ -149,14 +151,14 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
         ),
         _fieldError(_amountError),
         const SizedBox(height: 16),
-        const FormSectionLabel('Date & time'),
+        FormSectionLabel(l10n.debtDateTimeLabel),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: FormDatePill(
                 date: _date,
-                placeholder: 'Pick a date',
+                placeholder: l10n.commonPickDate,
                 onTap: () async {
                   final picked = await showDatePicker(
                     context: context,
@@ -189,7 +191,7 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
           ],
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Color'),
+        FormSectionLabel(l10n.commonColorLabel),
         const SizedBox(height: 8),
         Wrap(
           spacing: 12,
@@ -220,21 +222,21 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
           ],
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Description'),
+        FormSectionLabel(l10n.debtDescriptionLabel),
         const SizedBox(height: 8),
         TextField(
           controller: _descCtrl,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'What was it for?',
+          decoration: InputDecoration(
+            hintText: l10n.commonNoteHint,
           ),
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Due date (optional)'),
+        FormSectionLabel(l10n.debtDueDateOptional),
         const SizedBox(height: 8),
         FormDatePill(
           date: _dueDate,
-          placeholder: 'No due date',
+          placeholder: l10n.debtNoDueDate,
           onClear:
               _dueDate == null ? null : () => setState(() => _dueDate = null),
           onTap: () async {
@@ -249,7 +251,7 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
           },
         ),
         const SizedBox(height: 16),
-        const FormSectionLabel('Wallet'),
+        FormSectionLabel(l10n.commonWallet),
         const SizedBox(height: 8),
         StreamBuilder<List<Wallet>>(
           stream: db.watchWallets(),
@@ -291,7 +293,7 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
         _fieldError(_walletError),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text("Don't use wallet"),
+          title: Text(l10n.debtNoWallet),
           value: _noWallet,
           onChanged: (v) => setState(() {
             _noWallet = v;
@@ -303,10 +305,10 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Show in transaction history'),
+          title: Text(l10n.debtShowInHistory),
           subtitle: Text(_noWallet
-              ? 'Needs a wallet to record'
-              : 'Record this debt as a transaction'),
+              ? l10n.debtNeedsWallet
+              : l10n.debtRecordAsTransaction),
           // Disabled while there's no wallet: the save path skips the
           // transaction, so the toggle must not promise one. _recordTx
           // is preserved underneath and restored when a wallet is used.
@@ -319,12 +321,13 @@ class _AddDebtSheetState extends ConsumerState<AddDebtSheet> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context)!;
     final name = _nameCtrl.text.trim();
     final amount = parseAmountInput(_amountCtrl.text);
-    final nameError = name.isEmpty ? 'Please enter a name' : null;
-    final amountError = amount <= 0 ? 'Please enter an amount' : null;
+    final nameError = name.isEmpty ? l10n.debtEnterName : null;
+    final amountError = amount <= 0 ? l10n.commonEnterAmount : null;
     final walletError = (!_noWallet && _walletId == null)
-        ? 'Please select a wallet'
+        ? l10n.debtSelectWallet
         : null;
     setState(() {
       _nameError = nameError;

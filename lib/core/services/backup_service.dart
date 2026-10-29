@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import '../../data/database/app_database.dart';
+import '../utils/app_locale.dart';
 
 /// Thrown when a backup file is not a valid Dmoney Manager backup.
 class BackupException implements Exception {
@@ -126,18 +127,27 @@ class BackupService {
 
       final manifestFile = File('${workDir.path}/manifest.json');
       if (!await manifestFile.exists()) {
-        throw BackupException('Not a Dmoney Manager backup file.');
+        throw BackupException(localizedOrFallback(
+          (l) => l.backupNotDmoneyFile,
+          'Not a Dmoney Manager backup file.',
+        ));
       }
       final manifest =
           jsonDecode(await manifestFile.readAsString())
               as Map<String, dynamic>;
       if (manifest['app'] != _appId) {
-        throw BackupException('Not a Dmoney Manager backup file.');
+        throw BackupException(localizedOrFallback(
+          (l) => l.backupNotDmoneyFile,
+          'Not a Dmoney Manager backup file.',
+        ));
       }
 
       final backupDb = File('${workDir.path}/database.sqlite');
       if (!await backupDb.exists()) {
-        throw BackupException('Backup is missing its database.');
+        throw BackupException(localizedOrFallback(
+          (l) => l.backupMissingDatabase,
+          'Backup is missing its database.',
+        ));
       }
 
       await _restoreDatabase(db, backupDb.path);
