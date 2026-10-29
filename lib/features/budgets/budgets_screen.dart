@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/l10n/app_localizations.dart';
 import '../../core/widgets/entrance.dart';
 import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,13 +39,14 @@ class BudgetsScreen extends ConsumerWidget {
     final mk = monthKey(DateTime.now());
     final now = DateTime.now();
     final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: AmbientGlow(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const ScreenHeader(title: 'Budgets', tabIndex: 4),
+            ScreenHeader(title: l10n.budgetsTitle, tabIndex: 4),
             Expanded(
               child: StreamBuilder<List<Budget>>(
                 stream: db.watchBudgets(mk),
@@ -90,7 +92,7 @@ class BudgetsScreen extends ConsumerWidget {
                                         CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Month progress',
+                                        l10n.budgetsMonthProgress,
                                         style: Theme.of(
                                           context,
                                         ).textTheme.titleSmall,
@@ -103,7 +105,7 @@ class BudgetsScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        '${now.day} of $daysInMonth days',
+                                        l10n.budgetsDaysProgress(now.day, daysInMonth),
                                         style: TextStyle(
                                           color: context.textMuted,
                                           fontSize: 12,
@@ -137,7 +139,7 @@ class BudgetsScreen extends ConsumerWidget {
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
-                                              '${overBudget.map((b) => cats[b.categoryId]?.name ?? 'Budget').join(', ')} ${overBudget.length == 1 ? 'has' : 'have'} reached the limit.',
+                                              l10n.budgetsOverLimit(overBudget.map((b) => cats[b.categoryId]?.name ?? l10n.budgetsFallbackName).join(', ')),
                                               style: const TextStyle(
                                                 fontSize: 13,
                                               ),
@@ -148,20 +150,19 @@ class BudgetsScreen extends ConsumerWidget {
                                     ),
                                   ),
                                 SectionHeader(
-                                  title: 'Budgets',
+                                  title: l10n.budgetsTitle,
                                   action: TextButton(
                                     onPressed: () =>
                                         _addBudgetDialog(context, ref, mk),
-                                    child: const Text('Add'),
+                                    child: Text(l10n.commonAdd),
                                   ),
                                 ),
                                 if (budgets.isEmpty)
                                   EmptyState(
                                     icon: Icons.savings_outlined,
-                                    title: 'No budgets',
-                                    message:
-                                        'Set monthly limits per category to control spending.',
-                                    actionLabel: 'Add budget',
+                                    title: l10n.budgetsEmptyTitle,
+                                    message: l10n.budgetsEmptyMessage,
+                                    actionLabel: l10n.budgetsAddBudget,
                                     onAction: () =>
                                         _addBudgetDialog(context, ref, mk),
                                   )
@@ -181,17 +182,17 @@ class BudgetsScreen extends ConsumerWidget {
                                         hidden,
                                       ),
                                     ),
-                                const SectionHeader(title: 'Savings goals'),
+                                SectionHeader(title: l10n.budgetsSavingsGoals),
                                 _goalsSection(context, ref),
                                 SectionHeader(
-                                  title: 'Debts',
+                                  title: l10n.debtsTitle,
                                   action: TextButton(
                                     onPressed: () => Navigator.of(context).push(
                                       AppPageRoute(
                                         builder: (_) => const DebtsScreen(),
                                       ),
                                     ),
-                                    child: const Text('View all'),
+                                    child: Text(l10n.budgetsViewAll),
                                   ),
                                 ),
                                 _debtsPreview(context, ref),
@@ -219,6 +220,7 @@ class BudgetsScreen extends ConsumerWidget {
     String mk,
     bool hidden,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final ratio = b.limit == 0 ? 0.0 : spent / b.limit;
     final color = ratio >= 1
         ? AppColors.expense
@@ -259,7 +261,7 @@ class BudgetsScreen extends ConsumerWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        c?.name ?? 'Budget',
+                        c?.name ?? l10n.budgetsFallbackName,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -291,7 +293,7 @@ class BudgetsScreen extends ConsumerWidget {
                   children: [
                     if (ratio >= 1) ...[
                       Text(
-                        'Over budget by ',
+                        '${l10n.budgetsOverBy} ',
                         style: AppTextStyles.amount(
                           size: 12,
                         ).copyWith(color: AppColors.expense),
@@ -312,7 +314,7 @@ class BudgetsScreen extends ConsumerWidget {
                         ).copyWith(color: context.textMuted),
                       ),
                       Text(
-                        ' left',
+                        ' ${l10n.budgetsLeftSuffix}',
                         style: AppTextStyles.amount(
                           size: 12,
                         ).copyWith(color: context.textMuted),
@@ -329,6 +331,7 @@ class BudgetsScreen extends ConsumerWidget {
   }
 
   Widget _goalsSection(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     return StreamBuilder<List<Goal>>(
@@ -339,7 +342,7 @@ class BudgetsScreen extends ConsumerWidget {
           return OutlinedButton.icon(
             onPressed: () => _addGoalDialog(context, ref),
             icon: const Icon(Icons.add),
-            label: const Text('Add savings goal'),
+            label: Text(l10n.budgetsAddSavingsGoal),
           );
         }
         return Column(
@@ -401,7 +404,7 @@ class BudgetsScreen extends ConsumerWidget {
                                       ).copyWith(color: context.textMuted),
                                     ),
                                     Text(
-                                      ' of ${hidden ? maskMoneyText(formatMoney(goals[i].target)) : formatMoney(goals[i].target)}',
+                                      ' ${l10n.budgetsOfAmount(hidden ? maskMoneyText(formatMoney(goals[i].target)) : formatMoney(goals[i].target))}',
                                       style: AppTextStyles.amount(
                                         size: 12,
                                       ).copyWith(color: context.textMuted),
@@ -418,7 +421,7 @@ class BudgetsScreen extends ConsumerWidget {
                                     ),
                                     SizedBox(width: 4),
                                     Text(
-                                      'Add savings',
+                                      l10n.budgetsAddSavings,
                                       style: TextStyle(
                                         color: context.accent,
                                         fontSize: 12,
@@ -438,7 +441,7 @@ class BudgetsScreen extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _addGoalDialog(context, ref),
               icon: const Icon(Icons.add),
-              label: Text('Add savings goal'),
+              label: Text(l10n.budgetsAddSavingsGoal),
             ),
           ],
         );
@@ -447,6 +450,7 @@ class BudgetsScreen extends ConsumerWidget {
   }
 
   Widget _debtsPreview(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final hidden = ref.watch(balanceHiddenProvider);
     return StreamBuilder<List<Debt>>(
@@ -455,7 +459,7 @@ class BudgetsScreen extends ConsumerWidget {
         final debts = (snap.data ?? const <Debt>[]).take(3).toList();
         if (debts.isEmpty) {
           return Text(
-            'No outstanding debts.',
+            l10n.budgetsNoOutstandingDebts,
             style: TextStyle(color: context.textMuted),
           );
         }
@@ -483,7 +487,7 @@ class BudgetsScreen extends ConsumerWidget {
                 ),
                 title: Text(d.person),
                 subtitle: Text(
-                  d.direction == 'payable' ? 'You owe' : 'Owed to you',
+                  d.direction == 'payable' ? l10n.debtYouOwe : l10n.debtOwedToYou,
                 ),
                 trailing: Text(
                   hidden ? maskMoneyText(formatMoney(d.amount)) : formatMoney(d.amount),
