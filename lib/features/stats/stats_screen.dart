@@ -1285,6 +1285,12 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
       worth -= ((kinds['income'] ?? 0) - (kinds['expense'] ?? 0));
     }
     final delta = points.last - points.first;
+    // The pill compares against the first month of the range; label it,
+    // so the figure doesn't read as this month's change.
+    final firstMonth = months.first;
+    final vsLabel = firstMonth.year == months.last.year
+        ? _shortMonth(firstMonth.month)
+        : "${_shortMonth(firstMonth.month)} '${(firstMonth.year % 100).toString().padLeft(2, '0')}";
     final pct = points.first == 0 ? 0.0 : delta / points.first.abs() * 100;
     final up = delta >= 0;
     final spots = [for (var i = 0; i < n; i++) FlSpot(i.toDouble(), points[i])];
@@ -1343,7 +1349,7 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${up ? '+' : ''}${hidden ? maskMoneyText(formatMoney(delta.toInt())) : formatMoney(delta.toInt())} (${up ? '+' : ''}${formatPercent(pct)})',
+                  '${up ? '+' : ''}${hidden ? maskMoneyText(formatMoney(delta.toInt())) : formatMoney(delta.toInt())} (${up ? '+' : ''}${formatPercent(pct)}) \u00b7 vs $vsLabel',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -1372,10 +1378,13 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
               ),
               child: LineChart(
                 LineChartData(
-                  // Half a step of horizontal headroom so the first/last
-                  // month labels sit inside the card instead of clipping.
-                  minX: -0.5,
-                  maxX: (n - 1) + 0.5,
+                  // Integer bounds, so axis ticks land exactly on the
+                  // spots: the old ±0.5 headroom made ticks land on
+                  // half steps, duplicating the first month label and
+                  // shifting the rest off their points. Edge labels are
+                  // kept inside by fitInside on the titles instead.
+                  minX: 0,
+                  maxX: (n - 1).toDouble(),
                   minY: nwMin - nwPad,
                   maxY: nwMax + nwPad,
                   lineTouchData: LineTouchData(
@@ -1423,8 +1432,10 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                           final isMin = (v - meta.min).abs() < 1e-6;
                           final isMax = (v - meta.max).abs() < 1e-6;
                           if (!isMin && !isMax) return const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
+                          return SideTitleWidget(
+                            meta: meta,
+                            fitInside:
+                                SideTitleFitInsideData.fromTitleMeta(meta),
                             child: Text(
                               _compactMoney(
                                 (isMin ? nwMin : nwMax).round(),
@@ -1449,8 +1460,10 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                       sideTitles: SideTitles(
                         showTitles: true,
                         interval: 1,
-                        getTitlesWidget: (v, _) => Padding(
-                          padding: const EdgeInsets.only(top: 8),
+                        getTitlesWidget: (v, meta) => SideTitleWidget(
+                          meta: meta,
+                          fitInside:
+                              SideTitleFitInsideData.fromTitleMeta(meta),
                           child: Text(
                             _shortMonth(months[v.toInt()].month),
                             style: TextStyle(
