@@ -306,7 +306,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String homeInsightDailyPace(Object amount) {
-    return 'You\'\'re spending about $amount a day.';
+    return 'You\'re spending about $amount a day.';
   }
 
   @override
@@ -705,7 +705,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String settingsLatestVersion(Object version) {
-    return 'You\'\'re on the latest version ($version)';
+    return 'You\'re on the latest version ($version)';
   }
 
   @override
@@ -785,7 +785,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsUpdateCheckFailed =>
-      'Couldn\'\'t check for updates. Check your connection.';
+      'Couldn\'t check for updates. Check your connection.';
 
   @override
   String get settingsUpdateDownload => 'Download update';
@@ -822,7 +822,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsUpdateTitle => 'Update available';
 
   @override
-  String get settingsUpdateWhatsNew => 'What\'\'s new';
+  String get settingsUpdateWhatsNew => 'What\'s new';
 
   @override
   String get shellBudgets => 'Budgets';
@@ -868,7 +868,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tourPageCalendarBody =>
-      'See each day\'\'s money flow on the calendar and get insights about your spending habits.';
+      'See each day\'s money flow on the calendar and get insights about your spending habits.';
 
   @override
   String get tourPageCalendarTitle => 'Calendar & smart insights';
@@ -1096,7 +1096,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get goalDeleteEntryMessage =>
-      'The goal\'\'s saved total will be adjusted back.';
+      'The goal\'s saved total will be adjusted back.';
 
   @override
   String goalAddedTo(Object amount, Object name) {
@@ -1276,7 +1276,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get debtSelectWallet => 'Please select a wallet';
 
   @override
-  String get debtNoWallet => 'Don\'\'t use wallet';
+  String get debtNoWallet => 'Don\'t use wallet';
 
   @override
   String get debtShowInHistory => 'Show in transaction history';
@@ -1493,7 +1493,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get txCouldntSave => 'Couldn\'\'t save';
+  String get txCouldntSave => 'Couldn\'t save';
 
   @override
   String get txCouldntSaveBody =>
@@ -1513,11 +1513,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get txDebtDeleteHere =>
-      'Debt entries can\'\'t be deleted here — delete the debt itself';
+      'Debt entries can\'t be deleted here — delete the debt itself';
 
   @override
   String get txDebtDuplicate =>
-      'Debt entries can\'\'t be duplicated — add a new debt';
+      'Debt entries can\'t be duplicated — add a new debt';
 
   @override
   String get txDebtManaged => 'Debt entries are managed from the debt itself';
@@ -1631,11 +1631,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get txIncomeNotAllowedBody =>
-      'Paylater wallets can\'\'t receive income. To pay a paylater bill, transfer from another wallet instead. Merchant refunds can be recorded as a transfer.';
+      'Paylater wallets can\'t receive income. To pay a paylater bill, transfer from another wallet instead. Merchant refunds can be recorded as a transfer.';
 
   @override
   String txInstallmentNoRate(Object monthly) {
-    return '$monthly/mo · no monthly rate set on this wallet, so interest isn\'\'t included';
+    return '$monthly/mo · no monthly rate set on this wallet, so interest isn\'t included';
   }
 
   @override
@@ -1827,7 +1827,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get txTransferEdit =>
-      'Transfers can\'\'t be edited — delete and create a new one';
+      'Transfers can\'t be edited — delete and create a new one';
 
   @override
   String txTransferred(Object amount) {
@@ -2128,7 +2128,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get walletCreditLimitNegative => 'Credit limit can\'\'t be negative';
+  String get walletCreditLimitNegative => 'Credit limit can\'t be negative';
 
   @override
   String get walletCurrentBalance => 'Current balance';
@@ -2295,6 +2295,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get walletNewBalance => 'New balance';
 
   @override
+  String get walletCurrentOutstanding => 'Current outstanding';
+
+  @override
+  String get walletNewOutstanding => 'New outstanding';
+
+  @override
   String get walletNoChange => 'No change';
 
   @override
@@ -2377,7 +2383,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountAll => 'All accounts';
 
   @override
-  String get accountCantDeleteLast => 'Can\'\'t delete the last account';
+  String get accountCantDeleteLast => 'Can\'t delete the last account';
 
   @override
   String get accountColorLabel => 'Color';
@@ -2751,7 +2757,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get categoryManageTooltip => 'Manage categories';
 
   @override
-  String get categoryNameHint => 'Category\'\'s name';
+  String get categoryNameHint => 'Category\'s name';
 
   @override
   String get categoryNameLabel => 'Name';
