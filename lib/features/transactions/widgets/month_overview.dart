@@ -8,8 +8,10 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/amount_text.dart';
 import '../../../state/providers.dart';
 
-/// Income / expense / net overview for a month. Transfers stay neutral,
-/// like everywhere else in the app.
+/// Income / expense / net overview for a month. What counts toward the
+/// two figures is the caller's call: the global history leaves transfers
+/// neutral, while the wallet transactions screen folds transfers into
+/// income/expense from the wallet's point of view.
 class MonthOverview extends ConsumerWidget {
   const MonthOverview({
     super.key,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/paylater.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
@@ -16,6 +17,12 @@ import '../../state/providers.dart';
 ///   difference (dated now, under the hidden "Adjustment" category).
 /// - [Change initial amount] shifts the wallet's initial amount instead,
 ///   leaving the transaction history untouched.
+///
+/// Paylater wallets that owe money (balance <= 0) are edited in "owed"
+/// space instead: the field holds the positive outstanding amount and
+/// the target balance is its negation, matching how the dashboard and
+/// wallet detail present the debt. An overpaid paylater wallet (positive
+/// balance) keeps plain balance editing.
 class AdjustBalanceSheet extends ConsumerStatefulWidget {
   const AdjustBalanceSheet({super.key, required this.wallet});
 
@@ -36,8 +43,19 @@ class AdjustBalanceSheet extends ConsumerStatefulWidget {
 enum _AdjustMode { byTransaction, initialAmount }
 
 class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
+  /// Whether this sheet edits a paylater debt as an owed amount rather
+  /// than as a signed balance (see the class doc).
+  bool get _owedMode =>
+      widget.wallet.kind == 'paylater' && widget.wallet.balance <= 0;
+
+  /// The amount the "Current" line and the prefill show: the outstanding
+  /// debt in owed mode, the raw balance otherwise.
+  int get _currentDisplay => _owedMode
+      ? paylaterOutstanding(widget.wallet)
+      : widget.wallet.balance;
+
   late final TextEditingController _ctrl = TextEditingController(
-    text: formatAmountInput(widget.wallet.balance),
+    text: formatAmountInput(_currentDisplay),
   );
   var _mode = _AdjustMode.byTransaction;
   var _saving = false;
@@ -57,8 +75,13 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
     super.dispose();
   }
 
-  int get _newBalance => parseAmountInput(_ctrl.text);
-  int get _diff => _newBalance - widget.wallet.balance;
+  /// The balance the wallet should end at. In owed mode the field holds
+  /// the outstanding amount, so the target balance is its negation.
+  int get _targetBalance => _owedMode
+      ? -parseAmountInput(_ctrl.text)
+      : parseAmountInput(_ctrl.text);
+
+  int get _diff => _targetBalance - widget.wallet.balance;
 
   Future<void> _save() async {
     final l10n = AppLocalizations.of(context)!;
@@ -69,9 +92,9 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
     final db = ref.read(databaseProvider);
     try {
       if (_mode == _AdjustMode.byTransaction) {
-        await db.adjustBalanceByTransaction(widget.wallet.id, _newBalance);
+        await db.adjustBalanceByTransaction(widget.wallet.id, _targetBalance);
       } else {
-        await db.changeWalletInitialAmount(widget.wallet.id, _newBalance);
+        await db.changeWalletInitialAmount(widget.wallet.id, _targetBalance);
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -110,19 +133,23 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(l10n.walletCurrentBalance,
+            Text(
+                _owedMode
+                    ? l10n.walletCurrentOutstanding
+                    : l10n.walletCurrentBalance,
                 style: TextStyle(color: context.textMuted, fontSize: 13)),
             Text(
               hidden
-                  ? maskMoneyText(formatMoney(widget.wallet.balance))
-                  : formatMoney(widget.wallet.balance),
+                  ? maskMoneyText(formatMoney(_currentDisplay))
+                  : formatMoney(_currentDisplay),
               style:
                   const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        FormSectionLabel(l10n.walletNewBalance),
+        FormSectionLabel(
+            _owedMode ? l10n.walletNewOutstanding : l10n.walletNewBalance),
         const SizedBox(height: 8),
         FormAmountEntry(controller: _ctrl, autofocus: true),
         const SizedBox(height: 8),

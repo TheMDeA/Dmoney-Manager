@@ -10,8 +10,11 @@ import 'transaction_tile.dart';
 /// Slices newest-first [items] into per-day groups: a sticky
 /// [DateGroupHeader] with the day's net total that pins to the top while its
 /// day scrolls by, then staggered [TransactionTile] rows.
-/// Transfers stay neutral in the daily net. Shared by the transaction
-/// history, wallet transactions, and wallet category screens.
+/// Transfers stay neutral in the daily net — unless [perspectiveWalletId]
+/// is set (the wallet transactions screen), where a transfer into that
+/// wallet counts positive and one out of it negative, matching the
+/// wallet's overview totals. Shared by the transaction history, wallet
+/// transactions, and wallet category screens.
 ///
 /// Insertions animate in via [Entrance] — only ids that appeared in a data
 /// update play it, so scrolling never replays animations. Removals collapse
@@ -30,9 +33,15 @@ class GroupedTransactionList extends StatefulWidget {
     this.controller,
     this.selectedIds = const {},
     this.onToggleSelected,
+    this.perspectiveWalletId,
   });
 
   final List<TransactionWithDetails> items;
+
+  /// When set, transfers to/from this wallet count in the day nets with
+  /// the sign they have from this wallet's point of view. Null keeps
+  /// transfers neutral (global history, category screens).
+  final int? perspectiveWalletId;
 
   /// Optional scroll controller, e.g. for a date scrubber overlay.
   final ScrollController? controller;
@@ -105,15 +114,33 @@ class _GroupedTransactionListState extends State<GroupedTransactionList> {
             t.date.day != day.day) {
           break;
         }
-        net += t.kind == 'income'
-            ? t.amount
-            : (t.kind == 'expense' ? -t.amount : 0);
+        net += _signedAmount(t);
         j++;
       }
       groups.add(_DayGroup(day: day, start: i, end: j, net: net));
       i = j;
     }
     _groups = groups;
+  }
+
+  /// A row's signed contribution to its day's net: income positive,
+  /// expense negative, transfers per
+  /// [GroupedTransactionList.perspectiveWalletId].
+  int _signedAmount(Transaction t) {
+    switch (t.kind) {
+      case 'income':
+        return t.amount;
+      case 'expense':
+        return -t.amount;
+      case 'transfer':
+        final p = widget.perspectiveWalletId;
+        if (p == null) return 0;
+        if (t.toWalletId == p) return t.amount;
+        if (t.walletId == p) return -t.amount;
+        return 0;
+      default:
+        return 0;
+    }
   }
 
   @override
