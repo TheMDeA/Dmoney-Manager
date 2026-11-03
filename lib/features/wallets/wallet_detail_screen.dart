@@ -782,6 +782,17 @@ class _WalletTransactionsScreenState
               income += t.amount;
             } else if (t.kind == 'expense') {
               expense += t.amount;
+            } else if (t.kind == 'transfer') {
+              // Transfers count from this wallet's point of view: money
+              // in is income-side, money out is expense-side. (The
+              // global history deliberately keeps transfers neutral —
+              // moving money between your own wallets is neither earned
+              // nor spent.)
+              if (t.toWalletId == widget.walletId) {
+                income += t.amount;
+              } else if (t.walletId == widget.walletId) {
+                expense += t.amount;
+              }
             }
           }
           var list = items;
@@ -826,7 +837,10 @@ class _WalletTransactionsScreenState
                         : MonthScrubber(
                             month: _month,
                             onShift: _shift,
-                            child: GroupedTransactionList(items: list),
+                            child: GroupedTransactionList(
+                              items: list,
+                              perspectiveWalletId: widget.walletId,
+                            ),
                           ),
               ),
             ],
