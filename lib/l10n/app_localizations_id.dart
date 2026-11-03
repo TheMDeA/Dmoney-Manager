@@ -2289,6 +2289,12 @@ class AppLocalizationsId extends AppLocalizations {
   String get walletNewBalance => 'Saldo baru';
 
   @override
+  String get walletCurrentOutstanding => 'Tunggakan saat ini';
+
+  @override
+  String get walletNewOutstanding => 'Tunggakan baru';
+
+  @override
   String get walletNoChange => 'Tidak ada perubahan';
 
   @override
