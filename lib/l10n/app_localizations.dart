@@ -581,7 +581,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeInsightDailyPace.
   ///
   /// In en, this message translates to:
-  /// **'You\'\'re spending about {amount} a day.'**
+  /// **'You\'re spending about {amount} a day.'**
   String homeInsightDailyPace(Object amount);
 
   /// No description provided for @homeInsightDailyPaceDetail.
@@ -1194,7 +1194,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsLatestVersion.
   ///
   /// In en, this message translates to:
-  /// **'You\'\'re on the latest version ({version})'**
+  /// **'You\'re on the latest version ({version})'**
   String settingsLatestVersion(Object version);
 
   /// No description provided for @settingsNotifFootnote.
@@ -1344,7 +1344,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsUpdateCheckFailed.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'\'t check for updates. Check your connection.'**
+  /// **'Couldn\'t check for updates. Check your connection.'**
   String get settingsUpdateCheckFailed;
 
   /// No description provided for @settingsUpdateDownload.
@@ -1404,7 +1404,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsUpdateWhatsNew.
   ///
   /// In en, this message translates to:
-  /// **'What\'\'s new'**
+  /// **'What\'s new'**
   String get settingsUpdateWhatsNew;
 
   /// No description provided for @shellBudgets.
@@ -1488,7 +1488,7 @@ abstract class AppLocalizations {
   /// No description provided for @tourPageCalendarBody.
   ///
   /// In en, this message translates to:
-  /// **'See each day\'\'s money flow on the calendar and get insights about your spending habits.'**
+  /// **'See each day\'s money flow on the calendar and get insights about your spending habits.'**
   String get tourPageCalendarBody;
 
   /// No description provided for @tourPageCalendarTitle.
@@ -1872,7 +1872,7 @@ abstract class AppLocalizations {
   /// No description provided for @goalDeleteEntryMessage.
   ///
   /// In en, this message translates to:
-  /// **'The goal\'\'s saved total will be adjusted back.'**
+  /// **'The goal\'s saved total will be adjusted back.'**
   String get goalDeleteEntryMessage;
 
   /// No description provided for @goalAddedTo.
@@ -2202,7 +2202,7 @@ abstract class AppLocalizations {
   /// No description provided for @debtNoWallet.
   ///
   /// In en, this message translates to:
-  /// **'Don\'\'t use wallet'**
+  /// **'Don\'t use wallet'**
   String get debtNoWallet;
 
   /// No description provided for @debtShowInHistory.
@@ -2574,7 +2574,7 @@ abstract class AppLocalizations {
   /// No description provided for @txCouldntSave.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'\'t save'**
+  /// **'Couldn\'t save'**
   String get txCouldntSave;
 
   /// No description provided for @txCouldntSaveBody.
@@ -2610,13 +2610,13 @@ abstract class AppLocalizations {
   /// No description provided for @txDebtDeleteHere.
   ///
   /// In en, this message translates to:
-  /// **'Debt entries can\'\'t be deleted here — delete the debt itself'**
+  /// **'Debt entries can\'t be deleted here — delete the debt itself'**
   String get txDebtDeleteHere;
 
   /// No description provided for @txDebtDuplicate.
   ///
   /// In en, this message translates to:
-  /// **'Debt entries can\'\'t be duplicated — add a new debt'**
+  /// **'Debt entries can\'t be duplicated — add a new debt'**
   String get txDebtDuplicate;
 
   /// No description provided for @txDebtManaged.
@@ -2784,13 +2784,13 @@ abstract class AppLocalizations {
   /// No description provided for @txIncomeNotAllowedBody.
   ///
   /// In en, this message translates to:
-  /// **'Paylater wallets can\'\'t receive income. To pay a paylater bill, transfer from another wallet instead. Merchant refunds can be recorded as a transfer.'**
+  /// **'Paylater wallets can\'t receive income. To pay a paylater bill, transfer from another wallet instead. Merchant refunds can be recorded as a transfer.'**
   String get txIncomeNotAllowedBody;
 
   /// No description provided for @txInstallmentNoRate.
   ///
   /// In en, this message translates to:
-  /// **'{monthly}/mo · no monthly rate set on this wallet, so interest isn\'\'t included'**
+  /// **'{monthly}/mo · no monthly rate set on this wallet, so interest isn\'t included'**
   String txInstallmentNoRate(Object monthly);
 
   /// No description provided for @txInstallmentQuote.
@@ -3108,7 +3108,7 @@ abstract class AppLocalizations {
   /// No description provided for @txTransferEdit.
   ///
   /// In en, this message translates to:
-  /// **'Transfers can\'\'t be edited — delete and create a new one'**
+  /// **'Transfers can\'t be edited — delete and create a new one'**
   String get txTransferEdit;
 
   /// No description provided for @txTransferred.
@@ -3611,7 +3611,7 @@ abstract class AppLocalizations {
   /// No description provided for @walletCreditLimitNegative.
   ///
   /// In en, this message translates to:
-  /// **'Credit limit can\'\'t be negative'**
+  /// **'Credit limit can\'t be negative'**
   String get walletCreditLimitNegative;
 
   /// No description provided for @walletCurrentBalance.
@@ -3914,6 +3914,18 @@ abstract class AppLocalizations {
   /// **'New balance'**
   String get walletNewBalance;
 
+  /// No description provided for @walletCurrentOutstanding.
+  ///
+  /// In en, this message translates to:
+  /// **'Current outstanding'**
+  String get walletCurrentOutstanding;
+
+  /// No description provided for @walletNewOutstanding.
+  ///
+  /// In en, this message translates to:
+  /// **'New outstanding'**
+  String get walletNewOutstanding;
+
   /// No description provided for @walletNoChange.
   ///
   /// In en, this message translates to:
@@ -4049,7 +4061,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountCantDeleteLast.
   ///
   /// In en, this message translates to:
-  /// **'Can\'\'t delete the last account'**
+  /// **'Can\'t delete the last account'**
   String get accountCantDeleteLast;
 
   /// No description provided for @accountColorLabel.
@@ -4673,7 +4685,7 @@ abstract class AppLocalizations {
   /// No description provided for @categoryNameHint.
   ///
   /// In en, this message translates to:
-  /// **'Category\'\'s name'**
+  /// **'Category\'s name'**
   String get categoryNameHint;
 
   /// No description provided for @categoryNameLabel.
