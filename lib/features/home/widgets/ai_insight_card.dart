@@ -538,7 +538,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       if (ratio >= 1.5) {
         out.add((
           l10n.homeInsightWeekendCost(
-            ratio.toStringAsFixed(1).replaceAll('.', ','),
+            formatDecimal(ratio),
           ),
           l10n.homeInsightWeekendDetail(
             m((weekdayTotal / weekdayDays).round()),

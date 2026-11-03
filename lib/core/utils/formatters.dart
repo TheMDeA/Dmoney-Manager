@@ -51,10 +51,18 @@ String formatMoney(int amount) =>
 String maskMoneyText(String formatted) =>
     formatted.replaceAll(RegExp(r'[0-9.,]+$'), '••••••••');
 
-/// Formats a percentage with the Indonesian comma decimal separator,
-/// e.g. 12.5 -> "12,5%".
+/// Formats a decimal number with the app language's decimal separator,
+/// e.g. 12.5 -> "12.5" in English, "12,5" in Bahasa Indonesia. (Money
+/// figures are separate: they follow the currency, not the language.)
+String formatDecimal(double value, [int fractionDigits = 1]) {
+  final s = value.toStringAsFixed(fractionDigits);
+  return appLocaleCode == 'id' ? s.replaceAll('.', ',') : s;
+}
+
+/// Formats a percentage with the app language's decimal separator,
+/// e.g. 12.5 -> "12.5%" in English, "12,5%" in Bahasa Indonesia.
 String formatPercent(double value, [int fractionDigits = 1]) =>
-    '${value.toStringAsFixed(fractionDigits).replaceAll('.', ',')}%';
+    '${formatDecimal(value, fractionDigits)}%';
 
 /// Same as [formatMoney] but with an explicit currency code (used during
 /// onboarding, before the choice is saved).

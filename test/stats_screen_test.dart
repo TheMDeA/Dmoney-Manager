@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dmoney_manager/core/services/app_prefs.dart';
 import 'package:dmoney_manager/data/database/app_database.dart';
 import 'package:dmoney_manager/features/stats/stats_screen.dart';
+import 'package:dmoney_manager/core/widgets/glass_card.dart';
 import 'package:dmoney_manager/state/providers.dart';
 
 /// Smoke test for the Stats stream restructure (audit #1): the screen
@@ -86,6 +88,40 @@ void main() {
     // makes drift schedule a zero-duration cleanup timer, and the
     // harness fails the test if any timer is still pending when IT
     // disposes the tree after the body.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 100));
+  });
+
+  testWidgets('net worth: unique month labels, pill names its baseline',
+      (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [databaseProvider.overrideWithValue(db)],
+      child: const MaterialApp(localizationsDelegates: AppLocalizations.localizationsDelegates, supportedLocales: AppLocalizations.supportedLocales, home: StatsScreen()),
+    ));
+    await settle(tester);
+    expect(tester.takeException(), isNull);
+
+    final card = find.ancestor(
+      of: find.text('Total net worth'),
+      matching: find.byType(GlassCard),
+    );
+    expect(card, findsOneWidget);
+    Finder inCard(Finder f) => find.descendant(of: card, matching: f);
+
+    // The fixture: balance 100.000 until this month's 25.000 expense.
+    // Net worth's first window month is 5 months back; the old half-step
+    // axis printed its label twice ("Jun Jun").
+    final now = DateTime.now();
+    String short(DateTime d) => DateFormat.MMM('en').format(d);
+    final firstLabel = short(DateTime(now.year, now.month - 5));
+    expect(inCard(find.text(firstLabel)), findsOneWidget);
+    expect(inCard(find.text(short(now))), findsOneWidget);
+
+    // Delta is last vs first month of the window (-25.000 on 100.000)
+    // and the pill says so, with the English decimal point.
+    expect(inCard(find.textContaining('-25.0%')), findsOneWidget);
+    expect(inCard(find.textContaining('vs $firstLabel')), findsOneWidget);
+
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 100));
   });

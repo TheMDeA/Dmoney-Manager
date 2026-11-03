@@ -428,10 +428,11 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
 
   Widget _paceStat(String label, double value, bool hidden) {
     final decimals = currentCurrency.decimals > 0 ? 2 : 0;
+    // The currency's own locale already yields the right separators;
+    // forcing '.' to ',' here corrupted decimal currencies ("1,234,56").
     final text = NumberFormat('#,##0.${'0' * decimals}',
             currentCurrency.locale)
-        .format(value)
-        .replaceAll('.', ',');
+        .format(value);
     final shown = hidden ? maskMoneyText(text) : text;
     return Column(
       children: [
