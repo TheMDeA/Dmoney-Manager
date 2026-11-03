@@ -633,6 +633,8 @@
   "walletLimitUsed": "{percent}% limit terpakai",
   "walletMonthlyRateInvalid": "Suku bunga bulanan harus bilangan non-negatif",
   "walletNewBalance": "Saldo baru",
+  "walletCurrentOutstanding": "Tunggakan saat ini",
+  "walletNewOutstanding": "Tunggakan baru",
   "walletNoChange": "Tidak ada perubahan",
   "walletNoTransactions": "Tidak ada transaksi",
   "walletNoTransactionsMonth": "Tidak ada yang tercatat di dompet ini bulan ini.",
