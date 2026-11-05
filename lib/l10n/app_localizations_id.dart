@@ -1374,6 +1374,14 @@ class AppLocalizationsId extends AppLocalizations {
   String get backupNotDmoneyFile => 'Bukan berkas cadangan Dmoney Manager.';
 
   @override
+  String get backupFromNewerApp =>
+      'Cadangan ini dibuat oleh versi Dmoney Manager yang lebih baru. Perbarui aplikasi terlebih dahulu.';
+
+  @override
+  String get backupDatabaseCorrupt =>
+      'Basis data di dalam cadangan ini rusak atau hilang.';
+
+  @override
   String get formCalculator => 'Kalkulator';
 
   @override
@@ -1994,6 +2002,9 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get paylaterPayInstallment => 'Bayar cicilan';
+
+  @override
+  String get paylaterPayInstallments => 'Bayar semua cicilan';
 
   @override
   String get paylaterPaylaterWalletLabel => 'Dompet paylater';
