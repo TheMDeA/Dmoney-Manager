@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/core/widgets/form_sheet.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,26 +15,24 @@ import 'add_transaction_sheet.dart';
 /// Opens the edit sheet for [details], honoring the transfer/debt
 /// restrictions. Returns true when the sheet was opened.
 Future<bool> editTransaction(
-    BuildContext context, TransactionWithDetails details) async {
+  BuildContext context,
+  TransactionWithDetails details,
+) async {
   final l10n = AppLocalizations.of(context)!;
   final t = details.transaction;
   if (t.kind == 'transfer') {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.txTransferEdit)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.txTransferEdit)));
     return false;
   }
   if (t.debtId != null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.txDebtManaged)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.txDebtManaged)));
     return false;
   }
-  await showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => AddTransactionSheet(existing: details),
-  );
+  await showSnackSheet(context, (_) => AddTransactionSheet(existing: details));
   return true;
 }
 
@@ -50,9 +49,9 @@ Future<void> deleteTransactionFlow(
   final db = ref.read(databaseProvider);
   final t = details.transaction;
   if (t.debtId != null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.txDebtDeleteHere)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.txDebtDeleteHere)));
     return;
   }
   final confirmed = await showDialog<bool>(
@@ -62,15 +61,17 @@ Future<void> deleteTransactionFlow(
       content: Text(l10n.txUndoDeleteHint),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.commonCancel)),
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(l10n.commonCancel),
+        ),
         FilledButton(
           onPressed: () {
             Haptics.medium();
             Navigator.pop(context, true);
           },
           style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
-          child: Text(l10n.commonDelete)),
+          child: Text(l10n.commonDelete),
+        ),
       ],
     ),
   );
@@ -80,8 +81,9 @@ Future<void> deleteTransactionFlow(
   final photos = await db.watchPhotos(t.id).first;
   // A transfer's fee rows are deleted with it — snapshot them (and their
   // photos) so undo can bring them back too.
-  final feeRows =
-      t.kind == 'transfer' ? await db.transferFeeRows(t.id) : <Transaction>[];
+  final feeRows = t.kind == 'transfer'
+      ? await db.transferFeeRows(t.id)
+      : <Transaction>[];
   final feePhotos = <int, List<TransactionPhoto>>{
     for (final f in feeRows) f.id: await db.watchPhotos(f.id).first,
   };

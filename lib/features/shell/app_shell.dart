@@ -1,3 +1,4 @@
+import 'package:dmoney_manager/core/widgets/form_sheet.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,7 +33,8 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   /// Timestamp of the last back press on the Home tab, for the
   /// double-press-to-exit guard.
-  DateTime? _lastBackPress;  static const _screens = [
+  DateTime? _lastBackPress;
+  static const _screens = [
     HomeScreen(),
     WalletsScreen(),
     CalendarScreen(),
@@ -50,8 +52,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
-    _pageController =
-        PageController(initialPage: ref.read(tabIndexProvider));
+    _pageController = PageController(initialPage: ref.read(tabIndexProvider));
     _page = _pageController.initialPage.toDouble();
     _pageController.addListener(_onPageScroll);
     // Fresh installs land here right after onboarding -> show the tour once.
@@ -139,8 +140,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         }
         final now = DateTime.now();
         if (_lastBackPress != null &&
-            now.difference(_lastBackPress!) <
-                const Duration(seconds: 2)) {
+            now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
           SystemNavigator.pop();
         } else {
           _lastBackPress = now;
@@ -154,48 +154,63 @@ class _AppShellState extends ConsumerState<AppShell> {
         }
       },
       child: Scaffold(
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (i) => ref.read(tabIndexProvider.notifier).go(i),
-        children: _screens,
-      ),
-      // The FAB opens the same modal bottom sheet as the Top up quick
-      // action, so the animation and swipe-to-dismiss behave identically
-      // no matter which entry point is used.
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Haptics.select();
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: true,
-            builder: (_) => const AddTransactionSheet(),
-          );
-        },
-        child: const Icon(Icons.add, size: 28),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
-        padding: EdgeInsets.zero,
-        child: Row(
-          children: [
-            _navItem(0, Icons.home_outlined, Icons.home, l10n.shellHome),
-            _navItem(
-                1, Icons.wallet_outlined, Icons.wallet, l10n.shellWallets),
-            _navItem(2, Icons.calendar_month_outlined, Icons.calendar_month,
-                l10n.shellCalendar),
-            const Spacer(),
-            _navItem(
-                3, Icons.pie_chart_outline, Icons.pie_chart, l10n.shellStats),
-            _navItem(
-                4, Icons.savings_outlined, Icons.savings, l10n.shellBudgets),
-            _navItem(5, Icons.settings_outlined, Icons.settings,
-                l10n.shellSettings),
-          ],
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: (i) => ref.read(tabIndexProvider.notifier).go(i),
+          children: _screens,
         ),
-      ),
+        // The FAB opens the same modal bottom sheet as the Top up quick
+        // action, so the animation and swipe-to-dismiss behave identically
+        // no matter which entry point is used.
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Haptics.select();
+            showSnackSheet(context, (_) => const AddTransactionSheet());
+          },
+          child: const Icon(Icons.add, size: 28),
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        bottomNavigationBar: BottomAppBar(
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 8,
+          padding: EdgeInsets.zero,
+          child: Row(
+            children: [
+              _navItem(0, Icons.home_outlined, Icons.home, l10n.shellHome),
+              _navItem(
+                1,
+                Icons.wallet_outlined,
+                Icons.wallet,
+                l10n.shellWallets,
+              ),
+              _navItem(
+                2,
+                Icons.calendar_month_outlined,
+                Icons.calendar_month,
+                l10n.shellCalendar,
+              ),
+              const Spacer(),
+              _navItem(
+                3,
+                Icons.pie_chart_outline,
+                Icons.pie_chart,
+                l10n.shellStats,
+              ),
+              _navItem(
+                4,
+                Icons.savings_outlined,
+                Icons.savings,
+                l10n.shellBudgets,
+              ),
+              _navItem(
+                5,
+                Icons.settings_outlined,
+                Icons.settings,
+                l10n.shellSettings,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -233,8 +248,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                       Opacity(
                         opacity: t,
-                        child:
-                            Icon(activeIcon, color: color, size: 24),
+                        child: Icon(activeIcon, color: color, size: 24),
                       ),
                     ],
                   ),
@@ -246,8 +260,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 style: TextStyle(
                   fontSize: 11,
                   color: color,
-                  fontWeight:
-                      t >= 0.5 ? FontWeight.w700 : FontWeight.w400,
+                  fontWeight: t >= 0.5 ? FontWeight.w700 : FontWeight.w400,
                 ),
               ),
             ],
@@ -257,4 +270,3 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 }
-

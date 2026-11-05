@@ -71,11 +71,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 QuickActions(
                   onTransfer: () =>
                       showSnackSheet(context, (_) => const TransferSheet()),
-                  onTopUp: () => showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (_) =>
-                        const AddTransactionSheet(initialKind: 'income'),
+                  onTopUp: () => showSnackSheet(
+                    context,
+                    (_) => const AddTransactionSheet(initialKind: 'income'),
                   ),
                   onScan: () => _scanReceipt(l10n),
                   onDebt: () => showModalBottomSheet(
@@ -121,7 +119,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               milliseconds: (i * 60).clamp(0, 300),
                             ),
                             child: TransactionTile(
-                                details: items[i], showDate: true),
+                              details: items[i],
+                              showDate: true,
+                            ),
                           ),
                       ],
                     );
@@ -172,18 +172,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // The raw details stay in the log; the snackbar stays readable.
         debugPrint('Receipt OCR failed: ${e.message}');
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n.homeReceiptUnreadable),
-            ),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l10n.homeReceiptUnreadable)));
         }
       }
       if (!mounted) return;
-      await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => AddTransactionSheet(
+      await showSnackSheet(
+        context,
+        (_) => AddTransactionSheet(
           attachedPhotoPath: picked.path,
           initialAmount: scan?.total,
           initialNote: scan?.merchant,
@@ -195,9 +192,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.homeCouldNotOpenCamera('$e'))),
         );
       }
@@ -370,9 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 context,
               ).push(AppPageRoute(builder: (_) => const SettingsScreen()));
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.homeEnablePasswordLock),
-                ),
+                SnackBar(content: Text(l10n.homeEnablePasswordLock)),
               );
             }
           },

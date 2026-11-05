@@ -160,7 +160,9 @@ class WalletsScreen extends ConsumerWidget {
                                       ),
                                       SizedBox(height: 4),
                                       Text(
-                                        l10n.walletCountTapToFocus(displayed.length),
+                                        l10n.walletCountTapToFocus(
+                                          displayed.length,
+                                        ),
                                         style: TextStyle(
                                           color: context.textMuted,
                                           fontSize: 12,
@@ -171,7 +173,11 @@ class WalletsScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 12),
                                 if (paylaterWallets(wallets).isNotEmpty) ...[
-                                  _paylaterSummaryCard(context, wallets, hidden),
+                                  _paylaterSummaryCard(
+                                    context,
+                                    wallets,
+                                    hidden,
+                                  ),
                                   const SizedBox(height: 12),
                                 ],
                                 if (displayed.isEmpty &&
@@ -217,10 +223,12 @@ class WalletsScreen extends ConsumerWidget {
   /// appears when at least one paylater wallet exists. Tapping it opens
   /// the full Paylater dashboard.
   Widget _paylaterSummaryCard(
-      BuildContext context, List<Wallet> wallets, bool hidden) {
+    BuildContext context,
+    List<Wallet> wallets,
+    bool hidden,
+  ) {
     final l10n = AppLocalizations.of(context)!;
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final outstanding = totalPaylaterOutstanding(wallets);
     final ratio = paylaterLimitUsedRatio(wallets);
     final next = nextPaylaterDue(wallets, DateTime.now());
@@ -237,10 +245,7 @@ class WalletsScreen extends ConsumerWidget {
               children: [
                 Text(
                   l10n.paylaterTitle,
-                  style: TextStyle(
-                    color: context.textMuted,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: context.textMuted, fontSize: 13),
                 ),
                 const Spacer(),
                 Icon(
@@ -261,16 +266,15 @@ class WalletsScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             Text(
               [
-                if (ratio != null)
-                  l10n.walletLimitUsed((ratio * 100).round()),
+                if (ratio != null) l10n.walletLimitUsed((ratio * 100).round()),
                 if (next != null)
-                  l10n.walletPaylaterNextDue(m(paylaterOutstanding(next.wallet)),
-                      formatDate(next.dueDate), next.wallet.name),
+                  l10n.walletPaylaterNextDue(
+                    m(paylaterOutstanding(next.wallet)),
+                    formatDate(next.dueDate),
+                    next.wallet.name,
+                  ),
               ].join(' · '),
-              style: TextStyle(
-                color: context.textMuted,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
           ],
         ),
@@ -356,7 +360,8 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     double stackH,
     List<int> paintOrder,
     List<int> cascadeOrder,
-  }) _geometry(int? focusedId) {
+  })
+  _geometry(int? focusedId) {
     final wallets = widget.wallets;
     final n = wallets.length;
     final focusedIndex = focusedId == null
@@ -453,8 +458,9 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     // A focused id that is no longer in the displayed list (e.g. a
     // paylater wallet, which never renders in the stack) falls back
     // to the unfocused view instead of breaking geometry.
-    final focusedId =
-        wallets.any((w) => w.id == _focusedId) ? _focusedId : null;
+    final focusedId = wallets.any((w) => w.id == _focusedId)
+        ? _focusedId
+        : null;
 
     // Geometry per wallet id is rendered from [_tops]/[_heights], which
     // _setFocus updates with a stagger. The target layout (for the stack
@@ -502,8 +508,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
     );
   }
 
-  Widget _stackCard(
-      BuildContext context, Wallet w, bool focused, bool hidden) {
+  Widget _stackCard(BuildContext context, Wallet w, bool focused, bool hidden) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = colorFromHex(w.colorHex);
     final brand = walletBrandForWallet(
@@ -533,10 +538,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                       Color.lerp(const Color(0xFF1D1F22), color, 0.16)!,
                       const Color(0xFF131416),
                     ]
-                  : [
-                      Color.lerp(Colors.white, color, 0.14)!,
-                      Colors.white,
-                    ],
+                  : [Color.lerp(Colors.white, color, 0.14)!, Colors.white],
             ),
             boxShadow: [
               BoxShadow(
@@ -585,9 +587,10 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                   transitionBuilder: (child, animation) => FadeTransition(
                     opacity: animation,
                     child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.97, end: 1.0).animate(
-                        animation,
-                      ),
+                      scale: Tween<double>(
+                        begin: 0.97,
+                        end: 1.0,
+                      ).animate(animation),
                       child: child,
                     ),
                   ),
@@ -607,7 +610,13 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                       : KeyedSubtree(
                           key: ValueKey('fan-${w.id}'),
                           child: _fanContent(
-                              context, w, brand, color, isDark, hidden),
+                            context,
+                            w,
+                            brand,
+                            color,
+                            isDark,
+                            hidden,
+                          ),
                         ),
                 ),
               ),
@@ -631,7 +640,8 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
   ) {
     final l10n = AppLocalizations.of(context)!;
     final negative = w.balance < 0;
-    final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
+    final recent =
+        widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
     final last = recent.isNotEmpty ? recent.first : null;
     final meta = last != null
         ? '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}'
@@ -664,9 +674,9 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
         CountUpMoney(
           amount: w.balance,
           hidden: hidden,
-          style: AppTextStyles.amount(size: 23).copyWith(
-            color: negative ? AppColors.expense : context.textPrimary,
-          ),
+          style: AppTextStyles.amount(
+            size: 23,
+          ).copyWith(color: negative ? AppColors.expense : context.textPrimary),
         ),
         const SizedBox(height: 3),
         Text(
@@ -690,7 +700,8 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
   ) {
     final l10n = AppLocalizations.of(context)!;
     final negative = w.balance < 0;
-    final recent = widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
+    final recent =
+        widget.recentByWallet[w.id] ?? const <TransactionWithDetails>[];
     final last = recent.isNotEmpty ? recent.first : null;
 
     return Column(
@@ -723,10 +734,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                   const SizedBox(height: 2),
                   Text(
                     _kindLabel(l10n, w.kind),
-                    style: TextStyle(
-                      color: context.textMuted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: context.textMuted, fontSize: 12),
                   ),
                 ],
               ),
@@ -742,28 +750,22 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
         CountUpMoney(
           amount: w.balance,
           hidden: hidden,
-          style: AppTextStyles.amount(size: 26).copyWith(
-            color: negative ? AppColors.expense : context.textPrimary,
-          ),
+          style: AppTextStyles.amount(
+            size: 26,
+          ).copyWith(color: negative ? AppColors.expense : context.textPrimary),
         ),
         const SizedBox(height: 4),
         if (last != null)
           Text(
             '${last.transaction.note.isEmpty ? last.category.name : last.transaction.note} · ${formatDate(last.transaction.date)}',
-            style: TextStyle(
-              color: context.textMuted,
-              fontSize: 11.5,
-            ),
+            style: TextStyle(color: context.textMuted, fontSize: 11.5),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           )
         else
           Text(
             l10n.walletNoTransactionsYet,
-            style: TextStyle(
-              color: context.textMuted,
-              fontSize: 11.5,
-            ),
+            style: TextStyle(color: context.textMuted, fontSize: 11.5),
           ),
         const SizedBox(height: 14),
         Row(
@@ -796,10 +798,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
           ],
         ),
         const SizedBox(height: 12),
-        Container(
-          height: 1,
-          color: context.textMuted.withValues(alpha: 0.18),
-        ),
+        Container(height: 1, color: context.textMuted.withValues(alpha: 0.18)),
         const SizedBox(height: 4),
         for (final d in recent)
           Padding(
@@ -833,9 +832,9 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
                 ),
                 Text(
                   formatMoney(_signedAmount(d)),
-                  style: AppTextStyles.amount(size: 13.5).copyWith(
-                    color: _amountColor(d),
-                  ),
+                  style: AppTextStyles.amount(
+                    size: 13.5,
+                  ).copyWith(color: _amountColor(d)),
                 ),
               ],
             ),
@@ -852,11 +851,7 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
       },
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Icon(
-          Icons.edit_outlined,
-          size: 16,
-          color: context.textMuted,
-        ),
+        child: Icon(Icons.edit_outlined, size: 16, color: context.textMuted),
       ),
     );
   }
@@ -902,20 +897,13 @@ class _WalletStackState extends ConsumerState<_WalletStack> {
   }
 
   void _transfer(Wallet w) {
-    showSnackSheet(
-      context,
-      (_) => TransferSheet(initialFromWalletId: w.id),
-    );
+    showSnackSheet(context, (_) => TransferSheet(initialFromWalletId: w.id));
   }
 
   void _topUp(Wallet w) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => AddTransactionSheet(
-        initialKind: 'income',
-        initialWalletId: w.id,
-      ),
+    showSnackSheet(
+      context,
+      (_) => AddTransactionSheet(initialKind: 'income', initialWalletId: w.id),
     );
   }
 
