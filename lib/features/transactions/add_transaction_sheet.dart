@@ -78,14 +78,18 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   final _descCtrl = TextEditingController();
   final _memoCtrl = TextEditingController();
   final _descFocus = FocusNode();
-  // The bottom-sheet route has no ScaffoldMessenger of its own, so without
-  // this every snackbar would render behind the modal barrier and only
-  // become visible after the sheet closes.
-  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
-
-  /// Shows a snackbar *inside* the sheet.
+  // Snackbars go through the ambient messenger: this sheet is always
+  // presented inside a SheetScaffold (via showSnackSheet), whose
+  // Scaffold presents them at the bottom of the screen, above the
+  // sheet. A private messenger here could never present (it had no
+  // Scaffold in its own subtree), and giving it one by wrapping the
+  // sheet in a Scaffold stretched the sheet to full screen height —
+  // a Scaffold expands to fill whatever space it is offered.
   void _snack(String message) {
-    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   late String _kind;
@@ -105,9 +109,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   /// The tenor a save should use: the typed count while Custom is on
   /// (0 while the field is empty or invalid, which blocks the save).
-  int get _effectiveTenor => _customTenor
-      ? (int.tryParse(_customTenorCtrl.text.trim()) ?? 0)
-      : _tenor;
+  int get _effectiveTenor =>
+      _customTenor ? (int.tryParse(_customTenorCtrl.text.trim()) ?? 0) : _tenor;
   bool _saving = false;
   bool _success = false;
   String? _descError;
@@ -265,8 +268,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       decoration: BoxDecoration(
         color: AppColors.bgRaised,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: scheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -275,17 +277,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           for (var i = 0; i < _descSuggestions.length; i++) ...[
             if (i > 0)
               Divider(
-                  height: 1,
-                  color: scheme.outlineVariant.withValues(alpha: 0.4)),
+                height: 1,
+                color: scheme.outlineVariant.withValues(alpha: 0.4),
+              ),
             InkWell(
               onTap: () => _applyDescriptionSuggestion(_descSuggestions[i]),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
-                    Icon(Icons.history,
-                        size: 18, color: context.textMuted),
+                    Icon(Icons.history, size: 18, color: context.textMuted),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -354,214 +358,201 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
-    return ScaffoldMessenger(
-      key: _messengerKey,
-      // A Scaffold in the subtree is what gives this messenger
-      // somewhere to present: without one, every _snack in this sheet
-      // queued forever and never showed. Transparent and not
-      // keyboard-resizing — FormSheet already pads viewInsets itself,
-      // so the layout math is unchanged.
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        resizeToAvoidBottomInset: false,
-        body: Stack(
+    return Stack(
+      children: [
+        FormSheet(
+          title: _editing
+              ? l10n.txEditRecord
+              : (_kind == 'income' ? l10n.txAddIncome : l10n.txAddExpense),
+          actionLabel: _editing ? l10n.commonSaveChanges : l10n.commonSave,
+          onAction: _save,
+          busy: _saving,
           children: [
-            FormSheet(
-              title: _editing
-                  ? l10n.txEditRecord
-                  : (_kind == 'income' ? l10n.txAddIncome : l10n.txAddExpense),
-              actionLabel: _editing ? l10n.commonSaveChanges : l10n.commonSave,
-              onAction: _save,
-              busy: _saving,
+            SlidingSegmented<String>(
+              values: const ['expense', 'income'],
+              labels: [l10n.txExpense, l10n.txIncome],
+              selected: _kind,
+              onChanged: (v) {
+                setState(() {
+                  _kind = v;
+                  _categoryId = null;
+                  _suggestedId = null;
+                });
+                // The description didn't change, but the kind did: re-suggest.
+                _runSuggestion();
+              },
+            ),
+            const SizedBox(height: 16),
+            _templateRow(context, db, l10n),
+            const SizedBox(height: 16),
+            Shaker(
+              controller: _amountShake,
+              child: FormAmountEntry(controller: _amountCtrl),
+            ),
+            _fieldError(_amountError),
+            const SizedBox(height: 16),
+            FormSectionLabel(l10n.txDescription),
+            const SizedBox(height: 8),
+            Shaker(
+              controller: _descShake,
+              child: TextField(
+                controller: _descCtrl,
+                focusNode: _descFocus,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: l10n.txDescriptionHint,
+                  errorText: _descError,
+                ),
+              ),
+            ),
+            if (_descFocus.hasFocus && _descSuggestions.isNotEmpty)
+              _descAutocompleteList(),
+            const SizedBox(height: 16),
+            Shaker(
+              controller: _categoryShake,
+              child: CategoryPickerSection(
+                kind: _kind,
+                selectedId: _categoryId,
+                suggestedId: _suggestedId,
+                onSelected: (c) => setState(() {
+                  _kind = c.kind;
+                  _categoryId = c.id;
+                  _categoryError = null;
+                }),
+              ),
+            ),
+            _fieldError(_categoryError),
+            const SizedBox(height: 16),
+            FormSectionLabel(l10n.txWallet),
+            StreamBuilder<List<Wallet>>(
+              // In edit mode the transaction's own wallet must stay
+              // selectable even when it sits outside the active scope.
+              stream: db.watchWallets(
+                accountId: _editing ? null : ref.watch(selectedAccountProvider),
+              ),
+              builder: (context, snap) {
+                final wallets = snap.data ?? const <Wallet>[];
+                _walletId = resolveWalletId(wallets, _walletId);
+                Wallet? selected;
+                for (final w in wallets) {
+                  if (w.id == _walletId) selected = w;
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Shaker(
+                      controller: _walletShake,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final w in wallets)
+                            ChoiceChip(
+                              label: Text(w.name),
+                              selected: _walletId == w.id,
+                              selectedColor: context.accent,
+                              showCheckmark: false,
+                              labelStyle: TextStyle(
+                                color: _walletId == w.id
+                                    ? onAccent(context.accent)
+                                    : Theme.of(context).colorScheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              onSelected: (_) => setState(() {
+                                _walletId = w.id;
+                                _walletError = null;
+                              }),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Tenor calculator: only for new expenses on a
+                    // paylater wallet, where splitting across months is
+                    // a real decision. The quote is display-only — it
+                    // never creates an installment plan by itself.
+                    if (selected != null &&
+                        selected.kind == 'paylater' &&
+                        _kind == 'expense' &&
+                        !_editing)
+                      _tenorSection(selected, l10n),
+                  ],
+                );
+              },
+            ),
+            _fieldError(_walletError),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                SlidingSegmented<String>(
-                  values: const ['expense', 'income'],
-                  labels: [l10n.txExpense, l10n.txIncome],
-                  selected: _kind,
-                  onChanged: (v) {
-                    setState(() {
-                      _kind = v;
-                      _categoryId = null;
-                      _suggestedId = null;
-                    });
-                    // The description didn't change, but the kind did: re-suggest.
-                    _runSuggestion();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _templateRow(context, db, l10n),
-                const SizedBox(height: 16),
-                Shaker(
-                  controller: _amountShake,
-                  child: FormAmountEntry(controller: _amountCtrl),
-                ),
-                _fieldError(_amountError),
-                const SizedBox(height: 16),
-                FormSectionLabel(l10n.txDescription),
-                const SizedBox(height: 8),
-                Shaker(
-                  controller: _descShake,
-                  child: TextField(
-                    controller: _descCtrl,
-                    focusNode: _descFocus,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: InputDecoration(
-                      hintText: l10n.txDescriptionHint,
-                      errorText: _descError,
+                Expanded(child: FormSectionLabel(l10n.txDateTime)),
+                if (!_isToday)
+                  TextButton(
+                    onPressed: () {
+                      Haptics.select();
+                      setState(() => _date = DateTime.now());
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
                     ),
+                    child: Text(l10n.commonToday),
                   ),
-                ),
-                if (_descFocus.hasFocus && _descSuggestions.isNotEmpty)
-                  _descAutocompleteList(),
-                const SizedBox(height: 16),
-                Shaker(
-                  controller: _categoryShake,
-                  child: CategoryPickerSection(
-                    kind: _kind,
-                    selectedId: _categoryId,
-                    suggestedId: _suggestedId,
-                    onSelected: (c) => setState(() {
-                      _kind = c.kind;
-                      _categoryId = c.id;
-                      _categoryError = null;
-                    }),
-                  ),
-                ),
-                _fieldError(_categoryError),
-                const SizedBox(height: 16),
-                FormSectionLabel(l10n.txWallet),
-                StreamBuilder<List<Wallet>>(
-                  // In edit mode the transaction's own wallet must stay
-                  // selectable even when it sits outside the active scope.
-                  stream: db.watchWallets(
-                    accountId: _editing
-                        ? null
-                        : ref.watch(selectedAccountProvider),
-                  ),
-                  builder: (context, snap) {
-                    final wallets = snap.data ?? const <Wallet>[];
-                    _walletId = resolveWalletId(wallets, _walletId);
-                    Wallet? selected;
-                    for (final w in wallets) {
-                      if (w.id == _walletId) selected = w;
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Shaker(
-                          controller: _walletShake,
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final w in wallets)
-                                ChoiceChip(
-                                  label: Text(w.name),
-                                  selected: _walletId == w.id,
-                                  selectedColor: context.accent,
-                                  showCheckmark: false,
-                                  labelStyle: TextStyle(
-                                    color: _walletId == w.id
-                                        ? onAccent(context.accent)
-                                        : Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  onSelected: (_) => setState(() {
-                                    _walletId = w.id;
-                                    _walletError = null;
-                                  }),
-                                ),
-                            ],
-                          ),
-                        ),
-                        // Tenor calculator: only for new expenses on a
-                        // paylater wallet, where splitting across months is
-                        // a real decision. The quote is display-only — it
-                        // never creates an installment plan by itself.
-                        if (selected != null &&
-                            selected.kind == 'paylater' &&
-                            _kind == 'expense' &&
-                            !_editing)
-                          _tenorSection(selected, l10n),
-                      ],
-                    );
-                  },
-                ),
-                _fieldError(_walletError),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: FormSectionLabel(l10n.txDateTime)),
-                    if (!_isToday)
-                      TextButton(
-                        onPressed: () {
-                          Haptics.select();
-                          setState(() => _date = DateTime.now());
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        child: Text(l10n.commonToday),
-                      ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FormDatePill(
-                        date: _date,
-                        placeholder: l10n.txPickDate,
-                        onTap: () async {
-                          Haptics.select();
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: _date,
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now(),
-                          );
-                          if (picked != null) setState(() => _date = picked);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FormDatePill(
-                        date: _date,
-                        placeholder: '',
-                        icon: Icons.schedule_outlined,
-                        text:
-                            '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
-                        onTap: () async {
-                          Haptics.select();
-                          final picked = await showTimePicker(
-                            context: context,
-                            initialTime: _time,
-                          );
-                          if (picked != null) setState(() => _time = picked);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                FormSectionLabel(l10n.txMemo),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _memoCtrl,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(hintText: l10n.txMemoHint),
-                ),
-                if (!_editing) ...[const SizedBox(height: 16), _receiptSection(l10n)],
-                const SizedBox(height: 8),
               ],
             ),
-            if (_success) const _SuccessOverlay(),
+            Row(
+              children: [
+                Expanded(
+                  child: FormDatePill(
+                    date: _date,
+                    placeholder: l10n.txPickDate,
+                    onTap: () async {
+                      Haptics.select();
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _date,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) setState(() => _date = picked);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FormDatePill(
+                    date: _date,
+                    placeholder: '',
+                    icon: Icons.schedule_outlined,
+                    text:
+                        '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
+                    onTap: () async {
+                      Haptics.select();
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: _time,
+                      );
+                      if (picked != null) setState(() => _time = picked);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            FormSectionLabel(l10n.txMemo),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _memoCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(hintText: l10n.txMemoHint),
+            ),
+            if (!_editing) ...[
+              const SizedBox(height: 16),
+              _receiptSection(l10n),
+            ],
+            const SizedBox(height: 8),
           ],
         ),
-      ),
+        if (_success) const _SuccessOverlay(),
+      ],
     );
   }
 
@@ -748,7 +739,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
   /// One-tap templates: tap fills the form, long-press deletes,
   /// trailing chip saves the current form as a template.
-  Widget _templateRow(BuildContext context, AppDatabase db, AppLocalizations l10n) {
+  Widget _templateRow(
+    BuildContext context,
+    AppDatabase db,
+    AppLocalizations l10n,
+  ) {
     return StreamBuilder<List<TransactionTemplate>>(
       stream: db.watchTransactionTemplates(),
       builder: (context, snap) {
@@ -855,9 +850,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 fontWeight: FontWeight.w600,
               ),
               onSelected: (_) => setState(() {
-                    _customTenor = true;
-                    _tenorError = null;
-                  }),
+                _customTenor = true;
+                _tenorError = null;
+              }),
             ),
           ],
         ),
@@ -982,9 +977,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     // no snackbar needed.
     final descError = desc.isEmpty ? l10n.txDescribeTransaction : null;
     final amountError = amount <= 0 ? l10n.txEnterAmount : null;
-    final categoryError = _categoryId == null
-        ? l10n.txSelectCategory
-        : null;
+    final categoryError = _categoryId == null ? l10n.txSelectCategory : null;
     final walletError = _walletId == null ? l10n.txSelectWallet : null;
     setState(() {
       _descError = descError;
@@ -1083,7 +1076,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
         // Edits never reach this branch, and the helper refuses
         // transfers, income, and non-paylater wallets outright.
         ({String name, int totalAmount, int installmentAmount, int totalCount})?
-            plan;
+        plan;
         if (_kind == 'expense') {
           final wallet = await db.getWalletById(_walletId!);
           if (wallet != null && wallet.kind == 'paylater') {
@@ -1092,9 +1085,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               if (c.id == _categoryId!) category = c;
             }
             if (_customTenor && _effectiveTenor < 1) {
-              // Inline error, not _snack: this sheet's private
-              // ScaffoldMessenger has no Scaffold in its subtree, so
-              // its snackbars never actually present.
+              // Inline error, not _snack: the message belongs with
+              // the field it is about, and the sheet stays open.
               setState(() => _tenorError = l10n.paylaterEnterCount);
               return;
             }
