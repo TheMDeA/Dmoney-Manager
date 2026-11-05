@@ -3,7 +3,7 @@ import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
-import '../../core/services/notification_service.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -86,7 +86,8 @@ class _PaylaterDashboardScreenState
               return StreamBuilder<List<TransactionWithDetails>>(
                 stream: db.watchTransactionsInRange(monthStart, monthEnd),
                 builder: (context, txSnap) {
-                  final monthTxs = txSnap.data ?? const <TransactionWithDetails>[];
+                  final monthTxs =
+                      txSnap.data ?? const <TransactionWithDetails>[];
                   final paylaterIds = paylater.map((w) => w.id).toSet();
                   final monthSpending = monthTxs
                       .where(
@@ -110,7 +111,12 @@ class _PaylaterDashboardScreenState
                       const SizedBox(height: 12),
                       if (next != null) ...[
                         _nextDueCard(
-                            next.wallet, next.dueDate, wallets, plans, hidden),
+                          next.wallet,
+                          next.dueDate,
+                          wallets,
+                          plans,
+                          hidden,
+                        ),
                         const SizedBox(height: 12),
                       ],
                       _SectionLabel(l10n.paylaterProviders),
@@ -136,11 +142,9 @@ class _PaylaterDashboardScreenState
     );
   }
 
-  Widget _heroCard(
-      int outstanding, int dueCycle, double? ratio, bool hidden) {
+  Widget _heroCard(int outstanding, int dueCycle, double? ratio, bool hidden) {
     final l10n = AppLocalizations.of(context)!;
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,7 +170,9 @@ class _PaylaterDashboardScreenState
               Expanded(
                 child: _heroStat(
                   l10n.paylaterLimitUsedLabel,
-                  ratio == null ? l10n.paylaterNoLimitSet : '${(ratio * 100).round()}%',
+                  ratio == null
+                      ? l10n.paylaterNoLimitSet
+                      : '${(ratio * 100).round()}%',
                 ),
               ),
             ],
@@ -202,20 +208,13 @@ class _PaylaterDashboardScreenState
     bool hidden,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    // The button pays what this card shows: one installment when the
-    // wallet has a single payable plan, otherwise the full outstanding.
-    // The date follows the same rule: the plan's next installment date
-    // in the single-plan case, the wallet's due date otherwise.
-    final plan = singlePayablePlan(plans, wallet.id);
-    final amount =
-        plan == null ? paylaterOutstanding(wallet) : installmentDueAmount(plan);
-    final shownDue = plan == null
-        ? dueDate
-        : (nextInstallmentDueDate(plan, wallet.dueDay,
-                walletStatementDay: wallet.statementDay) ??
-            dueDate);
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    // The button pays what this card shows: the installments that
+    // fall due together on the next due date (one plan or several),
+    // or the full outstanding for a wallet with no payable plan.
+    final group = dueInstallmentGroup(plans, wallet);
+    final amount = group?.amount ?? paylaterOutstanding(wallet);
+    final shownDue = group?.dueDate ?? dueDate;
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
       glowColor: context.accent,
       child: Column(
@@ -244,9 +243,13 @@ class _PaylaterDashboardScreenState
             width: double.infinity,
             child: FilledButton(
               onPressed: () => _payDue(wallet, wallets),
-              child: Text(plan == null
-                  ? l10n.paylaterMarkAsPaid
-                  : l10n.paylaterPayInstallment),
+              child: Text(
+                group == null
+                    ? l10n.paylaterMarkAsPaid
+                    : group.plans.length == 1
+                    ? l10n.paylaterPayInstallment
+                    : l10n.paylaterPayInstallments,
+              ),
             ),
           ),
         ],
@@ -254,33 +257,16 @@ class _PaylaterDashboardScreenState
     );
   }
 
-  /// Pays what the Next due card shows: one installment when the wallet
-  /// has a single payable plan, otherwise the full outstanding amount.
-  /// A single plan's payment goes through the installment flow, so it is
-  /// linked to the plan and advances its counter; the reminder is then
-  /// refreshed with the new outstanding amount (or cancelled when
-  /// nothing is owed anymore).
-  Future<void> _payDue(Wallet wallet, List<Wallet> allWallets) async {
-    final l10n = AppLocalizations.of(context)!;
-    final db = ref.read(databaseProvider);
-    final plan = singlePayablePlan(
-      await db.plansForWallet(wallet.id),
-      wallet.id,
-    );
-    if (!mounted) return;
-    if (plan != null) {
-      await _payInstallment(plan, wallet, allWallets);
-      await _refreshDueReminder(wallet.id);
-      return;
-    }
-    final amount = paylaterOutstanding(wallet);
-    if (amount <= 0) return;
+  /// The payer picker shared by every payment flow on this screen.
+  /// Shows the no-payer snack and returns null when there is no
+  /// non-paylater wallet to pay from.
+  Future<Wallet?> _pickPayer(List<Wallet> allWallets) async {
     final payers = allWallets.where((w) => w.kind != 'paylater').toList();
     if (payers.isEmpty) {
-      _snack(l10n.paylaterNeedPayer);
-      return;
+      _snack(AppLocalizations.of(context)!.paylaterNeedPayer);
+      return null;
     }
-    final payer = await showDialog<Wallet>(
+    return showDialog<Wallet>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppLocalizations.of(context)!.paylaterPayFrom),
@@ -290,15 +276,65 @@ class _PaylaterDashboardScreenState
             for (final p in payers)
               ListTile(
                 title: Text(p.name),
-                trailing: Text(ref.read(balanceHiddenProvider)
-                    ? maskMoneyText(formatMoney(p.balance))
-                    : formatMoney(p.balance)),
+                trailing: Text(
+                  ref.read(balanceHiddenProvider)
+                      ? maskMoneyText(formatMoney(p.balance))
+                      : formatMoney(p.balance),
+                ),
                 onTap: () => Navigator.of(context).pop(p),
               ),
           ],
         ),
       ),
     );
+  }
+
+  /// Pays what the Next due card shows: the installments falling due
+  /// together on the next due date (one plan or several), or — for a
+  /// wallet with no payable plan — the full outstanding amount.
+  /// A single plan's payment goes through the installment flow, so it is
+  /// linked to the plan and advances its counter; the reminder is then
+  /// refreshed with the new outstanding amount (or cancelled when
+  /// nothing is owed anymore).
+  Future<void> _payDue(Wallet wallet, List<Wallet> allWallets) async {
+    final l10n = AppLocalizations.of(context)!;
+    final db = ref.read(databaseProvider);
+    final group = dueInstallmentGroup(
+      await db.plansForWallet(wallet.id),
+      wallet,
+    );
+    if (!mounted) return;
+    if (group != null && group.plans.length == 1) {
+      await _payInstallment(group.plans.single, wallet, allWallets);
+      await _refreshDueReminder(wallet.id);
+      return;
+    }
+    if (group != null) {
+      final payer = await _pickPayer(allWallets);
+      if (payer == null || !mounted) return;
+      Haptics.medium();
+      // One transaction for the whole group: every installment due
+      // that day is paid and advanced together, or none of them are.
+      await db.transaction(() async {
+        for (final p in group.plans) {
+          await db.addTransfer(
+            fromWalletId: payer.id,
+            toWalletId: wallet.id,
+            amount: installmentDueAmount(p),
+            note: 'Installment payment: ${p.name}',
+            planId: p.id,
+          );
+          await db.markInstallmentPaid(p.id);
+        }
+      });
+      await _refreshDueReminder(wallet.id);
+      if (!mounted) return;
+      _snack(l10n.paylaterPaidTo(formatMoney(group.amount), wallet.name));
+      return;
+    }
+    final amount = paylaterOutstanding(wallet);
+    if (amount <= 0) return;
+    final payer = await _pickPayer(allWallets);
     if (payer == null || !mounted) return;
     Haptics.medium();
     await db.addTransfer(
@@ -314,23 +350,8 @@ class _PaylaterDashboardScreenState
 
   /// Reschedules the wallet's due reminder with its current outstanding
   /// amount, or cancels it when nothing is owed anymore.
-  Future<void> _refreshDueReminder(int walletId) async {
-    final fresh = await ref.read(databaseProvider).getWalletById(walletId);
-    if (fresh != null &&
-        fresh.kind == 'paylater' &&
-        fresh.dueDay != null &&
-        paylaterOutstanding(fresh) > 0 &&
-        AppPrefs.paylaterReminders) {
-      await NotificationService.schedulePaylaterReminder(
-        walletId: fresh.id,
-        walletName: fresh.name,
-        amount: paylaterOutstanding(fresh),
-        dueDate: walletNextDueDate(fresh, DateTime.now())!,
-      );
-    } else {
-      await NotificationService.cancelPaylaterReminder(walletId);
-    }
-  }
+  Future<void> _refreshDueReminder(int walletId) =>
+      syncPaylaterReminder(ref.read(databaseProvider), walletId);
 
   /// Pays one installment of [p] as a real transfer — same pattern as
   /// [_payDue]: pick a payer wallet, record the transfer, then advance
@@ -352,55 +373,38 @@ class _PaylaterDashboardScreenState
     final db = ref.read(databaseProvider);
     final amount = installmentDueAmount(p);
     if (amount <= 0) return;
-    final payers = allWallets.where((w) => w.kind != 'paylater').toList();
-    if (payers.isEmpty) {
-      _snack(l10n.paylaterNeedPayer);
-      return;
-    }
-    final payer = await showDialog<Wallet>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.paylaterPayFrom),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final pay in payers)
-              ListTile(
-                title: Text(pay.name),
-                trailing: Text(ref.read(balanceHiddenProvider)
-                    ? maskMoneyText(formatMoney(pay.balance))
-                    : formatMoney(pay.balance)),
-                onTap: () => Navigator.of(context).pop(pay),
-              ),
-          ],
-        ),
-      ),
-    );
+    final payer = await _pickPayer(allWallets);
     if (payer == null || !mounted) return;
     Haptics.medium();
-    await db.addTransfer(
-      fromWalletId: payer.id,
-      toWalletId: planWallet.id,
-      amount: amount,
-      note: 'Installment payment: ${p.name}',
-      planId: p.id,
-    );
-    await db.markInstallmentPaid(p.id);
+    // One transaction: the money moves and the counter advances
+    // together or not at all — a crash between the two used to move
+    // money without advancing the plan.
+    await db.transaction(() async {
+      await db.addTransfer(
+        fromWalletId: payer.id,
+        toWalletId: planWallet.id,
+        amount: amount,
+        note: 'Installment payment: ${p.name}',
+        planId: p.id,
+      );
+      await db.markInstallmentPaid(p.id);
+    });
+    await _refreshDueReminder(planWallet.id);
     if (!mounted) return;
     _snack(l10n.paylaterPaidInstallment(formatMoney(amount), p.name));
   }
 
   Widget _providerCard(Wallet w, bool hidden) {
     final l10n = AppLocalizations.of(context)!;
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final outstanding = paylaterOutstanding(w);
     final ratio = w.creditLimit != null && w.creditLimit! > 0
         ? (outstanding / w.creditLimit!).clamp(0.0, 1.0)
         : null;
-    final due = w.dueDay == null
-        ? null
-        : nextDueDate(dueDay: w.dueDay!, from: DateTime.now());
+    // The same cycle-aware due date the Next-due card and the
+    // reminders use — the legacy due-day-only math disagreed with
+    // them for wallets with a statement day.
+    final due = walletNextDueDate(w, DateTime.now());
     return GlassCard(
       onTap: () {
         Haptics.select();
@@ -501,15 +505,17 @@ class _PaylaterDashboardScreenState
     bool hidden,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     Wallet? wallet;
     for (final w in paylater) {
       if (w.id == p.walletId) wallet = w;
     }
     final complete = p.paidCount >= p.totalCount;
-    final due = nextInstallmentDueDate(p, wallet?.dueDay,
-        walletStatementDay: wallet?.statementDay);
+    final due = nextInstallmentDueDate(
+      p,
+      wallet?.dueDay,
+      walletStatementDay: wallet?.statementDay,
+    );
     // Tapping the card opens the plan's history: its purchase plus
     // every installment payment. The buttons inside still win their
     // own taps.
@@ -522,71 +528,78 @@ class _PaylaterDashboardScreenState
           children: [
             Row(
               children: [
-              Expanded(
-                child: Text(
-                  p.name,
-                  style: TextStyle(
-                    color: context.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    p.name,
+                    style: TextStyle(
+                      color: context.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              Text(
-                l10n.paylaterRemainingLeft(m(planRemaining(p))),
-                style: TextStyle(color: context.textMuted, fontSize: 12),
-              ),
-            ],
-          ),
-          if (wallet != null)
-            Text(
-              wallet.name,
-              style: TextStyle(color: context.textMuted, fontSize: 12),
-            ),
-          const SizedBox(height: 8),
-          _LimitBar(ratio: planProgress(p)),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  due == null
-                      ? l10n.paylaterPlanProgress(m(p.installmentAmount),
-                          p.paidCount, p.totalCount)
-                      : l10n.paylaterPlanProgressDue(m(p.installmentAmount),
-                          formatDate(due), p.paidCount, p.totalCount),
+                Text(
+                  l10n.paylaterRemainingLeft(m(planRemaining(p))),
                   style: TextStyle(color: context.textMuted, fontSize: 12),
                 ),
+              ],
+            ),
+            if (wallet != null)
+              Text(
+                wallet.name,
+                style: TextStyle(color: context.textMuted, fontSize: 12),
               ),
-              if (!complete)
-                TextButton(
-                  onPressed: () => _payInstallment(p, wallet, allWallets),
-                  child: Text(l10n.paylaterPayInstallment),
-                )
-              else
-                Text(
-                  l10n.paylaterComplete,
-                  style: TextStyle(
-                    color: AppColors.income,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+            const SizedBox(height: 8),
+            _LimitBar(ratio: planProgress(p)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    due == null
+                        ? l10n.paylaterPlanProgress(
+                            m(p.installmentAmount),
+                            p.paidCount,
+                            p.totalCount,
+                          )
+                        : l10n.paylaterPlanProgressDue(
+                            m(p.installmentAmount),
+                            formatDate(due),
+                            p.paidCount,
+                            p.totalCount,
+                          ),
+                    style: TextStyle(color: context.textMuted, fontSize: 12),
                   ),
                 ),
-              IconButton(
-                tooltip: l10n.paylaterEditPlan,
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                onPressed: () => _editPlanSheet(p, wallet),
-              ),
-              IconButton(
-                tooltip: l10n.paylaterDeletePlan,
-                icon: const Icon(Icons.delete_outline, size: 20),
-                onPressed: () => _confirmDeletePlan(p),
-              ),
-            ],
-          ),
-        ],
+                if (!complete)
+                  TextButton(
+                    onPressed: () => _payInstallment(p, wallet, allWallets),
+                    child: Text(l10n.paylaterPayInstallment),
+                  )
+                else
+                  Text(
+                    l10n.paylaterComplete,
+                    style: TextStyle(
+                      color: AppColors.income,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                IconButton(
+                  tooltip: l10n.paylaterEditPlan,
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  onPressed: () => _editPlanSheet(p, wallet),
+                ),
+                IconButton(
+                  tooltip: l10n.paylaterDeletePlan,
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  onPressed: () => _confirmDeletePlan(p),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -622,7 +635,9 @@ class _PaylaterDashboardScreenState
                     return Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        AppLocalizations.of(context)!.paylaterNoPlanTransactions,
+                        AppLocalizations.of(
+                          context,
+                        )!.paylaterNoPlanTransactions,
                         style: TextStyle(
                           color: context.textMuted,
                           fontSize: 13,
@@ -633,10 +648,8 @@ class _PaylaterDashboardScreenState
                   return ListView.builder(
                     controller: scrollController,
                     itemCount: txs.length,
-                    itemBuilder: (context, i) => TransactionTile(
-                      details: txs[i],
-                      showDate: true,
-                    ),
+                    itemBuilder: (context, i) =>
+                        TransactionTile(details: txs[i], showDate: true),
                   );
                 },
               ),
@@ -674,6 +687,7 @@ class _PaylaterDashboardScreenState
     );
     if (confirmed == true) {
       await ref.read(databaseProvider).deleteInstallmentPlan(p.id);
+      await _refreshDueReminder(p.walletId);
     }
   }
 
@@ -691,18 +705,25 @@ class _PaylaterDashboardScreenState
     final linked = await db.planTransactions(p.id);
     if (!mounted) return;
     final hasPurchase = linked.any((t) => t.kind == 'expense');
-    final recordedPayments =
-        linked.where((t) => t.kind == 'transfer').length.clamp(0, p.totalCount);
+    final recordedPayments = linked
+        .where((t) => t.kind == 'transfer')
+        .length
+        .clamp(0, p.totalCount);
     final nameCtrl = TextEditingController(text: p.name);
-    final totalCtrl =
-        TextEditingController(text: formatAmountInput(p.totalAmount));
+    final totalCtrl = TextEditingController(
+      text: formatAmountInput(p.totalAmount),
+    );
     final isPreset = const [1, 3, 6, 12].contains(p.totalCount);
     var tenor = isPreset ? p.totalCount : 3;
     var customTenor = !isPreset;
-    final customCtrl =
-        TextEditingController(text: isPreset ? '' : '${p.totalCount}');
-    var selectedDate =
-        DateTime(p.createdAt.year, p.createdAt.month, p.createdAt.day);
+    final customCtrl = TextEditingController(
+      text: isPreset ? '' : '${p.totalCount}',
+    );
+    var selectedDate = DateTime(
+      p.createdAt.year,
+      p.createdAt.month,
+      p.createdAt.day,
+    );
     var paidCountEff = p.paidCount;
     var syncedPaid = false;
     final saved = await showSnackSheet<bool>(
@@ -741,6 +762,36 @@ class _PaylaterDashboardScreenState
               _snack(l10n.paylaterTotalBelowPaid(formatMoney(paidFloor)));
               return;
             }
+            // Raising the total records a bigger purchase, so the
+            // paylater freeze gate applies like it does to Add Plan —
+            // plan edits used to bypass the freeze entirely.
+            if (total > p.totalAmount && AppPrefs.paylaterFrozen) {
+              final unfreeze = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text(
+                    AppLocalizations.of(context)!.paylaterFrozenTitle,
+                  ),
+                  content: Text(
+                    AppLocalizations.of(context)!.paylaterFrozenMessage,
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text(AppLocalizations.of(context)!.commonCancel),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: Text(
+                        AppLocalizations.of(context)!.paylaterUnfreeze,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              if (unfreeze != true) return;
+              await AppPrefs.setPaylaterFrozen(false);
+            }
             final termsChanged =
                 total != p.totalAmount || effectiveTenor != p.totalCount;
             await db.editInstallmentPlan(
@@ -755,10 +806,16 @@ class _PaylaterDashboardScreenState
                     ).monthlyAmount
                   : p.installmentAmount,
               totalCount: effectiveTenor,
-              createdAt: DateTime(selectedDate.year, selectedDate.month,
-                  selectedDate.day, p.createdAt.hour, p.createdAt.minute),
+              createdAt: DateTime(
+                selectedDate.year,
+                selectedDate.month,
+                selectedDate.day,
+                p.createdAt.hour,
+                p.createdAt.minute,
+              ),
               paidCount: syncedPaid ? paidCountEff : null,
             );
+            await _refreshDueReminder(p.walletId);
             if (context.mounted) Navigator.of(context).pop(true);
           },
           children: [
@@ -766,11 +823,13 @@ class _PaylaterDashboardScreenState
               controller: nameCtrl,
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
-                  labelText: AppLocalizations.of(context)!.walletFormName),
+                labelText: AppLocalizations.of(context)!.walletFormName,
+              ),
             ),
             const SizedBox(height: 16),
             FormSectionLabel(
-                AppLocalizations.of(context)!.paylaterTotalAmountLabel),
+              AppLocalizations.of(context)!.paylaterTotalAmountLabel,
+            ),
             if (hasPurchase)
               FormAmountEntry(controller: totalCtrl)
             else ...[
@@ -783,7 +842,8 @@ class _PaylaterDashboardScreenState
             ],
             const SizedBox(height: 16),
             FormSectionLabel(
-                AppLocalizations.of(context)!.paylaterStartDateLabel),
+              AppLocalizations.of(context)!.paylaterStartDateLabel,
+            ),
             // A plain row, not a ListTile: the sheet's glass
             // background would hide a ListTile's ink anyway (the
             // framework asserts about exactly that in debug).
@@ -813,8 +873,7 @@ class _PaylaterDashboardScreenState
               ),
             ),
             const SizedBox(height: 8),
-            FormSectionLabel(
-                AppLocalizations.of(context)!.txPayInInstallments),
+            FormSectionLabel(AppLocalizations.of(context)!.txPayInInstallments),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -838,7 +897,8 @@ class _PaylaterDashboardScreenState
                   ),
                 ChoiceChip(
                   label: Text(
-                      AppLocalizations.of(context)!.paylaterCustomTenor),
+                    AppLocalizations.of(context)!.paylaterCustomTenor,
+                  ),
                   selected: customTenor,
                   selectedColor: context.accent,
                   showCheckmark: false,
@@ -848,8 +908,7 @@ class _PaylaterDashboardScreenState
                         : Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w600,
                   ),
-                  onSelected: (_) =>
-                      setSheetState(() => customTenor = true),
+                  onSelected: (_) => setSheetState(() => customTenor = true),
                 ),
               ],
             ),
@@ -860,8 +919,9 @@ class _PaylaterDashboardScreenState
                 keyboardType: TextInputType.number,
                 maxLength: 2,
                 decoration: InputDecoration(
-                  labelText: AppLocalizations.of(context)!
-                      .paylaterInstallmentCountLabel,
+                  labelText: AppLocalizations.of(
+                    context,
+                  )!.paylaterInstallmentCountLabel,
                   counterText: '',
                 ),
               ),
@@ -885,42 +945,47 @@ class _PaylaterDashboardScreenState
                 return Text(
                   quote == null
                       ? (total <= 0
-                          ? l10n.txEnterAmountBreakdown
-                          : l10n.paylaterEnterCount)
+                            ? l10n.txEnterAmountBreakdown
+                            : l10n.paylaterEnterCount)
                       : quote.totalInterest == null
-                          ? l10n.txInstallmentNoRate(
-                              formatMoney(quote.monthlyAmount))
-                          // gen-l10n orders params alphabetically:
-                          // interest, monthly, total.
-                          : l10n.txInstallmentQuote(
-                              formatMoney(quote.totalInterest!),
-                              formatMoney(quote.monthlyAmount),
-                              formatMoney(quote.totalPayable),
-                            ),
+                      ? l10n.txInstallmentNoRate(
+                          formatMoney(quote.monthlyAmount),
+                        )
+                      // gen-l10n orders params alphabetically:
+                      // interest, monthly, total.
+                      : l10n.txInstallmentQuote(
+                          formatMoney(quote.totalInterest!),
+                          formatMoney(quote.monthlyAmount),
+                          formatMoney(quote.totalPayable),
+                        ),
                   style: TextStyle(color: context.textMuted, fontSize: 13),
                 );
               },
             ),
             const SizedBox(height: 16),
             Text(
-              AppLocalizations.of(context)!
-                  .paylaterEditPaidLine(paidCountEff, p.totalCount),
+              AppLocalizations.of(
+                context,
+              )!.paylaterEditPaidLine(paidCountEff, p.totalCount),
               style: TextStyle(color: context.textMuted, fontSize: 13),
             ),
             if (recordedPayments != paidCountEff) ...[
               const SizedBox(height: 6),
               Row(
                 children: [
-                  const Icon(Icons.warning_amber_outlined,
-                      size: 16, color: Colors.amber),
+                  const Icon(
+                    Icons.warning_amber_outlined,
+                    size: 16,
+                    color: Colors.amber,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      AppLocalizations.of(context)!
-                          .paylaterPaidCountMismatch(
-                              recordedPayments, paidCountEff),
-                      style: TextStyle(
-                          color: context.textMuted, fontSize: 12),
+                      AppLocalizations.of(context)!.paylaterPaidCountMismatch(
+                        recordedPayments,
+                        paidCountEff,
+                      ),
+                      style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                   ),
                   TextButton(
@@ -929,7 +994,8 @@ class _PaylaterDashboardScreenState
                       syncedPaid = true;
                     }),
                     child: Text(
-                        AppLocalizations.of(context)!.paylaterSyncPaidCount),
+                      AppLocalizations.of(context)!.paylaterSyncPaidCount,
+                    ),
                   ),
                 ],
               ),
@@ -986,7 +1052,8 @@ class _PaylaterDashboardScreenState
                 context: context,
                 builder: (context) => AlertDialog(
                   title: Text(
-                      AppLocalizations.of(context)!.paylaterFrozenTitle),
+                    AppLocalizations.of(context)!.paylaterFrozenTitle,
+                  ),
                   content: Text(
                     AppLocalizations.of(context)!.paylaterFrozenMessage,
                   ),
@@ -997,8 +1064,9 @@ class _PaylaterDashboardScreenState
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(true),
-                      child:
-                          Text(AppLocalizations.of(context)!.paylaterUnfreeze),
+                      child: Text(
+                        AppLocalizations.of(context)!.paylaterUnfreeze,
+                      ),
                     ),
                   ],
                 ),
@@ -1006,9 +1074,12 @@ class _PaylaterDashboardScreenState
               if (unfreeze != true) return;
               await AppPrefs.setPaylaterFrozen(false);
             }
-            final planWallet =
-                paylater.firstWhere((w) => w.id == selectedWalletId);
-            await ref.read(databaseProvider).addPlanWithPurchase(
+            final planWallet = paylater.firstWhere(
+              (w) => w.id == selectedWalletId,
+            );
+            await ref
+                .read(databaseProvider)
+                .addPlanWithPurchase(
                   walletId: selectedWalletId,
                   name: name,
                   totalAmount: total,
@@ -1020,6 +1091,7 @@ class _PaylaterDashboardScreenState
                   totalCount: effectiveTenor,
                   categoryId: selectedCategoryId!,
                 );
+            await _refreshDueReminder(selectedWalletId);
             if (context.mounted) Navigator.of(context).pop(true);
           },
           children: [
@@ -1027,25 +1099,26 @@ class _PaylaterDashboardScreenState
               controller: nameCtrl,
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
-                  labelText: AppLocalizations.of(context)!.walletFormName),
+                labelText: AppLocalizations.of(context)!.walletFormName,
+              ),
             ),
             const SizedBox(height: 16),
             FormSectionLabel(
-                AppLocalizations.of(context)!.paylaterPaylaterWalletLabel),
+              AppLocalizations.of(context)!.paylaterPaylaterWalletLabel,
+            ),
             FormChoiceChips<Wallet>(
               options: paylater,
               selected: paylater.firstWhere((w) => w.id == selectedWalletId),
               labelFor: (w) => w.name,
-              onSelected: (w) =>
-                  setSheetState(() => selectedWalletId = w.id),
+              onSelected: (w) => setSheetState(() => selectedWalletId = w.id),
             ),
             const SizedBox(height: 16),
             FormSectionLabel(
-                AppLocalizations.of(context)!.paylaterTotalAmountLabel),
+              AppLocalizations.of(context)!.paylaterTotalAmountLabel,
+            ),
             FormAmountEntry(controller: totalCtrl),
             const SizedBox(height: 16),
-            FormSectionLabel(
-                AppLocalizations.of(context)!.txPayInInstallments),
+            FormSectionLabel(AppLocalizations.of(context)!.txPayInInstallments),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -1067,21 +1140,21 @@ class _PaylaterDashboardScreenState
                       tenor = t;
                     }),
                   ),
-                  ChoiceChip(
-                    label: Text(
-                        AppLocalizations.of(context)!.paylaterCustomTenor),
-                    selected: customTenor,
-                    selectedColor: context.accent,
-                    showCheckmark: false,
-                    labelStyle: TextStyle(
-                      color: customTenor
-                          ? onAccent(context.accent)
-                          : Theme.of(context).colorScheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    onSelected: (_) =>
-                        setSheetState(() => customTenor = true),
+                ChoiceChip(
+                  label: Text(
+                    AppLocalizations.of(context)!.paylaterCustomTenor,
                   ),
+                  selected: customTenor,
+                  selectedColor: context.accent,
+                  showCheckmark: false,
+                  labelStyle: TextStyle(
+                    color: customTenor
+                        ? onAccent(context.accent)
+                        : Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  onSelected: (_) => setSheetState(() => customTenor = true),
+                ),
               ],
             ),
             if (customTenor) ...[
@@ -1091,8 +1164,9 @@ class _PaylaterDashboardScreenState
                 keyboardType: TextInputType.number,
                 maxLength: 2,
                 decoration: InputDecoration(
-                  labelText: AppLocalizations.of(context)!
-                      .paylaterInstallmentCountLabel,
+                  labelText: AppLocalizations.of(
+                    context,
+                  )!.paylaterInstallmentCountLabel,
                   counterText: '',
                 ),
               ),
@@ -1103,8 +1177,9 @@ class _PaylaterDashboardScreenState
               builder: (context, _) {
                 final l10n = AppLocalizations.of(context)!;
                 final total = parseAmountInput(totalCtrl.text);
-                final wallet =
-                    paylater.firstWhere((w) => w.id == selectedWalletId);
+                final wallet = paylater.firstWhere(
+                  (w) => w.id == selectedWalletId,
+                );
                 final effTenor = customTenor
                     ? (int.tryParse(customCtrl.text.trim()) ?? 0)
                     : tenor;
@@ -1118,18 +1193,19 @@ class _PaylaterDashboardScreenState
                 return Text(
                   quote == null
                       ? (total <= 0
-                          ? l10n.txEnterAmountBreakdown
-                          : l10n.paylaterEnterCount)
+                            ? l10n.txEnterAmountBreakdown
+                            : l10n.paylaterEnterCount)
                       : quote.totalInterest == null
-                          ? l10n.txInstallmentNoRate(
-                              formatMoney(quote.monthlyAmount))
-                          // gen-l10n orders params alphabetically:
-                          // interest, monthly, total.
-                          : l10n.txInstallmentQuote(
-                              formatMoney(quote.totalInterest!),
-                              formatMoney(quote.monthlyAmount),
-                              formatMoney(quote.totalPayable),
-                            ),
+                      ? l10n.txInstallmentNoRate(
+                          formatMoney(quote.monthlyAmount),
+                        )
+                      // gen-l10n orders params alphabetically:
+                      // interest, monthly, total.
+                      : l10n.txInstallmentQuote(
+                          formatMoney(quote.totalInterest!),
+                          formatMoney(quote.monthlyAmount),
+                          formatMoney(quote.totalPayable),
+                        ),
                   style: TextStyle(color: context.textMuted, fontSize: 13),
                 );
               },
@@ -1138,8 +1214,7 @@ class _PaylaterDashboardScreenState
             CategoryPickerSection(
               kind: 'expense',
               selectedId: selectedCategoryId,
-              onSelected: (c) =>
-                  setSheetState(() => selectedCategoryId = c.id),
+              onSelected: (c) => setSheetState(() => selectedCategoryId = c.id),
             ),
           ],
         ),
@@ -1152,8 +1227,7 @@ class _PaylaterDashboardScreenState
 
   Widget _costsCard(int monthSpending, int monthRepayments, bool hidden) {
     final l10n = AppLocalizations.of(context)!;
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

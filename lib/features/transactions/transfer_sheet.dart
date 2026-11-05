@@ -3,6 +3,7 @@ import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_motion.dart';
@@ -105,8 +106,8 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
               stream: db.watchWallets(),
               builder: (context, snap) {
                 final wallets = snap.data ?? const <Wallet>[];
-                _fromId ??= wallets.any(
-                        (w) => w.id == widget.initialFromWalletId)
+                _fromId ??=
+                    wallets.any((w) => w.id == widget.initialFromWalletId)
                     ? widget.initialFromWalletId
                     : (wallets.isNotEmpty ? wallets.first.id : null);
                 _toId ??= wallets.length > 1 ? wallets[1].id : null;
@@ -310,6 +311,10 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+    // A transfer into or out of a paylater wallet changes what it
+    // owes — keep its due reminder in sync (no-op for other kinds).
+    await syncPaylaterReminder(db, _fromId!);
+    await syncPaylaterReminder(db, _toId!);
     if (!mounted) return;
     setState(() {
       _successFrom = _centerOf(_fromKey);
@@ -321,9 +326,12 @@ class _TransferSheetState extends ConsumerState<TransferSheet> {
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(fee > 0
+        content: Text(
+          fee > 0
               ? l10n.txTransferredFee(formatMoney(amount), formatMoney(fee))
-              : l10n.txTransferred(formatMoney(amount)))),
+              : l10n.txTransferred(formatMoney(amount)),
+        ),
+      ),
     );
   }
 }
