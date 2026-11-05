@@ -81,6 +81,9 @@ class _AppShellState extends ConsumerState<AppShell> {
           },
         ),
         duration: const Duration(seconds: 8),
+        // Action snackbars persist by default; the snooze-on-timeout
+        // logic below needs the timeout to actually happen.
+        persist: false,
       ),
     );
     // Don't nag: swiping away or timing out snoozes this version.

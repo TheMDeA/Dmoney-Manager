@@ -93,6 +93,9 @@ Future<void> deleteTransactionFlow(
     SnackBar(
       content: Text(l10n.txRecordDeleted),
       duration: const Duration(seconds: 5),
+      // Snackbars with an action persist until dismissed by default —
+      // opt back into the intended 5-second undo window.
+      persist: false,
       action: SnackBarAction(
         label: l10n.txUndo,
         onPressed: () async {

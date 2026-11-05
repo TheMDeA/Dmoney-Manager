@@ -160,6 +160,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             ? l10n.txDeletedWithSkipped(deletable.length, skipped)
             : l10n.txRecordsDeleted(deletable.length)),
         duration: const Duration(seconds: 5),
+        // Action snackbars persist by default; time out as intended.
+        persist: false,
         action: SnackBarAction(
           label: l10n.txUndo,
           onPressed: () async {

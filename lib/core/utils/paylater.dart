@@ -77,6 +77,79 @@ DateTime nextDueDate({required int dueDay, required DateTime from}) {
   return candidate(from.year, from.month + 1);
 }
 
+/// The issue date of the statement whose billing cycle contains
+/// [purchaseDate], for a wallet billed on [statementDay] (1-31,
+/// clamped to the month's length). A cycle runs from the statement
+/// day through the day before the next statement day, and the
+/// statement is issued on its closing day — so a purchase ON the
+/// statement day opens the next cycle (how GoPay Later and SPayLater
+/// both bill).
+DateTime statementDateFor({
+  required DateTime purchaseDate,
+  required int statementDay,
+}) {
+  DateTime statementIn(int year, int month) {
+    final lastDay = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, statementDay.clamp(1, lastDay));
+  }
+
+  final thisMonth = statementIn(purchaseDate.year, purchaseDate.month);
+  final purchaseDay =
+      DateTime(purchaseDate.year, purchaseDate.month, purchaseDate.day);
+  if (purchaseDay.isBefore(thisMonth)) return thisMonth;
+  return statementIn(purchaseDate.year, purchaseDate.month + 1);
+}
+
+/// The due date of the statement issued on [statementDate] for a
+/// wallet due on [dueDay]: the first occurrence of the due day
+/// strictly after the statement date (clamped to the month's
+/// length). A due day after the statement day lands in the same
+/// month (statement 10th → due 25th); on or before it, in the next
+/// month (statement 15th → due 1st; statement 21st → due 1st).
+DateTime dueDateForStatement({
+  required DateTime statementDate,
+  required int dueDay,
+}) {
+  DateTime candidate(int year, int month) {
+    final lastDay = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, dueDay.clamp(1, lastDay));
+  }
+
+  final sameMonth = candidate(statementDate.year, statementDate.month);
+  if (sameMonth.isAfter(statementDate)) return sameMonth;
+  return candidate(statementDate.year, statementDate.month + 1);
+}
+
+/// A paylater wallet's next due date on or after [from], or null
+/// when the wallet has no due day. With a statement day set, due
+/// dates follow the billing cycle — the earliest statement due date
+/// still ahead (statements issue monthly, each due per
+/// [dueDateForStatement]). Without one, the legacy monthly
+/// [nextDueDate] applies, so unconfigured wallets are unchanged.
+DateTime? walletNextDueDate(Wallet w, DateTime from) {
+  final dueDay = w.dueDay;
+  if (dueDay == null) return null;
+  final statementDay = w.statementDay;
+  if (statementDay == null) {
+    return nextDueDate(dueDay: dueDay, from: from);
+  }
+  final today = DateTime(from.year, from.month, from.day);
+  DateTime? best;
+  for (var offset = -2; offset <= 2; offset++) {
+    final lastDay = DateTime(from.year, from.month + offset + 1, 0).day;
+    final statement = DateTime(
+      from.year,
+      from.month + offset,
+      statementDay.clamp(1, lastDay),
+    );
+    final due = dueDateForStatement(statementDate: statement, dueDay: dueDay);
+    if (!due.isBefore(today) && (best == null || due.isBefore(best))) {
+      best = due;
+    }
+  }
+  return best ?? nextDueDate(dueDay: dueDay, from: from);
+}
+
 /// The paylater wallet whose bill comes due soonest, with its due date.
 /// Only wallets with an outstanding amount and a due day set are eligible;
 /// null when nothing is due.
@@ -86,8 +159,9 @@ DateTime nextDueDate({required int dueDay, required DateTime from}) {
 ) {
   ({Wallet wallet, DateTime dueDate})? best;
   for (final w in paylaterWallets(wallets)) {
-    if (paylaterOutstanding(w) <= 0 || w.dueDay == null) continue;
-    final due = nextDueDate(dueDay: w.dueDay!, from: now);
+    if (paylaterOutstanding(w) <= 0) continue;
+    final due = walletNextDueDate(w, now);
+    if (due == null) continue;
     if (best == null || due.isBefore(best.dueDate)) {
       best = (wallet: w, dueDate: due);
     }
@@ -100,8 +174,9 @@ DateTime nextDueDate({required int dueDay, required DateTime from}) {
 int dueThisCycle(List<Wallet> wallets, DateTime now) {
   var sum = 0;
   for (final w in paylaterWallets(wallets)) {
-    if (paylaterOutstanding(w) <= 0 || w.dueDay == null) continue;
-    final due = nextDueDate(dueDay: w.dueDay!, from: now);
+    if (paylaterOutstanding(w) <= 0) continue;
+    final due = walletNextDueDate(w, now);
+    if (due == null) continue;
     if (due.year == now.year && due.month == now.month) {
       sum += paylaterOutstanding(w);
     }
@@ -271,17 +346,49 @@ InstallmentPlan? singlePayablePlan(List<InstallmentPlan> plans, int walletId) {
   return candidates.length == 1 ? candidates.single : null;
 }
 
-/// Due date of a plan's next unpaid installment: the wallet's due day
-/// in the (paidCount + 1)-th month after the plan's creation month —
-/// the first installment falls due the month after creation, each
-/// following one a month later. When the wallet has no due day, the
-/// plan's creation day is used instead. Days past a short month's end
-/// clamp to its last day, same as [nextDueDate]. Returns null for
+/// Due date of a plan's next unpaid installment. Returns null for
 /// complete plans. A date in the past means that installment is
 /// overdue; it is shown as-is rather than rolled forward, so the
 /// schedule never mislabels which installment is due.
-DateTime? nextInstallmentDueDate(InstallmentPlan plan, int? walletDueDay) {
+///
+/// With the wallet's statement day AND due day set, installments
+/// follow the provider's billing cycle: the first is billed on the
+/// statement whose cycle contains the purchase ([statementDateFor]),
+/// each following one a statement later, and each is due on its
+/// statement's due date ([dueDateForStatement]). So a purchase made
+/// after the statement day waits for the next statement instead of
+/// coming due a month early.
+///
+/// Without a statement day, the legacy anchoring applies: the
+/// wallet's due day in the (paidCount + 1)-th month after the plan's
+/// creation month — the first installment falls due the month after
+/// creation, each following one a month later. When the wallet has
+/// no due day either, the plan's creation day is used instead. Days
+/// past a short month's end clamp to its last day, same as
+/// [nextDueDate].
+DateTime? nextInstallmentDueDate(
+  InstallmentPlan plan,
+  int? walletDueDay, {
+  int? walletStatementDay,
+}) {
   if (plan.paidCount >= plan.totalCount) return null;
+  if (walletStatementDay != null && walletDueDay != null) {
+    final first = statementDateFor(
+      purchaseDate: plan.createdAt,
+      statementDay: walletStatementDay,
+    );
+    final lastDay =
+        DateTime(first.year, first.month + plan.paidCount + 1, 0).day;
+    final statement = DateTime(
+      first.year,
+      first.month + plan.paidCount,
+      walletStatementDay.clamp(1, lastDay),
+    );
+    return dueDateForStatement(
+      statementDate: statement,
+      dueDay: walletDueDay,
+    );
+  }
   final day = walletDueDay ?? plan.createdAt.day;
   final year = plan.createdAt.year;
   final month = plan.createdAt.month + plan.paidCount + 1;

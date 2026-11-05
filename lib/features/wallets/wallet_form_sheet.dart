@@ -241,10 +241,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
           walletId: wallet.id,
           walletName: wallet.name,
           amount: paylaterOutstanding(wallet),
-          dueDate: nextDueDate(
-            dueDay: wallet.dueDay!,
-            from: DateTime.now(),
-          ),
+          dueDate: walletNextDueDate(wallet, DateTime.now())!,
         );
       } else {
         await NotificationService.cancelPaylaterReminder(walletId);
