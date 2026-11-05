@@ -2385,6 +2385,18 @@ abstract class AppLocalizations {
   /// **'Not a Dmoney Manager backup file.'**
   String get backupNotDmoneyFile;
 
+  /// No description provided for @backupFromNewerApp.
+  ///
+  /// In en, this message translates to:
+  /// **'This backup was made by a newer version of Dmoney Manager. Update the app first.'**
+  String get backupFromNewerApp;
+
+  /// No description provided for @backupDatabaseCorrupt.
+  ///
+  /// In en, this message translates to:
+  /// **'The database inside this backup is damaged or missing.'**
+  String get backupDatabaseCorrupt;
+
   /// Tooltip of the calculator button in AmountField.
   ///
   /// In en, this message translates to:
@@ -3404,6 +3416,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pay installment'**
   String get paylaterPayInstallment;
+
+  /// No description provided for @paylaterPayInstallments.
+  ///
+  /// In en, this message translates to:
+  /// **'Pay installments'**
+  String get paylaterPayInstallments;
 
   /// No description provided for @paylaterPaylaterWalletLabel.
   ///
