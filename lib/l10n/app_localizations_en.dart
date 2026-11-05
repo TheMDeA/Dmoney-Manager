@@ -1916,6 +1916,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paylaterEnterTotal => 'Enter the total amount';
 
   @override
+  String get paylaterEnterCount => 'Enter the number of installments';
+
+  @override
+  String get paylaterCustomTenor => 'Custom';
+
+  @override
   String get paylaterFreezeSubtitle =>
       'While frozen, new expenses on paylater wallets are blocked until you unfreeze.';
 
@@ -2005,6 +2011,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paylaterPlanAdded => 'Installment plan added';
 
   @override
+  String get paylaterEditPlan => 'Edit plan';
+
+  @override
+  String get paylaterEditPlanTitle => 'Edit installment plan';
+
+  @override
+  String get paylaterPlanUpdated => 'Installment plan updated';
+
+  @override
+  String get paylaterStartDateLabel => 'Start date';
+
+  @override
+  String get paylaterNoLinkedPurchaseNote =>
+      'No purchase is linked to this plan, so its total can\'t be changed.';
+
+  @override
+  String paylaterTotalBelowPaid(String amount) {
+    return 'The total can\'t be below the $amount already paid';
+  }
+
+  @override
+  String paylaterCountBelowPaid(int count) {
+    return 'Already $count paid — the count can\'t be lower than that';
+  }
+
+  @override
+  String paylaterEditPaidLine(int paid, int total) {
+    return 'Paid: $paid of $total';
+  }
+
+  @override
+  String paylaterPaidCountMismatch(int recorded, int set) {
+    return 'The counter says $set paid, but $recorded payments are recorded.';
+  }
+
+  @override
+  String get paylaterSyncPaidCount => 'Sync counter';
+
+  @override
   String paylaterPlanProgress(Object amount, Object paid, Object total) {
     return '$paid of $total paid · $amount/mo';
   }
@@ -2021,9 +2066,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paylaterPlans => 'Installment plans';
-
-  @override
-  String get paylaterPlansNeed2 => 'Plans need at least 2 installments';
 
   @override
   String get paylaterProviders => 'Providers';
