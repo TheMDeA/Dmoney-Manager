@@ -40,20 +40,19 @@ int totalPaylaterOutstanding(List<Wallet> wallets) =>
 int paylaterRepayments(
   Iterable<Transaction> transactions,
   Set<int> paylaterIds,
-) =>
-    transactions
-        .where(
-          (t) =>
-              t.kind == 'transfer' &&
-              t.toWalletId != null &&
-              paylaterIds.contains(t.toWalletId),
-        )
-        .fold(0, (s, t) => s + t.amount);
+) => transactions
+    .where(
+      (t) =>
+          t.kind == 'transfer' &&
+          t.toWalletId != null &&
+          paylaterIds.contains(t.toWalletId),
+    )
+    .fold(0, (s, t) => s + t.amount);
 
 /// Combined credit limit across paylater wallets that have one set.
-int totalPaylaterLimit(List<Wallet> wallets) => paylaterWallets(wallets)
-    .where((w) => w.creditLimit != null)
-    .fold(0, (s, w) => s + w.creditLimit!);
+int totalPaylaterLimit(List<Wallet> wallets) => paylaterWallets(
+  wallets,
+).where((w) => w.creditLimit != null).fold(0, (s, w) => s + w.creditLimit!);
 
 /// Fraction of the limit used, or null when no limit is set anywhere.
 double? paylaterLimitUsedRatio(List<Wallet> wallets) {
@@ -94,8 +93,11 @@ DateTime statementDateFor({
   }
 
   final thisMonth = statementIn(purchaseDate.year, purchaseDate.month);
-  final purchaseDay =
-      DateTime(purchaseDate.year, purchaseDate.month, purchaseDate.day);
+  final purchaseDay = DateTime(
+    purchaseDate.year,
+    purchaseDate.month,
+    purchaseDate.day,
+  );
   if (purchaseDay.isBefore(thisMonth)) return thisMonth;
   return statementIn(purchaseDate.year, purchaseDate.month + 1);
 }
@@ -236,7 +238,7 @@ TenorQuote calcTenor({
 /// Never for edits, transfers, income, or non-paylater wallets: those
 /// flows have no tenor context and must never spawn plans.
 ({String name, int totalAmount, int installmentAmount, int totalCount})?
-    autoPlanParams({
+autoPlanParams({
   required bool isNew,
   required String transactionKind,
   required String walletKind,
@@ -263,8 +265,8 @@ TenorQuote calcTenor({
   final name = trimmedNote.isNotEmpty
       ? trimmedNote
       : trimmedCategory.isNotEmpty
-          ? trimmedCategory
-          : 'Paylater installment';
+      ? trimmedCategory
+      : 'Paylater installment';
   return (
     name: name,
     totalAmount: amount,
@@ -273,9 +275,25 @@ TenorQuote calcTenor({
   );
 }
 
+/// The plan's full obligation: everything the user committed to pay
+/// over the plan's life. [InstallmentPlan.totalAmount] records the
+/// purchase principal, but for a plan on a wallet with a monthly rate
+/// the quoted monthly amount carries the fee — the obligation is the
+/// monthly amount times the count (the quote's total payable). Keying
+/// the remaining off the principal instead made rated plans hit zero
+/// before their counter finished, so they could never complete.
+int planObligation(InstallmentPlan p) {
+  final byInstallments = p.installmentAmount * p.totalCount;
+  return byInstallments > p.totalAmount ? byInstallments : p.totalAmount;
+}
+
 /// Remaining balance on an installment plan (never below zero).
 int planRemaining(InstallmentPlan p) {
-  final remaining = p.totalAmount - p.paidCount * p.installmentAmount;
+  // A completed plan owes nothing by definition: the counter tracks
+  // installments, and the final one settles the exact residue, which
+  // paidCount × installmentAmount can't reproduce.
+  if (p.paidCount >= p.totalCount) return 0;
+  final remaining = planObligation(p) - p.paidCount * p.installmentAmount;
   return remaining < 0 ? 0 : remaining;
 }
 
@@ -292,8 +310,7 @@ bool isPaylaterSpendBlocked({
   required bool frozen,
   required String walletKind,
   required bool isNewExpense,
-}) =>
-    frozen && isNewExpense && walletKind == 'paylater';
+}) => frozen && isNewExpense && walletKind == 'paylater';
 
 /// Whether recording income on a wallet must be blocked: a paylater
 /// wallet can never receive income. Income would push its balance
@@ -305,8 +322,7 @@ bool isPaylaterSpendBlocked({
 bool isIncomeToPaylaterBlocked({
   required String walletKind,
   required String kind,
-}) =>
-    walletKind == 'paylater' && kind == 'income';
+}) => walletKind == 'paylater' && kind == 'income';
 
 /// Overpay produced by transferring [amount] into a paylater wallet
 /// whose current balance is [balance]: the positive part of the
@@ -325,14 +341,17 @@ int paylaterTransferOverpay(int balance, int amount) {
 /// paid off.
 int installmentDueAmount(InstallmentPlan p) {
   final remaining = planRemaining(p);
+  // The final installment settles whatever is left, absorbing the
+  // rounding residue from dividing the total by the count — without
+  // this, a 100.000 / 3 plan ended with Rp 1 still owed forever.
+  if (p.paidCount >= p.totalCount - 1) return remaining;
   return p.installmentAmount < remaining ? p.installmentAmount : remaining;
 }
 
 /// The single plan a due-card payment should act on: the wallet's only
 /// plan that still has an installment to pay. Returns null when there
-/// is no such plan — no plans, several plans (one payment cannot be
-/// attributed to one of them), or a plan whose counter has a rounding
-/// leftover but nothing left to pay. Callers fall back to the full
+/// is no such plan — no plans, or several plans (one payment cannot
+/// be attributed to one of them). Callers fall back to the full
 /// outstanding amount in that case.
 InstallmentPlan? singlePayablePlan(List<InstallmentPlan> plans, int walletId) {
   final candidates = plans
@@ -344,6 +363,49 @@ InstallmentPlan? singlePayablePlan(List<InstallmentPlan> plans, int walletId) {
       )
       .toList();
   return candidates.length == 1 ? candidates.single : null;
+}
+
+/// The installments that fall due together on a wallet's next due
+/// date: every payable plan whose next installment lands on the
+/// earliest such date, with the summed amount. The Next due card
+/// pays exactly this group — it used to fall back to the wallet's
+/// full outstanding whenever more than one plan existed, claiming
+/// money was due that day that wasn't (a later plan's installments,
+/// future installments of multi-month plans). Returns null when the
+/// wallet has no payable plan, or no due day to anchor dates to —
+/// callers then fall back to the full-outstanding bill behavior.
+({List<InstallmentPlan> plans, DateTime dueDate, int amount})?
+dueInstallmentGroup(List<InstallmentPlan> plans, Wallet wallet) {
+  if (wallet.dueDay == null) return null;
+  final dated = <(InstallmentPlan, DateTime)>[];
+  for (final p in plans) {
+    if (p.walletId != wallet.id) continue;
+    if (p.paidCount >= p.totalCount) continue;
+    if (installmentDueAmount(p) <= 0) continue;
+    final d = nextInstallmentDueDate(
+      p,
+      wallet.dueDay,
+      walletStatementDay: wallet.statementDay,
+    );
+    if (d == null) continue;
+    dated.add((p, d));
+  }
+  if (dated.isEmpty) return null;
+  bool sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+  var earliest = dated.first.$2;
+  for (final e in dated) {
+    if (e.$2.isBefore(earliest)) earliest = e.$2;
+  }
+  final group = [
+    for (final e in dated)
+      if (sameDay(e.$2, earliest)) e.$1,
+  ];
+  return (
+    plans: group,
+    dueDate: earliest,
+    amount: group.fold(0, (sum, p) => sum + installmentDueAmount(p)),
+  );
 }
 
 /// Due date of a plan's next unpaid installment. Returns null for
@@ -377,17 +439,17 @@ DateTime? nextInstallmentDueDate(
       purchaseDate: plan.createdAt,
       statementDay: walletStatementDay,
     );
-    final lastDay =
-        DateTime(first.year, first.month + plan.paidCount + 1, 0).day;
+    final lastDay = DateTime(
+      first.year,
+      first.month + plan.paidCount + 1,
+      0,
+    ).day;
     final statement = DateTime(
       first.year,
       first.month + plan.paidCount,
       walletStatementDay.clamp(1, lastDay),
     );
-    return dueDateForStatement(
-      statementDate: statement,
-      dueDay: walletDueDay,
-    );
+    return dueDateForStatement(statementDate: statement, dueDay: walletDueDay);
   }
   final day = walletDueDay ?? plan.createdAt.day;
   final year = plan.createdAt.year;

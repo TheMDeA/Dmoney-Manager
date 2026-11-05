@@ -3,12 +3,10 @@ import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' show Value;
 
-import '../../core/services/app_prefs.dart';
-import '../../core/services/notification_service.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
-import '../../core/utils/paylater.dart';
 import '../../core/widgets/form_sheet.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
@@ -93,10 +91,10 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
     final e = widget.existing;
     _nameCtrl = TextEditingController(text: e?.name ?? '');
     _initialCtrl = TextEditingController();
-    _limitCtrl =
-        TextEditingController(text: e?.creditLimit?.toString() ?? '');
-    _statementDayCtrl =
-        TextEditingController(text: e?.statementDay?.toString() ?? '');
+    _limitCtrl = TextEditingController(text: e?.creditLimit?.toString() ?? '');
+    _statementDayCtrl = TextEditingController(
+      text: e?.statementDay?.toString() ?? '',
+    );
     _dueDayCtrl = TextEditingController(text: e?.dueDay?.toString() ?? '');
     _rateCtrl = TextEditingController(
       text: e?.interestRateMonthly == null
@@ -163,8 +161,10 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
         return day;
       }
 
-      statementDay =
-          parseDay(_statementDayCtrl.text, l10n.walletFormStatementDayLabel);
+      statementDay = parseDay(
+        _statementDayCtrl.text,
+        l10n.walletFormStatementDayLabel,
+      );
       if (statementDay == -1) return;
       dueDay = parseDay(_dueDayCtrl.text, l10n.walletFormDueDayLabel);
       if (dueDay == -1) return;
@@ -227,25 +227,9 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
           interestRateAnnual: annualRate,
         );
       }
-      // Keep the due-date reminder in sync, mirroring the debt flow:
-      // scheduled when something is owed with a due day, cancelled
-      // otherwise (paid off, day cleared, reminders off, not paylater).
+      // Keep the due-date reminder in sync with what the wallet owes.
       // walletId is assigned on both paths above, so it is non-null here.
-      final wallet = await db.getWalletById(walletId);
-      if (wallet != null &&
-          wallet.kind == 'paylater' &&
-          wallet.dueDay != null &&
-          paylaterOutstanding(wallet) > 0 &&
-          AppPrefs.paylaterReminders) {
-        await NotificationService.schedulePaylaterReminder(
-          walletId: wallet.id,
-          walletName: wallet.name,
-          amount: paylaterOutstanding(wallet),
-          dueDate: walletNextDueDate(wallet, DateTime.now())!,
-        );
-      } else {
-        await NotificationService.cancelPaylaterReminder(walletId);
-      }
+      await syncPaylaterReminder(db, walletId);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -297,8 +281,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
         }
         return FormSheet(
           title: _editing ? l10n.walletEditWallet : l10n.walletAddWallet,
-          actionLabel:
-              _editing ? l10n.commonSaveChanges : l10n.walletAddWallet,
+          actionLabel: _editing ? l10n.commonSaveChanges : l10n.walletAddWallet,
           onAction: _save,
           busy: _saving,
           children: [
@@ -443,8 +426,7 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    for (final brand in group.value)
-                      _brandOption(brand),
+                    for (final brand in group.value) _brandOption(brand),
                   ],
                 ),
               ),
