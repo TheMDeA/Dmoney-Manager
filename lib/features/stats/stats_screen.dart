@@ -1329,7 +1329,14 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                 ),
             ],
           ),
-          Row(
+          // A Wrap, not a Row: with an 8-digit total, a 7-digit delta
+          // and the "vs Jun" baseline, the pill no longer fits beside
+          // the number and overflowed the card's edge — it now drops
+          // to its own line only when it has to.
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               CountUpMoney(
                 amount: currentTotal,
@@ -1339,7 +1346,6 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                   color: context.textPrimary,
                 ),
               ),
-              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(

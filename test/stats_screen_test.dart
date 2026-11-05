@@ -125,4 +125,56 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 100));
   });
+
+  testWidgets('net worth pill never overflows at phone width',
+      (tester) async {
+    // A 400dp-wide surface (typical phone) and magnitudes mirroring a
+    // real report: 8-digit total, 7-digit negative delta. The pill used
+    // to be pushed off the card's right edge in a plain Row.
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final account = await (db.select(db.accounts)..limit(1)).getSingle();
+    final expenseCat = await (db.select(db.categories)
+          ..where((c) => c.kind.equals('expense'))
+          ..limit(1))
+        .getSingle();
+    final big = await db.createWallet(
+      accountId: account.id,
+      name: 'Big',
+      kind: 'bank',
+      initialAmount: 93238663,
+    );
+    await db.addTransaction(TransactionsCompanion.insert(
+      walletId: big,
+      categoryId: expenseCat.id,
+      kind: 'expense',
+      amount: 1389067,
+      date: DateTime.now(),
+    ));
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [databaseProvider.overrideWithValue(db)],
+      child: const MaterialApp(localizationsDelegates: AppLocalizations.localizationsDelegates, supportedLocales: AppLocalizations.supportedLocales, home: StatsScreen()),
+    ));
+    await settle(tester);
+
+    await tester.ensureVisible(find.text('Total net worth'));
+    await settle(tester);
+    // Any RenderFlex overflow in the header row lands here as an error.
+    expect(tester.takeException(), isNull);
+
+    // The full pill text, baseline included, is present and unclipped.
+    // Combined with the fixture wallet: total 91.924.596, first window
+    // month 93.338.663 -> delta -1.414.067 = -1.5%.
+    final now = DateTime.now();
+    final firstLabel =
+        DateFormat.MMM('en').format(DateTime(now.year, now.month - 5));
+    expect(find.textContaining('vs $firstLabel'), findsOneWidget);
+    expect(find.textContaining('-1.5%'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 100));
+  });
 }
