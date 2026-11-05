@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/core/widgets/form_sheet.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,12 +31,12 @@ class TransactionsScreen extends ConsumerStatefulWidget {
   final DateTime? initialMonth;
 
   @override
-  ConsumerState<TransactionsScreen> createState() =>
-      _TransactionsScreenState();
+  ConsumerState<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
 class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
-  late DateTime _month = widget.initialMonth ??
+  late DateTime _month =
+      widget.initialMonth ??
       DateTime(DateTime.now().year, DateTime.now().month);
   var _view = 'month'; // 'month' | 'all'
   final _scrollController = ScrollController();
@@ -54,8 +55,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   }
 
   void _shift(int delta) => setState(() {
-        _month = DateTime(_month.year, _month.month + delta);
-      });
+    _month = DateTime(_month.year, _month.month + delta);
+  });
 
   Future<void> _pickMonth() async {
     final picked = await showMonthYearPicker(context, _month);
@@ -83,13 +84,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
   void _selectAll() {
     Haptics.select();
-    setState(() =>
-        _selected.addAll(_latestItems.map((d) => d.transaction.id)));
+    setState(() => _selected.addAll(_latestItems.map((d) => d.transaction.id)));
   }
 
-  List<TransactionWithDetails> get _targets => _latestItems
-      .where((d) => _selected.contains(d.transaction.id))
-      .toList();
+  List<TransactionWithDetails> get _targets =>
+      _latestItems.where((d) => _selected.contains(d.transaction.id)).toList();
 
   /// Bulk delete with a single undo that restores everything.
   /// Debt-linked entries can't be deleted here — they're skipped.
@@ -97,14 +96,15 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final db = ref.read(databaseProvider);
     final targets = _targets;
-    final deletable =
-        targets.where((d) => d.transaction.debtId == null).toList();
+    final deletable = targets
+        .where((d) => d.transaction.debtId == null)
+        .toList();
     final skipped = targets.length - deletable.length;
     if (deletable.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.txDebtDeleteHere)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.txDebtDeleteHere)));
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -114,16 +114,17 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         content: Text(l10n.txUndoDeleteHint),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.commonCancel)),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.commonCancel),
+          ),
           FilledButton(
             onPressed: () {
               Haptics.medium();
               Navigator.pop(context, true);
             },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            child: Text(l10n.commonDelete)),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
+            child: Text(l10n.commonDelete),
+          ),
         ],
       ),
     );
@@ -141,10 +142,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
       // transfer before the rows that reference it).
       if (d.transaction.kind == 'transfer') {
         for (final f in await db.transferFeeRows(d.transaction.id)) {
-          backup.add((
-            t: f,
-            photos: await db.watchPhotos(f.id).first,
-          ));
+          backup.add((t: f, photos: await db.watchPhotos(f.id).first));
         }
       }
     }
@@ -156,9 +154,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     messenger.clearSnackBars();
     messenger.showSnackBar(
       SnackBar(
-        content: Text(skipped > 0
-            ? l10n.txDeletedWithSkipped(deletable.length, skipped)
-            : l10n.txRecordsDeleted(deletable.length)),
+        content: Text(
+          skipped > 0
+              ? l10n.txDeletedWithSkipped(deletable.length, skipped)
+              : l10n.txRecordsDeleted(deletable.length),
+        ),
         duration: const Duration(seconds: 5),
         // Action snackbars persist by default; time out as intended.
         persist: false,
@@ -188,23 +188,22 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final targets = _targets;
     final kinds = {for (final d in targets) d.transaction.kind};
-    final uniform = targets.isNotEmpty &&
+    final uniform =
+        targets.isNotEmpty &&
         kinds.length == 1 &&
         (kinds.first == 'income' || kinds.first == 'expense') &&
         targets.every((d) => d.transaction.debtId == null);
     if (!uniform) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.txSelectOneType)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.txSelectOneType)));
       return;
     }
     final picked = await Navigator.of(context).push<Category>(
       AppPageRoute(
-        builder: (_) => SelectCategoryScreen(
-          initialKind: kinds.first,
-          lockKind: true,
-        ),
+        builder: (_) =>
+            SelectCategoryScreen(initialKind: kinds.first, lockKind: true),
       ),
     );
     if (picked == null || !mounted) return;
@@ -239,8 +238,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final accountId = ref.watch(selectedAccountProvider);
     final all = _view == 'all';
     final start = DateTime(_month.year, _month.month);
-    final end = DateTime(_month.year, _month.month + 1)
-        .subtract(const Duration(seconds: 1));
+    final end = DateTime(
+      _month.year,
+      _month.month + 1,
+    ).subtract(const Duration(seconds: 1));
     final selecting = _selected.isNotEmpty;
     // Back exits selection mode first; the route only pops when idle.
     return PopScope(
@@ -249,131 +250,129 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         if (!didPop && _selected.isNotEmpty) _clearSelection();
       },
       child: Scaffold(
-      appBar: selecting
-          ? AppBar(
-              leading: IconButton(
-                tooltip: l10n.txClearSelection,
-                icon: const Icon(Icons.close),
-                onPressed: _clearSelection,
+        appBar: selecting
+            ? AppBar(
+                leading: IconButton(
+                  tooltip: l10n.txClearSelection,
+                  icon: const Icon(Icons.close),
+                  onPressed: _clearSelection,
+                ),
+                title: Text(l10n.txSelected(_selected.length)),
+                actions: [
+                  IconButton(
+                    tooltip: l10n.txSelectAll,
+                    icon: const Icon(Icons.select_all),
+                    onPressed: _selectAll,
+                  ),
+                  IconButton(
+                    tooltip: l10n.commonDelete,
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: _bulkDelete,
+                  ),
+                  IconButton(
+                    tooltip: l10n.txChangeCategory,
+                    icon: const Icon(Icons.category_outlined),
+                    onPressed: _bulkRecategorize,
+                  ),
+                ],
+              )
+            : AppBar(
+                title: Text(l10n.txTransactions),
+                actions: [
+                  if (!all)
+                    IconButton(
+                      tooltip: l10n.txPickMonth,
+                      icon: const Icon(Icons.calendar_month_outlined),
+                      onPressed: _pickMonth,
+                    ),
+                ],
               ),
-              title: Text(l10n.txSelected(_selected.length)),              actions: [
-                IconButton(
-                  tooltip: l10n.txSelectAll,
-                  icon: const Icon(Icons.select_all),
-                  onPressed: _selectAll,
-                ),
-                IconButton(
-                  tooltip: l10n.commonDelete,
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: _bulkDelete,
-                ),
-                IconButton(
-                  tooltip: l10n.txChangeCategory,
-                  icon: const Icon(Icons.category_outlined),
-                  onPressed: _bulkRecategorize,
-                ),
-              ],
-            )
-          : AppBar(
-        title: Text(l10n.txTransactions),
-        actions: [
-          if (!all)
-            IconButton(
-              tooltip: l10n.txPickMonth,
-              icon: const Icon(Icons.calendar_month_outlined),
-              onPressed: _pickMonth,
-            ),
-        ],
-      ),
-      body: StreamBuilder<List<TransactionWithDetails>>(
-        stream: all
-            ? db.watchTransactions(accountId: accountId)
-            : db.watchTransactionsInRange(start, end,
-                accountId: accountId),
-        builder: (context, snap) {
-          final items = snap.data ?? const <TransactionWithDetails>[];
-          _latestItems = items;
-          var income = 0;
-          var expense = 0;
-          for (final d in items) {
-            final t = d.transaction;
-            if (t.kind == 'income') {
-              income += t.amount;
-            } else if (t.kind == 'expense') {
-              expense += t.amount;
+        body: StreamBuilder<List<TransactionWithDetails>>(
+          stream: all
+              ? db.watchTransactions(accountId: accountId)
+              : db.watchTransactionsInRange(start, end, accountId: accountId),
+          builder: (context, snap) {
+            final items = snap.data ?? const <TransactionWithDetails>[];
+            _latestItems = items;
+            var income = 0;
+            var expense = 0;
+            for (final d in items) {
+              final t = d.transaction;
+              if (t.kind == 'income') {
+                income += t.amount;
+              } else if (t.kind == 'expense') {
+                expense += t.amount;
+              }
             }
-          }
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                child: Center(
-                  child: SlidingSegmented<String>(
-                    values: const ['month', 'all'],
-                    labels: [l10n.txMonth, l10n.commonAll],
-                    selected: _view,
-                    onChanged: _setView,
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: Center(
+                    child: SlidingSegmented<String>(
+                      values: const ['month', 'all'],
+                      labels: [l10n.txMonth, l10n.commonAll],
+                      selected: _view,
+                      onChanged: _setView,
+                    ),
                   ),
                 ),
-              ),
-              if (!all)
-                MonthSelector(
-                  month: _month,
-                  onShift: _shift,
-                  onPick: _pickMonth,
-                ),
-              MonthOverview(income: income, expense: expense),
-              Expanded(
-                child: !snap.hasData
-                    ? const SkeletonTransactionList()
-                    : items.isEmpty
-                        ? EmptyState(
-                            icon: Icons.receipt_long_outlined,
-                            title: l10n.txNoTransactions,
-                            message: all
-                                ? l10n.txNothingYet
-                                : l10n.txNothingThisMonth,
-                            actionLabel: l10n.txAddTransaction,
-                            onAction: () => showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              builder: (_) =>
-                                  const AddTransactionSheet(),
-                            ),
-                          )
-                        : CoinRefreshIndicator(
-                            onRefresh: () async {
-                              Haptics.light();
-                              // Local-first data: the streams are already live.
-                              // The gesture still gets its satisfying snap.
-                              await Future.delayed(
-                                  const Duration(milliseconds: 450));
-                            },
-                            child: all
-                                ? DateScrubber(
-                                    controller: _scrollController,
-                                    itemDates: [
-                                      for (final d in items)
-                                        d.transaction.date,
-                                    ],
-                                    child: GroupedTransactionList(
-                                      items: items,
-                                      controller: _scrollController,
-                                      selectedIds: _selected,
-                                      onToggleSelected: _toggleSelect,
-                                    ),
-                                  )
-                                : GroupedTransactionList(
+                if (!all)
+                  MonthSelector(
+                    month: _month,
+                    onShift: _shift,
+                    onPick: _pickMonth,
+                  ),
+                MonthOverview(income: income, expense: expense),
+                Expanded(
+                  child: !snap.hasData
+                      ? const SkeletonTransactionList()
+                      : items.isEmpty
+                      ? EmptyState(
+                          icon: Icons.receipt_long_outlined,
+                          title: l10n.txNoTransactions,
+                          message: all
+                              ? l10n.txNothingYet
+                              : l10n.txNothingThisMonth,
+                          actionLabel: l10n.txAddTransaction,
+                          onAction: () => showSnackSheet(
+                            context,
+                            (_) => const AddTransactionSheet(),
+                          ),
+                        )
+                      : CoinRefreshIndicator(
+                          onRefresh: () async {
+                            Haptics.light();
+                            // Local-first data: the streams are already live.
+                            // The gesture still gets its satisfying snap.
+                            await Future.delayed(
+                              const Duration(milliseconds: 450),
+                            );
+                          },
+                          child: all
+                              ? DateScrubber(
+                                  controller: _scrollController,
+                                  itemDates: [
+                                    for (final d in items) d.transaction.date,
+                                  ],
+                                  child: GroupedTransactionList(
                                     items: items,
+                                    controller: _scrollController,
                                     selectedIds: _selected,
                                     onToggleSelected: _toggleSelect,
                                   ),
-                          ),
-              ),
-            ],
-          );
-        },
-      ),
+                                )
+                              : GroupedTransactionList(
+                                  items: items,
+                                  selectedIds: _selected,
+                                  onToggleSelected: _toggleSelect,
+                                ),
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

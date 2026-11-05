@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dmoney_manager/core/widgets/form_sheet.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math' as math;
@@ -88,11 +89,9 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          builder: (_) =>
-              AddTransactionSheet(initialWalletId: _walletId),
+        onPressed: () => showSnackSheet(
+          context,
+          (_) => AddTransactionSheet(initialWalletId: _walletId),
         ),
         child: const Icon(Icons.add),
       ),
@@ -121,8 +120,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           }
           if (wallet == null) {
             return Center(
-              child: Text(l10n.walletWalletNotFound,
-                  style: TextStyle(color: context.textMuted)),
+              child: Text(
+                l10n.walletWalletNotFound,
+                style: TextStyle(color: context.textMuted),
+              ),
             );
           }
           final w = wallet;
@@ -148,8 +149,9 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     final income = txs.where((d) => d.transaction.kind == 'income').toList();
     final expense = txs.where((d) => d.transaction.kind == 'expense').toList();
-    final transfer =
-        txs.where((d) => d.transaction.kind == 'transfer').toList();
+    final transfer = txs
+        .where((d) => d.transaction.kind == 'transfer')
+        .toList();
 
     // Privacy mode: balances and totals mask, transaction amounts stay.
     final hidden = ref.watch(balanceHiddenProvider);
@@ -169,8 +171,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     final actuals = interestId == null
         ? null
         : (
-            year: interestEarned(txs, interestId,
-                year: DateTime.now().year),
+            year: interestEarned(txs, interestId, year: DateTime.now().year),
             total: interestEarned(txs, interestId),
           );
 
@@ -205,8 +206,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               _switchWallet(context, allWallets);
             },
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -219,8 +219,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Icon(Icons.keyboard_arrow_down,
-                      color: context.textMuted),
+                  Icon(Icons.keyboard_arrow_down, color: context.textMuted),
                 ],
               ),
             ),
@@ -257,31 +256,43 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(28)),
+                  borderRadius: BorderRadius.circular(28),
+                ),
               ),
-              child: Text(l10n.walletAdjustBalance,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              child: Text(
+                l10n.walletAdjustBalance,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 20),
-          _statRow(l10n.walletInitialAmount, m(wallet.initialAmount), null,
-              null),
           _statRow(
-              l10n.walletIncome,
-              l10n.walletTransactionCount(income.length),
-              AppColors.brandBlue,
-              () => _openTransactions(context, wallet, 'income')),
+            l10n.walletInitialAmount,
+            m(wallet.initialAmount),
+            null,
+            null,
+          ),
           _statRow(
-              l10n.walletExpense,
-              l10n.walletTransactionCount(expense.length),
-              AppColors.expense,
-              () => _openTransactions(context, wallet, 'expense')),
+            l10n.walletIncome,
+            l10n.walletTransactionCount(income.length),
+            AppColors.brandBlue,
+            () => _openTransactions(context, wallet, 'income'),
+          ),
           _statRow(
-              l10n.walletTransfer,
-              l10n.walletTransactionCount(transfer.length),
-              null,
-              () => _openTransactions(context, wallet, 'transfer')),
+            l10n.walletExpense,
+            l10n.walletTransactionCount(expense.length),
+            AppColors.expense,
+            () => _openTransactions(context, wallet, 'expense'),
+          ),
+          _statRow(
+            l10n.walletTransfer,
+            l10n.walletTransactionCount(transfer.length),
+            null,
+            () => _openTransactions(context, wallet, 'transfer'),
+          ),
           if (showGrowthProjection(wallet) || (actuals?.total ?? 0) > 0)
             _growthSection(context, wallet, actuals, hidden),
           const SizedBox(height: 24),
@@ -309,12 +320,14 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           if (grouped.isEmpty)
             Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text(l10n.walletNoTransactionsYet,
-                  style:
-                      TextStyle(color: context.textMuted, fontSize: 15)),
+              child: Text(
+                l10n.walletNoTransactionsYet,
+                style: TextStyle(color: context.textMuted, fontSize: 15),
+              ),
             )
           else
-            for (final e in grouped.take(8)) _groupRow(context, e.value, hidden),
+            for (final e in grouped.take(8))
+              _groupRow(context, e.value, hidden),
         ],
       ),
     );
@@ -324,20 +337,25 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
       ds.fold<int>(0, (s, d) => s + d.transaction.amount);
 
   Widget _statRow(
-      String label, String value, Color? valueColor, VoidCallback? onTap) {
+    String label,
+    String value,
+    Color? valueColor,
+    VoidCallback? onTap,
+  ) {
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style:
-                  TextStyle(color: context.textMuted, fontSize: 15)),
-          Text(value,
-              style: TextStyle(
-                  color: valueColor ?? context.textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600)),
+          Text(label, style: TextStyle(color: context.textMuted, fontSize: 15)),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor ?? context.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -368,10 +386,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final curve = rate == null
         ? <int>[]
-        : projectionCurve(
-            balance: wallet.balance,
-            annualRatePct: rate,
-          );
+        : projectionCurve(balance: wallet.balance, annualRatePct: rate);
     final spots = [
       for (var i = 0; i < curve.length; i++)
         FlSpot(i.toDouble(), curve[i].toDouble()),
@@ -404,111 +419,114 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           _statRow(l10n.walletGrowthIn12Months, m(curve[12]), null, null),
         if (rate != null)
           _statRow(
-              l10n.walletGrowthInterestYear,
-              m(projectedYearInterest(
+            l10n.walletGrowthInterestYear,
+            m(
+              projectedYearInterest(
                 balance: wallet.balance,
                 annualRatePct: rate,
-              )),
-              AppColors.income,
-              null),
+              ),
+            ),
+            AppColors.income,
+            null,
+          ),
         if (actuals != null)
           _statRow(
-              l10n.walletInterestYearActual,
-              m(actuals.year),
-              AppColors.income,
-              null),
+            l10n.walletInterestYearActual,
+            m(actuals.year),
+            AppColors.income,
+            null,
+          ),
         if (actuals != null)
           _statRow(
-              l10n.walletInterestTotalActual,
-              m(actuals.total),
-              AppColors.income,
-              null),
+            l10n.walletInterestTotalActual,
+            m(actuals.total),
+            AppColors.income,
+            null,
+          ),
         if (rate != null) ...[
           const SizedBox(height: 12),
           Container(
-          padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: context.hairline, width: 0.5),
-          ),
-          child: SizedBox(
-            height: 150,
-            child: LineChart(
-              LineChartData(
-                minY: dataMin - pad,
-                maxY: dataMax + pad,
-                lineTouchData: LineTouchData(
-                  enabled: true,
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => context.raised,
-                    fitInsideHorizontally: true,
-                    fitInsideVertically: true,
-                    getTooltipItems: (items) => items
-                        .map((s) {
-                          final month = s.x.toInt();
-                          final label = month == 0
-                              ? l10n.walletGrowthNow
-                              : l10n.walletGrowthMonth(month);
-                          return LineTooltipItem(
-                            '$label\n${m(s.y.toInt())}',
-                            TextStyle(
-                              color: context.textPrimary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+            padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: context.hairline, width: 0.5),
+            ),
+            child: SizedBox(
+              height: 150,
+              child: LineChart(
+                LineChartData(
+                  minY: dataMin - pad,
+                  maxY: dataMax + pad,
+                  lineTouchData: LineTouchData(
+                    enabled: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (_) => context.raised,
+                      fitInsideHorizontally: true,
+                      fitInsideVertically: true,
+                      getTooltipItems: (items) => items.map((s) {
+                        final month = s.x.toInt();
+                        final label = month == 0
+                            ? l10n.walletGrowthNow
+                            : l10n.walletGrowthMonth(month);
+                        return LineTooltipItem(
+                          '$label\n${m(s.y.toInt())}',
+                          TextStyle(
+                            color: context.textPrimary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  gridData: const FlGridData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: 6,
+                        getTitlesWidget: (v, _) => Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            v == 0
+                                ? l10n.walletGrowthNow
+                                : l10n.walletGrowthMonthsShort(v.toInt()),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: context.textMuted,
                             ),
-                          );
-                        })
-                        .toList(),
-                  ),
-                ),
-                gridData: const FlGridData(show: false),
-                titlesData: FlTitlesData(
-                  leftTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 6,
-                      getTitlesWidget: (v, _) => Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          v == 0
-                              ? l10n.walletGrowthNow
-                              : l10n.walletGrowthMonthsShort(v.toInt()),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: context.textMuted,
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: true,
-                    color: AppColors.income,
-                    barWidth: 3,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: AppColors.income.withValues(alpha: 0.12),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: AppColors.income,
+                      barWidth: 3,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: AppColors.income.withValues(alpha: 0.12),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         ],
         if (rate != null) ...[
           const SizedBox(height: 8),
@@ -522,7 +540,10 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
   }
 
   Widget _groupRow(
-      BuildContext context, List<TransactionWithDetails> ds, bool hidden) {
+    BuildContext context,
+    List<TransactionWithDetails> ds,
+    bool hidden,
+  ) {
     final l10n = AppLocalizations.of(context)!;
     final d = ds.first;
     final catColor = colorFromHex(d.category.colorHex);
@@ -535,12 +556,12 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           context,
           AppPageRoute(
             builder: (_) => WalletCategoryScreen(
-            walletId: d.transaction.walletId,
-            categoryId: d.transaction.categoryId,
-            categoryName: d.category.name,
-            iconKey: d.category.iconKey,
-            colorHex: d.category.colorHex,
-          ),
+              walletId: d.transaction.walletId,
+              categoryId: d.transaction.categoryId,
+              categoryName: d.category.name,
+              iconKey: d.category.iconKey,
+              colorHex: d.category.colorHex,
+            ),
           ),
         );
       },
@@ -559,8 +580,11 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                   color: catColor.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(23),
                 ),
-                child: Icon(iconForKey(d.category.iconKey),
-                    color: catColor, size: 22),
+                child: Icon(
+                  iconForKey(d.category.iconKey),
+                  color: catColor,
+                  size: 22,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -568,23 +592,24 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(d.category.name,
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    d.category.name,
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   Text(
                     l10n.walletTransactionCount(ds.length),
-                    style: TextStyle(
-                        color: context.textMuted, fontSize: 12),
+                    style: TextStyle(color: context.textMuted, fontSize: 12),
                   ),
                 ],
               ),
             ),
             Text(
               hidden
-                  ? maskMoneyText(
-                      formatSignedMoney(total, isIncome: isIncome))
+                  ? maskMoneyText(formatSignedMoney(total, isIncome: isIncome))
                   : formatSignedMoney(total, isIncome: isIncome),
               style: AppTextStyles.amount(size: 15).copyWith(
-                  color: isIncome ? AppColors.income : AppColors.expense),
+                color: isIncome ? AppColors.income : AppColors.expense,
+              ),
             ),
           ],
         ),
@@ -593,8 +618,12 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
   }
 
   void _openTransactions(
-      BuildContext context, Wallet? wallet, String? kind,
-      {int? categoryId, int? walletId}) {
+    BuildContext context,
+    Wallet? wallet,
+    String? kind, {
+    int? categoryId,
+    int? walletId,
+  }) {
     Navigator.push(
       context,
       AppPageRoute(
@@ -608,8 +637,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     );
   }
 
-  Future<void> _switchWallet(
-      BuildContext context, List<Wallet> wallets) async {
+  Future<void> _switchWallet(BuildContext context, List<Wallet> wallets) async {
     final l10n = AppLocalizations.of(context)!;
     if (wallets.length < 2) return;
     // Captured at open: the sheet is modal, so the Home eye can't be
@@ -621,6 +649,7 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           : formatMoney(w.balance);
       return hidden ? maskMoneyText(s) : s;
     }
+
     final picked = await showModalBottomSheet<int>(
       context: context,
       builder: (context) => SafeArea(
@@ -629,8 +658,13 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(l10n.walletSwitchWallet,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              child: Text(
+                l10n.walletSwitchWallet,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
             ),
             for (final w in wallets)
               ListTile(
@@ -642,13 +676,13 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                      iconForKey(_walletIconKey(w.kind)),
-                      color: colorFromHex(w.colorHex),
-                      size: 20),
+                    iconForKey(_walletIconKey(w.kind)),
+                    color: colorFromHex(w.colorHex),
+                    size: 20,
+                  ),
                 ),
                 title: Text(w.name),
-                trailing: Text(mb(w),
-                    style: AppTextStyles.amount(size: 14)),
+                trailing: Text(mb(w), style: AppTextStyles.amount(size: 14)),
                 selected: w.id == _walletId,
                 onTap: () {
                   Haptics.select();
@@ -680,15 +714,15 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
         content: Text(l10n.walletDeleteMessage),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.commonCancel)),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.commonCancel),
+          ),
           FilledButton(
             onPressed: () {
               Haptics.medium();
               Navigator.pop(context, true);
             },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.expense),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
             child: Text(l10n.commonDelete),
           ),
         ],
@@ -700,20 +734,19 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     if (ok) {
       Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(l10n.walletDeleteHasTransactions)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.walletDeleteHasTransactions)));
     }
   }
 
   String _walletIconKey(String kind) => switch (kind) {
-        'bank' => 'account_balance',
-        'ewallet' => 'smartphone',
-        'credit' => 'credit_card',
-        'paylater' => 'credit_card',
-        _ => 'wallet',
-      };
+    'bank' => 'account_balance',
+    'ewallet' => 'smartphone',
+    'credit' => 'credit_card',
+    'paylater' => 'credit_card',
+    _ => 'wallet',
+  };
 }
 
 /// Full transaction list for a wallet, with kind filter chips.
@@ -739,8 +772,7 @@ class WalletTransactionsScreen extends ConsumerStatefulWidget {
 class _WalletTransactionsScreenState
     extends ConsumerState<WalletTransactionsScreen> {
   String? _kind;
-  late DateTime _month =
-      DateTime(DateTime.now().year, DateTime.now().month);
+  late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
 
   @override
   void initState() {
@@ -749,8 +781,8 @@ class _WalletTransactionsScreenState
   }
 
   void _shift(int delta) => setState(() {
-        _month = DateTime(_month.year, _month.month + delta);
-      });
+    _month = DateTime(_month.year, _month.month + delta);
+  });
 
   Future<void> _pickMonth() async {
     final picked = await showMonthYearPicker(context, _month);
@@ -762,16 +794,24 @@ class _WalletTransactionsScreenState
     final l10n = AppLocalizations.of(context)!;
     final db = ref.watch(databaseProvider);
     final start = DateTime(_month.year, _month.month);
-    final end = DateTime(_month.year, _month.month + 1)
-        .subtract(const Duration(seconds: 1));
+    final end = DateTime(
+      _month.year,
+      _month.month + 1,
+    ).subtract(const Duration(seconds: 1));
     return Scaffold(
       appBar: AppBar(
-          title: Text(widget.walletName.isEmpty
+        title: Text(
+          widget.walletName.isEmpty
               ? l10n.walletTransactions
-              : l10n.walletTransactionsFor(widget.walletName))),
+              : l10n.walletTransactionsFor(widget.walletName),
+        ),
+      ),
       body: StreamBuilder<List<TransactionWithDetails>>(
         stream: db.watchTransactionsForWalletInRange(
-            widget.walletId, start, end),
+          widget.walletId,
+          start,
+          end,
+        ),
         builder: (context, snap) {
           final items = snap.data ?? const <TransactionWithDetails>[];
           var income = 0;
@@ -806,16 +846,14 @@ class _WalletTransactionsScreenState
           }
           return Column(
             children: [
-              MonthSelector(
-                month: _month,
-                onShift: _shift,
-                onPick: _pickMonth,
-              ),
+              MonthSelector(month: _month, onShift: _shift, onPick: _pickMonth),
               MonthOverview(income: income, expense: expense),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     _chip(l10n.commonAll, null),
@@ -829,19 +867,19 @@ class _WalletTransactionsScreenState
                 child: !snap.hasData
                     ? const SkeletonTransactionList()
                     : list.isEmpty
-                        ? EmptyState(
-                            icon: Icons.receipt_long_outlined,
-                            title: l10n.walletNoTransactions,
-                            message: l10n.walletNoTransactionsMonth,
-                          )
-                        : MonthScrubber(
-                            month: _month,
-                            onShift: _shift,
-                            child: GroupedTransactionList(
-                              items: list,
-                              perspectiveWalletId: widget.walletId,
-                            ),
-                          ),
+                    ? EmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: l10n.walletNoTransactions,
+                        message: l10n.walletNoTransactionsMonth,
+                      )
+                    : MonthScrubber(
+                        month: _month,
+                        onShift: _shift,
+                        child: GroupedTransactionList(
+                          items: list,
+                          perspectiveWalletId: widget.walletId,
+                        ),
+                      ),
               ),
             ],
           );
