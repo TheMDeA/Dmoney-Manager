@@ -1910,6 +1910,12 @@ class AppLocalizationsId extends AppLocalizations {
   String get paylaterEnterTotal => 'Masukkan jumlah total';
 
   @override
+  String get paylaterEnterCount => 'Masukkan jumlah cicilan';
+
+  @override
+  String get paylaterCustomTenor => 'Kustom';
+
+  @override
   String get paylaterFreezeSubtitle =>
       'Selama dibekukan, pengeluaran baru di dompet paylater diblokir sampai pembekuan dibuka.';
 
@@ -1999,6 +2005,45 @@ class AppLocalizationsId extends AppLocalizations {
   String get paylaterPlanAdded => 'Rencana cicilan ditambahkan';
 
   @override
+  String get paylaterEditPlan => 'Ubah cicilan';
+
+  @override
+  String get paylaterEditPlanTitle => 'Ubah rencana cicilan';
+
+  @override
+  String get paylaterPlanUpdated => 'Rencana cicilan diperbarui';
+
+  @override
+  String get paylaterStartDateLabel => 'Tanggal mulai';
+
+  @override
+  String get paylaterNoLinkedPurchaseNote =>
+      'Tidak ada pembelian yang terhubung ke cicilan ini, jadi totalnya tidak dapat diubah.';
+
+  @override
+  String paylaterTotalBelowPaid(String amount) {
+    return 'Total tidak boleh di bawah $amount yang sudah dibayar';
+  }
+
+  @override
+  String paylaterCountBelowPaid(int count) {
+    return 'Sudah $count terbayar — jumlahnya tidak bisa lebih rendah dari itu';
+  }
+
+  @override
+  String paylaterEditPaidLine(int paid, int total) {
+    return 'Terbayar: $paid dari $total';
+  }
+
+  @override
+  String paylaterPaidCountMismatch(int recorded, int set) {
+    return 'Penghitung menunjukkan $set terbayar, tetapi ada $recorded pembayaran yang tercatat.';
+  }
+
+  @override
+  String get paylaterSyncPaidCount => 'Sinkronkan penghitung';
+
+  @override
   String paylaterPlanProgress(Object amount, Object paid, Object total) {
     return '$paid dari $total dibayar · $amount/bln';
   }
@@ -2015,9 +2060,6 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get paylaterPlans => 'Rencana cicilan';
-
-  @override
-  String get paylaterPlansNeed2 => 'Rencana membutuhkan minimal 2 cicilan';
 
   @override
   String get paylaterProviders => 'Penyedia';
