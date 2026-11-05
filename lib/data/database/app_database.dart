@@ -29,12 +29,15 @@ class Wallets extends Table {
   IntColumn get accountId => integer().references(Accounts, #id)();
   TextColumn get name => text()();
   TextColumn get kind => text()(); // cash | bank | ewallet | credit
-  IntColumn get balance => integer().withDefault(const Constant(0))(); // whole IDR
+  IntColumn get balance =>
+      integer().withDefault(const Constant(0))(); // whole IDR
   IntColumn get initialAmount => integer().withDefault(const Constant(0))();
   TextColumn get colorHex => text().withDefault(const Constant('#C6FF4A'))();
+
   /// Brand logo template id ('bca', 'gopay', …) or null for the generic
   /// kind-based mark. v12.
   TextColumn get logoTemplate => text().nullable()();
+
   /// Manual ordering for the Arrange Wallets screen. v13.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
@@ -67,6 +70,7 @@ class Categories extends Table {
   TextColumn get colorHex => text().withDefault(const Constant('#A78BFA'))();
   TextColumn get kind => text()(); // income | expense
   IntColumn get parentId => integer().nullable().references(Categories, #id)();
+
   /// Manual ordering for the Manage Categories screen (per kind group).
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }
@@ -85,20 +89,26 @@ class Transactions extends Table {
   IntColumn get amount => integer()(); // whole IDR, always positive
   /// Mandatory description of the transaction (the primary text field).
   TextColumn get note => text().withDefault(const Constant(''))();
+
   /// Optional freeform memo.
   TextColumn get memo => text().withDefault(const Constant(''))();
   DateTimeColumn get date => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
   /// For transfers: the destination wallet. Null for income/expense.
   IntColumn get toWalletId => integer().nullable().references(Wallets, #id)();
+
   /// Set when this row records a debt's creation movement.
   IntColumn get debtId => integer().nullable().references(Debts, #id)();
+
   /// Set when this row records a specific debt repayment.
   IntColumn get debtPaymentId =>
       integer().nullable().references(DebtPayments, #id)();
+
   /// Set when this row was generated from a recurring rule.
   IntColumn get recurringId =>
       integer().nullable().references(RecurringTransactions, #id)();
+
   /// For a transfer-fee expense row: the transfer it belongs to.
   IntColumn get transferId =>
       integer().nullable().references(Transactions, #id)();
@@ -149,6 +159,7 @@ class Debts extends Table {
   TextColumn get colorHex => text().withDefault(const Constant('#A78BFA'))();
   IntColumn get walletId => integer().nullable().references(Wallets, #id)();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
   /// When true, the debt's creation and repayments are recorded as
   /// transactions (linked via transactions.debtId / debtPaymentId) so
   /// they show up in the transaction history.
@@ -266,23 +277,24 @@ typedef HourlyTotal = ({String hour, String kind, int total});
 // Database
 // ---------------------------------------------------------------------------
 
-@DriftDatabase(tables: [
-  Accounts,
-  Wallets,
-  Categories,
-  Transactions,
-  TransactionPhotos,
-  Budgets,
-  Goals,
-  Debts,
-  DebtPayments,
-  GoalDeposits,
-  RecurringTransactions,
-  TransactionTemplates,
-  CategoryKeywords,
-  InstallmentPlans,
-])
-
+@DriftDatabase(
+  tables: [
+    Accounts,
+    Wallets,
+    Categories,
+    Transactions,
+    TransactionPhotos,
+    Budgets,
+    Goals,
+    Debts,
+    DebtPayments,
+    GoalDeposits,
+    RecurringTransactions,
+    TransactionTemplates,
+    CategoryKeywords,
+    InstallmentPlans,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -294,156 +306,157 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-          await _seed();
-        },
-        onUpgrade: (m, from, to) async {
-          if (from < 2) {
-            await m.addColumn(transactions, transactions.toWalletId);
-            await _ensureTransferCategory();
+    onCreate: (m) async {
+      await m.createAll();
+      await _seed();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(transactions, transactions.toWalletId);
+        await _ensureTransferCategory();
+      }
+      if (from < 3) {
+        await m.createTable(debtPayments);
+        await m.addColumn(debts, debts.walletId);
+        await m.addColumn(debts, debts.createdAt);
+      }
+      if (from < 4) {
+        await m.addColumn(wallets, wallets.initialAmount);
+        // Best-effort backfill: current balance is the closest known
+        // starting point for pre-v4 wallets.
+        await customUpdate(
+          'UPDATE wallets SET initial_amount = balance',
+          updates: {wallets},
+        );
+        await m.createTable(goalDeposits);
+      }
+      if (from < 5) {
+        // Indexes for hot filter columns (fresh installs get them via
+        // createAll; this covers upgrades from released versions).
+        await m.createIndex(idxWalletsAccount);
+        await m.createIndex(idxTransactionsDate);
+        await m.createIndex(idxTransactionsWallet);
+        await m.createIndex(idxTransactionsCategory);
+        await m.createIndex(idxPhotosTransaction);
+        await m.createIndex(idxBudgetsMonth);
+        await m.createIndex(idxDebtsDirection);
+        await m.createIndex(idxDebtPaymentsDebt);
+        await m.createIndex(idxGoalDepositsGoal);
+      }
+      if (from < 6) {
+        await m.addColumn(transactions, transactions.debtId);
+        await m.addColumn(transactions, transactions.debtPaymentId);
+        await m.addColumn(debts, debts.recordAsTransaction);
+        await m.createIndex(idxTransactionsDebt);
+        await m.createIndex(idxTransactionsDebtPayment);
+        await _ensureDebtCategory();
+      }
+      if (from < 7) {
+        await m.addColumn(categories, categories.sortOrder);
+        // Preserve the previous alphabetical order as the initial
+        // manual order, per (kind, parent) group.
+        final all = await select(categories).get();
+        final groups = <String, List<Category>>{};
+        for (final c in all) {
+          groups.putIfAbsent('${c.kind}|${c.parentId}', () => []).add(c);
+        }
+        for (final group in groups.values) {
+          group.sort((a, b) => a.name.compareTo(b.name));
+          for (var i = 0; i < group.length; i++) {
+            await (update(categories)..where((c) => c.id.equals(group[i].id)))
+                .write(CategoriesCompanion(sortOrder: Value(i)));
           }
-          if (from < 3) {
-            await m.createTable(debtPayments);
-            await m.addColumn(debts, debts.walletId);
-            await m.addColumn(debts, debts.createdAt);
-          }
-          if (from < 4) {
-            await m.addColumn(wallets, wallets.initialAmount);
-            // Best-effort backfill: current balance is the closest known
-            // starting point for pre-v4 wallets.
-            await customUpdate(
-              'UPDATE wallets SET initial_amount = balance',
-              updates: {wallets},
-            );
-            await m.createTable(goalDeposits);
-          }
-          if (from < 5) {
-            // Indexes for hot filter columns (fresh installs get them via
-            // createAll; this covers upgrades from released versions).
-            await m.createIndex(idxWalletsAccount);
-            await m.createIndex(idxTransactionsDate);
-            await m.createIndex(idxTransactionsWallet);
-            await m.createIndex(idxTransactionsCategory);
-            await m.createIndex(idxPhotosTransaction);
-            await m.createIndex(idxBudgetsMonth);
-            await m.createIndex(idxDebtsDirection);
-            await m.createIndex(idxDebtPaymentsDebt);
-            await m.createIndex(idxGoalDepositsGoal);
-          }
-          if (from < 6) {
-            await m.addColumn(transactions, transactions.debtId);
-            await m.addColumn(transactions, transactions.debtPaymentId);
-            await m.addColumn(debts, debts.recordAsTransaction);
-            await m.createIndex(idxTransactionsDebt);
-            await m.createIndex(idxTransactionsDebtPayment);
-            await _ensureDebtCategory();
-          }
-          if (from < 7) {
-            await m.addColumn(categories, categories.sortOrder);
-            // Preserve the previous alphabetical order as the initial
-            // manual order, per (kind, parent) group.
-            final all = await select(categories).get();
-            final groups = <String, List<Category>>{};
-            for (final c in all) {
-              groups
-                  .putIfAbsent('${c.kind}|${c.parentId}', () => [])
-                  .add(c);
-            }
-            for (final group in groups.values) {
-              group.sort((a, b) => a.name.compareTo(b.name));
-              for (var i = 0; i < group.length; i++) {
-                await (update(categories)
-                      ..where((c) => c.id.equals(group[i].id)))
-                    .write(CategoriesCompanion(sortOrder: Value(i)));
-              }
-            }
-          }
-          if (from < 8) {
-            await m.createTable(recurringTransactions);
-            await m.createTable(transactionTemplates);
-            await m.addColumn(transactions, transactions.recurringId);
-            await m.createIndex(idxRecurringNextDue);
-          }
-          if (from < 9) {
-            await m.addColumn(accounts, accounts.colorHex);
-          }
-          if (from < 10) {
-            await m.createTable(categoryKeywords);
-          }
-          if (from < 11) {
-            await m.addColumn(transactions, transactions.memo);
-          }
-          if (from < 12) {
-            await m.addColumn(wallets, wallets.logoTemplate);
-          }
-          if (from < 13) {
-            await m.addColumn(wallets, wallets.sortOrder);
-            // Preserve the current (insertion) order as the initial
-            // manual order.
-            final all = await select(wallets).get();
-            all.sort((a, b) => a.id.compareTo(b.id));
-            for (var i = 0; i < all.length; i++) {
-              await (update(wallets)..where((w) => w.id.equals(all[i].id)))
-                  .write(WalletsCompanion(sortOrder: Value(i)));
-            }
-          }
-          if (from < 14) {
-            await m.addColumn(transactions, transactions.transferId);
-            await m.createIndex(idxTransactionsTransfer);
-          }
-          if (from < 15) {
-            await m.addColumn(wallets, wallets.creditLimit);
-            await m.addColumn(wallets, wallets.statementDay);
-            await m.addColumn(wallets, wallets.dueDay);
-            await m.addColumn(wallets, wallets.interestRateMonthly);
-            await m.createTable(installmentPlans);
-          }
-          if (from < 16) {
-            await m.addColumn(wallets, wallets.interestRateAnnual);
-          }
-          if (from < 17) {
-            await m.addColumn(transactions, transactions.planId);
-          }
-        },
-      );
+        }
+      }
+      if (from < 8) {
+        await m.createTable(recurringTransactions);
+        await m.createTable(transactionTemplates);
+        await m.addColumn(transactions, transactions.recurringId);
+        await m.createIndex(idxRecurringNextDue);
+      }
+      if (from < 9) {
+        await m.addColumn(accounts, accounts.colorHex);
+      }
+      if (from < 10) {
+        await m.createTable(categoryKeywords);
+      }
+      if (from < 11) {
+        await m.addColumn(transactions, transactions.memo);
+      }
+      if (from < 12) {
+        await m.addColumn(wallets, wallets.logoTemplate);
+      }
+      if (from < 13) {
+        await m.addColumn(wallets, wallets.sortOrder);
+        // Preserve the current (insertion) order as the initial
+        // manual order.
+        final all = await select(wallets).get();
+        all.sort((a, b) => a.id.compareTo(b.id));
+        for (var i = 0; i < all.length; i++) {
+          await (update(wallets)..where((w) => w.id.equals(all[i].id))).write(
+            WalletsCompanion(sortOrder: Value(i)),
+          );
+        }
+      }
+      if (from < 14) {
+        await m.addColumn(transactions, transactions.transferId);
+        await m.createIndex(idxTransactionsTransfer);
+      }
+      if (from < 15) {
+        await m.addColumn(wallets, wallets.creditLimit);
+        await m.addColumn(wallets, wallets.statementDay);
+        await m.addColumn(wallets, wallets.dueDay);
+        await m.addColumn(wallets, wallets.interestRateMonthly);
+        await m.createTable(installmentPlans);
+      }
+      if (from < 16) {
+        await m.addColumn(wallets, wallets.interestRateAnnual);
+      }
+      if (from < 17) {
+        await m.addColumn(transactions, transactions.planId);
+      }
+    },
+  );
 
   /// Inserts the hidden "Transfer" category if it doesn't exist yet
   /// (used by the v1→v2 migration; the fresh seed inserts it directly).
   Future<void> _ensureTransferCategory() async {
-    final existing = await (select(categories)
-          ..where((c) => c.kind.equals('transfer')))
-        .get();
+    final existing = await (select(
+      categories,
+    )..where((c) => c.kind.equals('transfer'))).get();
     if (existing.isEmpty) {
-      await into(categories).insert(CategoriesCompanion.insert(
-        name: 'Transfer',
-        iconKey: const Value('swap_horiz'),
-        colorHex: const Value('#9CA3AF'),
-        kind: 'transfer',
-      ));
+      await into(categories).insert(
+        CategoriesCompanion.insert(
+          name: 'Transfer',
+          iconKey: const Value('swap_horiz'),
+          colorHex: const Value('#9CA3AF'),
+          kind: 'transfer',
+        ),
+      );
     }
   }
 
-  Future<int> get transferCategoryId async =>
-      (await (select(categories)..where((c) => c.kind.equals('transfer')))
-              .get())
-          .first
-          .id;
+  Future<int> get transferCategoryId async => (await (select(
+    categories,
+  )..where((c) => c.kind.equals('transfer'))).get()).first.id;
 
   /// The expense category transfer fees are booked under. Created on
   /// first use — existing installs never re-run the seed.
   Future<int> get feeCategoryId async {
-    final existing = await (select(categories)
-          ..where((c) =>
-              c.kind.equals('expense') & c.name.equals('Transfer fee')))
-        .get();
+    final existing =
+        await (select(categories)..where(
+              (c) => c.kind.equals('expense') & c.name.equals('Transfer fee'),
+            ))
+            .get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(CategoriesCompanion.insert(
-      name: 'Transfer fee',
-      iconKey: const Value('receipt'),
-      colorHex: const Value('#9CA3AF'),
-      kind: 'expense',
-    ));
+    return into(categories).insert(
+      CategoriesCompanion.insert(
+        name: 'Transfer fee',
+        iconKey: const Value('receipt'),
+        colorHex: const Value('#9CA3AF'),
+        kind: 'expense',
+      ),
+    );
   }
 
   /// The income category interest credits are booked under. Created on
@@ -452,21 +465,23 @@ class AppDatabase extends _$AppDatabase {
   /// the category picker once created, which is the point — it is how
   /// interest income gets recorded.
   Future<int> get interestCategoryId async {
-    final existing = await (select(categories)
-          ..where((c) =>
-              c.kind.equals('income') & c.name.equals('Interest')))
-        .get();
+    final existing = await (select(
+      categories,
+    )..where((c) => c.kind.equals('income') & c.name.equals('Interest'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(CategoriesCompanion.insert(
-      name: 'Interest',
-      iconKey: const Value('account_balance'),
-      colorHex: const Value('#4ADE80'),
-      kind: 'income',
-    ));
+    return into(categories).insert(
+      CategoriesCompanion.insert(
+        name: 'Interest',
+        iconKey: const Value('account_balance'),
+        colorHex: const Value('#4ADE80'),
+        kind: 'income',
+      ),
+    );
   }
-  Future<List<Transaction>> transferFeeRows(int transferId) =>
-      (select(transactions)..where((t) => t.transferId.equals(transferId)))
-          .get();
+
+  Future<List<Transaction>> transferFeeRows(int transferId) => (select(
+    transactions,
+  )..where((t) => t.transferId.equals(transferId))).get();
 
   /// Fallback category that transactions, budgets, rules and templates
   /// are reassigned to when their category is deleted, so nothing
@@ -476,16 +491,18 @@ class AppDatabase extends _$AppDatabase {
   /// of sight, while unfiltered maps (Stats, Structure, Budgets) still
   /// resolve it to the name 'Uncategorized'.
   Future<int> get uncategorizedCategoryId async {
-    final existing = await (select(categories)
-          ..where((c) => c.kind.equals('uncategorized')))
-        .get();
+    final existing = await (select(
+      categories,
+    )..where((c) => c.kind.equals('uncategorized'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(CategoriesCompanion.insert(
-      name: 'Uncategorized',
-      iconKey: const Value('other'),
-      colorHex: const Value('#9CA3AF'),
-      kind: 'uncategorized',
-    ));
+    return into(categories).insert(
+      CategoriesCompanion.insert(
+        name: 'Uncategorized',
+        iconKey: const Value('other'),
+        colorHex: const Value('#9CA3AF'),
+        kind: 'uncategorized',
+      ),
+    );
   }
 
   /// Signed wallet delta for a debt's creation movement:
@@ -499,30 +516,37 @@ class AppDatabase extends _$AppDatabase {
       direction == 'receivable' ? amount : -amount;
 
   /// Note text for a debt-linked transaction.
-  String _debtTxNote(String direction, String person, String note,
-      {required bool payment}) {
+  String _debtTxNote(
+    String direction,
+    String person,
+    String note, {
+    required bool payment,
+  }) {
     final base = payment
         ? (direction == 'receivable'
-            ? 'Repayment from $person'
-            : 'Repayment to $person')
+              ? 'Repayment from $person'
+              : 'Repayment to $person')
         : (direction == 'receivable'
-            ? 'Loan to $person'
-            : 'Borrowed from $person');
+              ? 'Loan to $person'
+              : 'Borrowed from $person');
     return note.isEmpty ? base : '$base · $note';
   }
 
   /// Hidden "Debt" category used by debt-linked transactions.
   /// Created on demand so it exists on fresh installs and upgrades alike.
   Future<int> get debtCategoryId async {
-    final existing =
-        await (select(categories)..where((c) => c.kind.equals('debt'))).get();
+    final existing = await (select(
+      categories,
+    )..where((c) => c.kind.equals('debt'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(CategoriesCompanion.insert(
-      name: 'Debt',
-      iconKey: const Value('handshake'),
-      colorHex: const Value('#F472B6'),
-      kind: 'debt',
-    ));
+    return into(categories).insert(
+      CategoriesCompanion.insert(
+        name: 'Debt',
+        iconKey: const Value('handshake'),
+        colorHex: const Value('#F472B6'),
+        kind: 'debt',
+      ),
+    );
   }
 
   Future<void> _ensureDebtCategory() async {
@@ -535,16 +559,18 @@ class AppDatabase extends _$AppDatabase {
   /// keeps it out of sight; stats filter by transaction kind, so the
   /// adjustment still counts as income/expense there.
   Future<int> get adjustmentCategoryId async {
-    final existing = await (select(categories)
-          ..where((c) => c.kind.equals('adjustment')))
-        .get();
+    final existing = await (select(
+      categories,
+    )..where((c) => c.kind.equals('adjustment'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(CategoriesCompanion.insert(
-      name: 'Adjustment',
-      iconKey: const Value('tune'),
-      colorHex: const Value('#9CA3AF'),
-      kind: 'adjustment',
-    ));
+    return into(categories).insert(
+      CategoriesCompanion.insert(
+        name: 'Adjustment',
+        iconKey: const Value('tune'),
+        colorHex: const Value('#9CA3AF'),
+        kind: 'adjustment',
+      ),
+    );
   }
 
   /// Adjusts a wallet's balance by recording an income/expense transaction
@@ -552,20 +578,23 @@ class AppDatabase extends _$AppDatabase {
   /// Returns the created transaction id, or 0 when there's no difference.
   Future<int> adjustBalanceByTransaction(int walletId, int newBalance) {
     return transaction(() async {
-      final w = await (select(wallets)..where((e) => e.id.equals(walletId)))
-          .getSingleOrNull();
+      final w = await (select(
+        wallets,
+      )..where((e) => e.id.equals(walletId))).getSingleOrNull();
       if (w == null) return 0;
       final diff = newBalance - w.balance;
       if (diff == 0) return 0;
       final catId = await adjustmentCategoryId;
-      return addTransaction(TransactionsCompanion.insert(
-        walletId: walletId,
-        categoryId: catId,
-        kind: diff > 0 ? 'income' : 'expense',
-        amount: diff.abs(),
-        note: const Value('Balance adjustment'),
-        date: DateTime.now(),
-      ));
+      return addTransaction(
+        TransactionsCompanion.insert(
+          walletId: walletId,
+          categoryId: catId,
+          kind: diff > 0 ? 'income' : 'expense',
+          amount: diff.abs(),
+          note: const Value('Balance adjustment'),
+          date: DateTime.now(),
+        ),
+      );
     });
   }
 
@@ -573,8 +602,9 @@ class AppDatabase extends _$AppDatabase {
   /// leaving the transaction history untouched.
   Future<void> changeWalletInitialAmount(int walletId, int newBalance) {
     return transaction(() async {
-      final w = await (select(wallets)..where((e) => e.id.equals(walletId)))
-          .getSingleOrNull();
+      final w = await (select(
+        wallets,
+      )..where((e) => e.id.equals(walletId))).getSingleOrNull();
       if (w == null) return;
       final diff = newBalance - w.balance;
       if (diff == 0) return;
@@ -595,7 +625,9 @@ class AppDatabase extends _$AppDatabase {
   /// scoped to one account. A transaction counts toward the account of its
   /// source wallet ([transactions.walletId]).
   void _scopeToAccount(
-      JoinedSelectStatement<$TransactionsTable, dynamic> q, int? accountId) {
+    JoinedSelectStatement<$TransactionsTable, dynamic> q,
+    int? accountId,
+  ) {
     if (accountId != null) {
       q.join([innerJoin(wallets, wallets.id.equalsExp(transactions.walletId))]);
       q.where(wallets.accountId.equals(accountId));
@@ -612,7 +644,10 @@ class AppDatabase extends _$AppDatabase {
     return q.watch();
   }
 
-  Stream<List<Category>> watchCategories({String? kind, bool topLevelOnly = false}) {
+  Stream<List<Category>> watchCategories({
+    String? kind,
+    bool topLevelOnly = false,
+  }) {
     final q = select(categories);
     if (kind != null) q.where((c) => c.kind.equals(kind));
     if (topLevelOnly) q.where((c) => c.parentId.isNull());
@@ -626,8 +661,11 @@ class AppDatabase extends _$AppDatabase {
   Stream<List<Category>> watchSubcategories(int parentId) =>
       (select(categories)..where((c) => c.parentId.equals(parentId))).watch();
 
-  Stream<List<TransactionWithDetails>> watchTransactions(
-      {int? limit, int? accountId, DateTime? from}) {
+  Stream<List<TransactionWithDetails>> watchTransactions({
+    int? limit,
+    int? accountId,
+    DateTime? from,
+  }) {
     final q = _joinedTransactions();
     if (accountId != null) q.where(wallets.accountId.equals(accountId));
     if (from != null) q.where(transactions.date.isBiggerOrEqualValue(from));
@@ -635,25 +673,34 @@ class AppDatabase extends _$AppDatabase {
     return q.watch().map(_toDetails);
   }
 
-  Stream<List<Transaction>> watchTransactionsRaw() => select(transactions).watch();
+  Stream<List<Transaction>> watchTransactionsRaw() =>
+      select(transactions).watch();
 
   /// Transactions touching one wallet (as source or transfer destination),
   /// newest first. Powers the wallet detail screen.
   Stream<List<TransactionWithDetails>> watchTransactionsForWallet(
-      int walletId) {
+    int walletId,
+  ) {
     final q = _joinedTransactions()
-      ..where(transactions.walletId.equals(walletId) |
-          transactions.toWalletId.equals(walletId));
+      ..where(
+        transactions.walletId.equals(walletId) |
+            transactions.toWalletId.equals(walletId),
+      );
     return q.watch().map(_toDetails);
   }
 
   /// Transactions touching one wallet inside [from, to], newest first.
   /// Powers the wallet transactions screen's month pager.
   Stream<List<TransactionWithDetails>> watchTransactionsForWalletInRange(
-      int walletId, DateTime from, DateTime to) {
+    int walletId,
+    DateTime from,
+    DateTime to,
+  ) {
     final q = _joinedTransactions()
-      ..where(transactions.walletId.equals(walletId) |
-          transactions.toWalletId.equals(walletId))
+      ..where(
+        transactions.walletId.equals(walletId) |
+            transactions.toWalletId.equals(walletId),
+      )
       ..where(transactions.date.isBetweenValues(from, to));
     return q.watch().map(_toDetails);
   }
@@ -661,22 +708,32 @@ class AppDatabase extends _$AppDatabase {
   /// Transactions for one wallet + one category, newest first.
   /// Powers the wallet category detail screen.
   Stream<List<TransactionWithDetails>> watchTransactionsForWalletAndCategory(
-      int walletId, int categoryId) {
+    int walletId,
+    int categoryId,
+  ) {
     final q = _joinedTransactions()
-      ..where((transactions.walletId.equals(walletId) |
-              transactions.toWalletId.equals(walletId)) &
-          transactions.categoryId.equals(categoryId));
+      ..where(
+        (transactions.walletId.equals(walletId) |
+                transactions.toWalletId.equals(walletId)) &
+            transactions.categoryId.equals(categoryId),
+      );
     return q.watch().map(_toDetails);
   }
 
   /// Transactions of one category inside [from, to]. Powers the budget
   /// detail screen (pass the month's first/last instant).
   Stream<List<TransactionWithDetails>> watchTransactionsForCategory(
-      int categoryId, DateTime from, DateTime to,
-      {String? kind, int? accountId}) {
+    int categoryId,
+    DateTime from,
+    DateTime to, {
+    String? kind,
+    int? accountId,
+  }) {
     final q = _joinedTransactions()
-      ..where(transactions.categoryId.equals(categoryId) &
-          transactions.date.isBetweenValues(from, to));
+      ..where(
+        transactions.categoryId.equals(categoryId) &
+            transactions.date.isBetweenValues(from, to),
+      );
     if (kind != null) q.where(transactions.kind.equals(kind));
     if (accountId != null) q.where(wallets.accountId.equals(accountId));
     return q.watch().map(_toDetails);
@@ -685,74 +742,101 @@ class AppDatabase extends _$AppDatabase {
   /// Per-category expense totals inside [from, to], largest first.
   /// The database aggregates; the UI only receives one row per category.
   Stream<List<CategoryTotal>> watchCategoryExpenseTotals(
-      DateTime from, DateTime to,
-      {int? accountId}) {
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
       ..addColumns([transactions.categoryId, total]);
     _scopeToAccount(q, accountId);
     q
-      ..where(transactions.kind.equals('expense') &
-          transactions.date.isBetweenValues(from, to))
+      ..where(
+        transactions.kind.equals('expense') &
+            transactions.date.isBetweenValues(from, to),
+      )
       ..groupBy([transactions.categoryId])
       ..orderBy([OrderingTerm.desc(total)]);
-    return q.watch().map((rows) => rows
-        .map((row) => (
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
               categoryId: row.read(transactions.categoryId)!,
               total: row.read(total) ?? 0,
-            ))
-        .toList());
+            ),
+          )
+          .toList(),
+    );
   }
 
   /// Per-category total + transaction count for a kind in a date range,
   /// sorted by total descending. Backs the Structure detail screen.
   Stream<List<CategoryStat>> watchCategoryKindStats(
-      String kind, DateTime from, DateTime to,
-      {int? accountId}) {
+    String kind,
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
     final total = transactions.amount.sum();
     final count = transactions.id.count();
     final q = selectOnly(transactions)
       ..addColumns([transactions.categoryId, total, count]);
     _scopeToAccount(q, accountId);
     q
-      ..where(transactions.kind.equals(kind) &
-          transactions.date.isBetweenValues(from, to))
+      ..where(
+        transactions.kind.equals(kind) &
+            transactions.date.isBetweenValues(from, to),
+      )
       ..groupBy([transactions.categoryId])
       ..orderBy([OrderingTerm.desc(total)]);
-    return q.watch().map((rows) => rows
-        .map((row) => (
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
               categoryId: row.read(transactions.categoryId)!,
               total: row.read(total) ?? 0,
               count: row.read(count) ?? 0,
-            ))
-        .toList());
+            ),
+          )
+          .toList(),
+    );
   }
 
   /// Per-kind totals inside [from, to]: one row per kind present.
   /// Backs range summaries like the home balance card.
-  Stream<List<KindTotal>> watchKindTotals(DateTime from, DateTime to,
-      {int? accountId}) {
+  Stream<List<KindTotal>> watchKindTotals(
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)..addColumns([transactions.kind, total]);
     _scopeToAccount(q, accountId);
     q
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([transactions.kind]);
-    return q.watch().map((rows) => rows
-        .map((row) => (
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
               kind: row.read(transactions.kind) ?? '',
               total: row.read(total) ?? 0,
-            ))
-        .toList());
+            ),
+          )
+          .toList(),
+    );
   }
 
   /// Per-day, per-kind totals inside [from, to], oldest day first.
   /// [day] is 'yyyy-MM-dd'. Backs the 7-day sparklines.
   Stream<List<DailyTotal>> watchDailyKindTotals(
-      DateTime from, DateTime to,
-      {int? accountId}) {
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
     final dayExpr = CustomExpression<String>(
-        "strftime('%Y-%m-%d', transactions.date, 'unixepoch', 'localtime')");
+      "strftime('%Y-%m-%d', transactions.date, 'unixepoch', 'localtime')",
+    );
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
       ..addColumns([dayExpr, transactions.kind, total]);
@@ -761,22 +845,29 @@ class AppDatabase extends _$AppDatabase {
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([dayExpr, transactions.kind])
       ..orderBy([OrderingTerm.asc(dayExpr)]);
-    return q.watch().map((rows) => rows
-        .map((row) => (
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
               day: row.read(dayExpr) ?? '',
               kind: row.read(transactions.kind) ?? '',
               total: row.read(total) ?? 0,
-            ))
-        .toList());
+            ),
+          )
+          .toList(),
+    );
   }
 
   /// Per-hour, per-kind totals inside [from, to], oldest hour first.
   /// [hour] is 'HH' (00-23 local). Backs the day-range sparkline.
   Stream<List<HourlyTotal>> watchHourlyKindTotals(
-      DateTime from, DateTime to,
-      {int? accountId}) {
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
     final hourExpr = CustomExpression<String>(
-        "strftime('%H', transactions.date, 'unixepoch', 'localtime')");
+      "strftime('%H', transactions.date, 'unixepoch', 'localtime')",
+    );
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
       ..addColumns([hourExpr, transactions.kind, total]);
@@ -785,22 +876,29 @@ class AppDatabase extends _$AppDatabase {
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([hourExpr, transactions.kind])
       ..orderBy([OrderingTerm.asc(hourExpr)]);
-    return q.watch().map((rows) => rows
-        .map((row) => (
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
               hour: row.read(hourExpr) ?? '',
               kind: row.read(transactions.kind) ?? '',
               total: row.read(total) ?? 0,
-            ))
-        .toList());
+            ),
+          )
+          .toList(),
+    );
   }
 
   /// Per-month income/expense totals inside [from, to], oldest month first.
   /// Backs the 6-month bar chart and the net-savings trend.
   Stream<List<MonthlyTotal>> watchMonthlyKindTotals(
-      DateTime from, DateTime to,
-      {int? accountId}) {
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
     final monthExpr = CustomExpression<String>(
-        "strftime('%Y-%m', transactions.date, 'unixepoch', 'localtime')");
+      "strftime('%Y-%m', transactions.date, 'unixepoch', 'localtime')",
+    );
     final total = transactions.amount.sum();
     final q = selectOnly(transactions)
       ..addColumns([monthExpr, transactions.kind, total]);
@@ -809,13 +907,17 @@ class AppDatabase extends _$AppDatabase {
       ..where(transactions.date.isBetweenValues(from, to))
       ..groupBy([monthExpr, transactions.kind])
       ..orderBy([OrderingTerm.asc(monthExpr)]);
-    return q.watch().map((rows) => rows
-        .map((row) => (
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
               month: row.read(monthExpr) ?? '',
               kind: row.read(transactions.kind) ?? '',
               total: row.read(total) ?? 0,
-            ))
-        .toList());
+            ),
+          )
+          .toList(),
+    );
   }
 
   Stream<List<Budget>> watchBudgets(String month) =>
@@ -830,8 +932,9 @@ class AppDatabase extends _$AppDatabase {
     return q.watch();
   }
 
-  Stream<List<TransactionPhoto>> watchPhotos(int transactionId) =>
-      (select(transactionPhotos)..where((p) => p.transactionId.equals(transactionId))).watch();
+  Stream<List<TransactionPhoto>> watchPhotos(int transactionId) => (select(
+    transactionPhotos,
+  )..where((p) => p.transactionId.equals(transactionId))).watch();
 
   Future<Wallet?> getWalletById(int id) =>
       (select(wallets)..where((w) => w.id.equals(id))).getSingleOrNull();
@@ -910,28 +1013,32 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       final catId = await transferCategoryId;
       final when = date ?? DateTime.now();
-      final id = await into(transactions).insert(TransactionsCompanion.insert(
-        walletId: fromWalletId,
-        categoryId: catId,
-        kind: 'transfer',
-        amount: amount,
-        note: Value(note),
-        date: when,
-        toWalletId: Value(toWalletId),
-        planId: Value(planId),
-      ));
+      final id = await into(transactions).insert(
+        TransactionsCompanion.insert(
+          walletId: fromWalletId,
+          categoryId: catId,
+          kind: 'transfer',
+          amount: amount,
+          note: Value(note),
+          date: when,
+          toWalletId: Value(toWalletId),
+          planId: Value(planId),
+        ),
+      );
       await adjustWalletBalance(fromWalletId, -amount);
       await adjustWalletBalance(toWalletId, amount);
       if (fee > 0) {
-        await into(transactions).insert(TransactionsCompanion.insert(
-          walletId: fromWalletId,
-          categoryId: await feeCategoryId,
-          kind: 'expense',
-          amount: fee,
-          note: const Value('Transfer fee'),
-          date: when,
-          transferId: Value(id),
-        ));
+        await into(transactions).insert(
+          TransactionsCompanion.insert(
+            walletId: fromWalletId,
+            categoryId: await feeCategoryId,
+            kind: 'expense',
+            amount: fee,
+            note: const Value('Transfer fee'),
+            date: when,
+            transferId: Value(id),
+          ),
+        );
         await adjustWalletBalance(fromWalletId, -fee);
       }
       return id;
@@ -954,24 +1061,27 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteTransaction(int id) {
     return transaction(() async {
-      final t = await (select(transactions)..where((e) => e.id.equals(id)))
-          .getSingleOrNull();
+      final t = await (select(
+        transactions,
+      )..where((e) => e.id.equals(id))).getSingleOrNull();
       if (t == null) return;
       // A transfer takes its fee expense rows with it, so the source
       // wallet is made whole again.
       if (t.kind == 'transfer') {
         for (final feeRow in await transferFeeRows(id)) {
           await _reverseBalanceEffect(feeRow);
-          await (delete(transactionPhotos)
-                ..where((p) => p.transactionId.equals(feeRow.id)))
-              .go();
-          await (delete(transactions)..where((e) => e.id.equals(feeRow.id)))
-              .go();
+          await (delete(
+            transactionPhotos,
+          )..where((p) => p.transactionId.equals(feeRow.id))).go();
+          await (delete(
+            transactions,
+          )..where((e) => e.id.equals(feeRow.id))).go();
         }
       }
       await _reverseBalanceEffect(t);
-      await (delete(transactionPhotos)..where((p) => p.transactionId.equals(id)))
-          .go();
+      await (delete(
+        transactionPhotos,
+      )..where((p) => p.transactionId.equals(id))).go();
       await (delete(transactions)..where((e) => e.id.equals(id))).go();
     });
   }
@@ -982,7 +1092,9 @@ class AppDatabase extends _$AppDatabase {
   /// files themselves are left on disk by [deleteTransaction], so the
   /// restored photo rows point at valid files again.
   Future<void> restoreTransaction(
-      Transaction t, List<TransactionPhoto> photos) {
+    Transaction t,
+    List<TransactionPhoto> photos,
+  ) {
     return transaction(() async {
       await into(transactions).insert(t.toCompanion(false));
       switch (t.kind) {
@@ -998,10 +1110,7 @@ class AppDatabase extends _$AppDatabase {
       }
       for (final p in photos) {
         await into(transactionPhotos).insert(
-          TransactionPhotosCompanion.insert(
-            transactionId: t.id,
-            path: p.path,
-          ),
+          TransactionPhotosCompanion.insert(transactionId: t.id, path: p.path),
         );
       }
     });
@@ -1019,8 +1128,9 @@ class AppDatabase extends _$AppDatabase {
     required DateTime date,
   }) {
     return transaction(() async {
-      final old = await (select(transactions)..where((e) => e.id.equals(id)))
-          .getSingleOrNull();
+      final old = await (select(
+        transactions,
+      )..where((e) => e.id.equals(id))).getSingleOrNull();
       if (old == null) return;
       await _reverseBalanceEffect(old);
       await (update(transactions)..where((e) => e.id.equals(id))).write(
@@ -1047,14 +1157,13 @@ class AppDatabase extends _$AppDatabase {
     required String name,
     required String iconKey,
     required String colorHex,
-  }) =>
-      (update(categories)..where((c) => c.id.equals(id))).write(
-        CategoriesCompanion(
-          name: Value(name),
-          iconKey: Value(iconKey),
-          colorHex: Value(colorHex),
-        ),
-      );
+  }) => (update(categories)..where((c) => c.id.equals(id))).write(
+    CategoriesCompanion(
+      name: Value(name),
+      iconKey: Value(iconKey),
+      colorHex: Value(colorHex),
+    ),
+  );
 
   /// Persists a manual drag-reorder: [orderedIds] is the new top-to-bottom
   /// order of one (kind, top-level) group.
@@ -1071,8 +1180,9 @@ class AppDatabase extends _$AppDatabase {
   Future<void> reorderWallets(List<int> orderedIds) {
     return transaction(() async {
       for (var i = 0; i < orderedIds.length; i++) {
-        await (update(wallets)..where((w) => w.id.equals(orderedIds[i])))
-            .write(WalletsCompanion(sortOrder: Value(i)));
+        await (update(wallets)..where((w) => w.id.equals(orderedIds[i]))).write(
+          WalletsCompanion(sortOrder: Value(i)),
+        );
       }
     });
   }
@@ -1097,7 +1207,9 @@ class AppDatabase extends _$AppDatabase {
     final stored = await File(sourcePath).copy(dest);
     await into(transactionPhotos).insert(
       TransactionPhotosCompanion.insert(
-          transactionId: transactionId, path: stored.path),
+        transactionId: transactionId,
+        path: stored.path,
+      ),
     );
     return stored.path;
   }
@@ -1105,9 +1217,9 @@ class AppDatabase extends _$AppDatabase {
   /// Removes a photo attachment. Our stored copy is deleted too; the
   /// user's original (gallery photo / camera roll) is always kept.
   Future<void> deletePhoto(int photoId) async {
-    final row = await (select(transactionPhotos)
-          ..where((p) => p.id.equals(photoId)))
-        .getSingleOrNull();
+    final row = await (select(
+      transactionPhotos,
+    )..where((p) => p.id.equals(photoId))).getSingleOrNull();
     await (delete(transactionPhotos)..where((p) => p.id.equals(photoId))).go();
     if (row == null) return;
     try {
@@ -1142,25 +1254,27 @@ class AppDatabase extends _$AppDatabase {
   }) async {
     // Append after the current max so a fresh wallet never collides with
     // an existing manual order (default 0 would tie with the first card).
-    final maxOrder = await (selectOnly(wallets)
-          ..addColumns([wallets.sortOrder.max()]))
-        .map((r) => r.read(wallets.sortOrder.max()))
-        .getSingleOrNull();
-    return into(wallets).insert(WalletsCompanion.insert(
-      accountId: accountId,
-      name: name,
-      kind: kind,
-      balance: Value(initialAmount),
-      initialAmount: Value(initialAmount),
-      colorHex: Value(colorHex),
-      logoTemplate: Value(logoTemplate),
-      sortOrder: Value((maxOrder ?? -1) + 1),
-      creditLimit: Value(creditLimit),
-      statementDay: Value(statementDay),
-      dueDay: Value(dueDay),
-      interestRateMonthly: Value(interestRateMonthly),
-      interestRateAnnual: Value(interestRateAnnual),
-    ));
+    final maxOrder =
+        await (selectOnly(wallets)..addColumns([wallets.sortOrder.max()]))
+            .map((r) => r.read(wallets.sortOrder.max()))
+            .getSingleOrNull();
+    return into(wallets).insert(
+      WalletsCompanion.insert(
+        accountId: accountId,
+        name: name,
+        kind: kind,
+        balance: Value(initialAmount),
+        initialAmount: Value(initialAmount),
+        colorHex: Value(colorHex),
+        logoTemplate: Value(logoTemplate),
+        sortOrder: Value((maxOrder ?? -1) + 1),
+        creditLimit: Value(creditLimit),
+        statementDay: Value(statementDay),
+        dueDay: Value(dueDay),
+        interestRateMonthly: Value(interestRateMonthly),
+        interestRateAnnual: Value(interestRateAnnual),
+      ),
+    );
   }
 
   Future<void> updateWallet({
@@ -1176,22 +1290,21 @@ class AppDatabase extends _$AppDatabase {
     Value<int?> dueDay = const Value.absent(),
     Value<double?> interestRateMonthly = const Value.absent(),
     Value<double?> interestRateAnnual = const Value.absent(),
-  }) =>
-      (update(wallets)..where((w) => w.id.equals(id))).write(
-        WalletsCompanion(
-          name: Value(name),
-          kind: Value(kind),
-          colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
-          // The form sheet always knows the current template, so a null
-          // here genuinely means "no template" and is written as such.
-          logoTemplate: Value(logoTemplate),
-          creditLimit: creditLimit,
-          statementDay: statementDay,
-          dueDay: dueDay,
-          interestRateMonthly: interestRateMonthly,
-          interestRateAnnual: interestRateAnnual,
-        ),
-      );
+  }) => (update(wallets)..where((w) => w.id.equals(id))).write(
+    WalletsCompanion(
+      name: Value(name),
+      kind: Value(kind),
+      colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
+      // The form sheet always knows the current template, so a null
+      // here genuinely means "no template" and is written as such.
+      logoTemplate: Value(logoTemplate),
+      creditLimit: creditLimit,
+      statementDay: statementDay,
+      dueDay: dueDay,
+      interestRateMonthly: interestRateMonthly,
+      interestRateAnnual: interestRateAnnual,
+    ),
+  );
 
   // ------------------------- installment plans -------------------------
 
@@ -1201,24 +1314,28 @@ class AppDatabase extends _$AppDatabase {
     required int totalAmount,
     required int installmentAmount,
     required int totalCount,
-  }) =>
-      into(installmentPlans).insert(InstallmentPlansCompanion.insert(
-        walletId: walletId,
-        name: name,
-        totalAmount: totalAmount,
-        installmentAmount: installmentAmount,
-        totalCount: totalCount,
-      ));
+    DateTime? createdAt,
+  }) => into(installmentPlans).insert(
+    InstallmentPlansCompanion.insert(
+      walletId: walletId,
+      name: name,
+      totalAmount: totalAmount,
+      installmentAmount: installmentAmount,
+      totalCount: totalCount,
+      createdAt: createdAt == null ? const Value.absent() : Value(createdAt),
+    ),
+  );
 
   /// Advances a plan by one paid installment, capped at [totalCount].
   /// No-op for unknown or already-complete plans.
   Future<void> markInstallmentPaid(int id) async {
-    final plan = await (select(installmentPlans)
-          ..where((p) => p.id.equals(id)))
-        .getSingleOrNull();
+    final plan = await (select(
+      installmentPlans,
+    )..where((p) => p.id.equals(id))).getSingleOrNull();
     if (plan == null || plan.paidCount >= plan.totalCount) return;
-    await (update(installmentPlans)..where((p) => p.id.equals(id)))
-        .write(InstallmentPlansCompanion(paidCount: Value(plan.paidCount + 1)));
+    await (update(installmentPlans)..where((p) => p.id.equals(id))).write(
+      InstallmentPlansCompanion(paidCount: Value(plan.paidCount + 1)),
+    );
   }
 
   /// Creates a plan together with its purchase expense, atomically.
@@ -1245,15 +1362,17 @@ class AppDatabase extends _$AppDatabase {
           totalCount: totalCount,
         ),
       );
-      await into(transactions).insert(TransactionsCompanion.insert(
-        walletId: walletId,
-        categoryId: categoryId,
-        kind: 'expense',
-        amount: totalAmount,
-        note: Value(name),
-        date: DateTime.now(),
-        planId: Value(planId),
-      ));
+      await into(transactions).insert(
+        TransactionsCompanion.insert(
+          walletId: walletId,
+          categoryId: categoryId,
+          kind: 'expense',
+          amount: totalAmount,
+          note: Value(name),
+          date: DateTime.now(),
+          planId: Value(planId),
+        ),
+      );
       await adjustWalletBalance(walletId, -totalAmount);
       return planId;
     });
@@ -1262,8 +1381,9 @@ class AppDatabase extends _$AppDatabase {
   /// Links an already-saved transaction (an auto-plan's expense) to its
   /// plan. Bare update so it joins the caller's transaction.
   Future<void> setTransactionPlan(int transactionId, int planId) =>
-      (update(transactions)..where((t) => t.id.equals(transactionId)))
-          .write(TransactionsCompanion(planId: Value(planId)));
+      (update(transactions)..where((t) => t.id.equals(transactionId))).write(
+        TransactionsCompanion(planId: Value(planId)),
+      );
 
   /// Every transaction belonging to a plan: its purchase expense plus
   /// its installment payments, newest first.
@@ -1276,8 +1396,7 @@ class AppDatabase extends _$AppDatabase {
   /// Live version of [planTransactions] with wallet/category details,
   /// for the plan history sheet.
   Stream<List<TransactionWithDetails>> watchPlanTransactions(int planId) {
-    final q = _joinedTransactions()
-      ..where(transactions.planId.equals(planId));
+    final q = _joinedTransactions()..where(transactions.planId.equals(planId));
     return q.watch().map(_toDetails);
   }
 
@@ -1316,10 +1435,22 @@ class AppDatabase extends _$AppDatabase {
     int? paidCount,
   }) {
     return transaction(() async {
-      final plan = await (select(installmentPlans)
-            ..where((p) => p.id.equals(planId)))
-          .getSingleOrNull();
+      final plan = await (select(
+        installmentPlans,
+      )..where((p) => p.id.equals(planId))).getSingleOrNull();
       if (plan == null) return;
+      // The edit sheet guards these too, but the DB layer must not
+      // persist a counter state the helpers can't represent.
+      if (totalCount < plan.paidCount) {
+        throw ArgumentError(
+          'totalCount $totalCount is below paidCount ${plan.paidCount}',
+        );
+      }
+      if (paidCount != null && paidCount > totalCount) {
+        throw ArgumentError(
+          'paidCount $paidCount exceeds totalCount $totalCount',
+        );
+      }
       Transaction? purchase;
       for (final t in await planTransactions(planId)) {
         if (t.kind == 'expense') {
@@ -1327,11 +1458,11 @@ class AppDatabase extends _$AppDatabase {
           break;
         }
       }
-      final dayChanged = createdAt.year != plan.createdAt.year ||
+      final dayChanged =
+          createdAt.year != plan.createdAt.year ||
           createdAt.month != plan.createdAt.month ||
           createdAt.day != plan.createdAt.day;
-      if (purchase != null &&
-          (totalAmount != plan.totalAmount || dayChanged)) {
+      if (purchase != null && (totalAmount != plan.totalAmount || dayChanged)) {
         await updateTransaction(
           id: purchase.id,
           walletId: purchase.walletId,
@@ -1341,47 +1472,53 @@ class AppDatabase extends _$AppDatabase {
           note: purchase.note,
           memo: purchase.memo,
           date: dayChanged
-              ? DateTime(createdAt.year, createdAt.month, createdAt.day,
-                  purchase.date.hour, purchase.date.minute)
+              ? DateTime(
+                  createdAt.year,
+                  createdAt.month,
+                  createdAt.day,
+                  purchase.date.hour,
+                  purchase.date.minute,
+                )
               : purchase.date,
         );
       } else if (totalAmount != plan.totalAmount) {
         throw StateError(
-            'Plan $planId has no linked purchase; its total cannot change.');
+          'Plan $planId has no linked purchase; its total cannot change.',
+        );
       }
-      await (update(installmentPlans)..where((p) => p.id.equals(planId)))
-          .write(InstallmentPlansCompanion(
-        name: Value(name),
-        totalAmount: Value(totalAmount),
-        installmentAmount: Value(installmentAmount),
-        totalCount: Value(totalCount),
-        createdAt: Value(createdAt),
-        paidCount:
-            paidCount == null ? const Value.absent() : Value(paidCount),
-      ));
+      await (update(installmentPlans)..where((p) => p.id.equals(planId))).write(
+        InstallmentPlansCompanion(
+          name: Value(name),
+          totalAmount: Value(totalAmount),
+          installmentAmount: Value(installmentAmount),
+          totalCount: Value(totalCount),
+          createdAt: Value(createdAt),
+          paidCount: paidCount == null
+              ? const Value.absent()
+              : Value(paidCount),
+        ),
+      );
     });
   }
 
-  Stream<List<InstallmentPlan>> watchInstallmentPlans() =>
-      (select(installmentPlans)
-            ..orderBy([(p) => OrderingTerm.desc(p.createdAt)]))
-          .watch();
+  Stream<List<InstallmentPlan>> watchInstallmentPlans() => (select(
+    installmentPlans,
+  )..orderBy([(p) => OrderingTerm.desc(p.createdAt)])).watch();
 
   /// Plans on one wallet, for the due card's pay action (fresh read at
   /// tap time, not the dashboard's stream snapshot).
-  Future<List<InstallmentPlan>> plansForWallet(int walletId) =>
-      (select(installmentPlans)
-            ..where((p) => p.walletId.equals(walletId)))
-          .get();
+  Future<List<InstallmentPlan>> plansForWallet(int walletId) => (select(
+    installmentPlans,
+  )..where((p) => p.walletId.equals(walletId))).get();
 
   /// Deletes a wallet. Returns false when it still has transactions —
   /// those must be moved or deleted first.
   Future<bool> deleteWallet(int id) async {
-    final txCount = await (select(transactions)
-          ..where((t) =>
-              t.walletId.equals(id) |
-              t.toWalletId.equalsNullable(id)))
-        .get();
+    final txCount =
+        await (select(transactions)..where(
+              (t) => t.walletId.equals(id) | t.toWalletId.equalsNullable(id),
+            ))
+            .get();
     if (txCount.isNotEmpty) return false;
     await (delete(wallets)..where((w) => w.id.equals(id))).go();
     return true;
@@ -1390,28 +1527,33 @@ class AppDatabase extends _$AppDatabase {
   Future<int> addAccount(AccountsCompanion entry) =>
       into(accounts).insert(entry);
 
-  Future<void> renameAccount(int id, String name) =>
-      (update(accounts)..where((a) => a.id.equals(id)))
-          .write(AccountsCompanion(name: Value(name)));
+  Future<void> renameAccount(int id, String name) => (update(
+    accounts,
+  )..where((a) => a.id.equals(id))).write(AccountsCompanion(name: Value(name)));
 
   Future<void> setAccountColor(int id, String colorHex) =>
-      (update(accounts)..where((a) => a.id.equals(id)))
-          .write(AccountsCompanion(colorHex: Value(colorHex)));
+      (update(accounts)..where((a) => a.id.equals(id))).write(
+        AccountsCompanion(colorHex: Value(colorHex)),
+      );
 
   /// Moves [walletIds] into [accountId].
   Future<void> moveWalletsToAccount(List<int> walletIds, int accountId) =>
-      (update(wallets)..where((w) => w.id.isIn(walletIds)))
-          .write(WalletsCompanion(accountId: Value(accountId)));
+      (update(wallets)..where((w) => w.id.isIn(walletIds))).write(
+        WalletsCompanion(accountId: Value(accountId)),
+      );
 
   /// Deletes an account after reassigning its wallets to [moveWalletsToId].
   /// Wallets are never orphaned; callers must refuse the last account.
-  Future<void> deleteAccount(int id, int moveWalletsToId) => transaction(() async {
-        await (update(wallets)..where((w) => w.accountId.equals(id)))
-            .write(WalletsCompanion(accountId: Value(moveWalletsToId)));
+  Future<void> deleteAccount(int id, int moveWalletsToId) =>
+      transaction(() async {
+        await (update(wallets)..where((w) => w.accountId.equals(id))).write(
+          WalletsCompanion(accountId: Value(moveWalletsToId)),
+        );
         await (delete(accounts)..where((a) => a.id.equals(id))).go();
       });
 
-  Future<int> addCategory(CategoriesCompanion entry) => into(categories).insert(entry);
+  Future<int> addCategory(CategoriesCompanion entry) =>
+      into(categories).insert(entry);
 
   /// Deletes a category and its subcategories. Every row that pointed
   /// at them — transactions, budgets, recurring rules, templates — is
@@ -1427,27 +1569,24 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       final fallbackId = await uncategorizedCategoryId;
       if (id == fallbackId) return;
-      final subIds = await (select(categories)
-            ..where((c) => c.parentId.equals(id)))
-          .map((c) => c.id)
-          .get();
+      final subIds = await (select(
+        categories,
+      )..where((c) => c.parentId.equals(id))).map((c) => c.id).get();
       final deadIds = [id, ...subIds];
-      await (update(transactions)
-            ..where((t) => t.categoryId.isIn(deadIds)))
+      await (update(transactions)..where((t) => t.categoryId.isIn(deadIds)))
           .write(TransactionsCompanion(categoryId: Value(fallbackId)));
-      await (update(budgets)..where((b) => b.categoryId.isIn(deadIds)))
-          .write(BudgetsCompanion(categoryId: Value(fallbackId)));
+      await (update(budgets)..where((b) => b.categoryId.isIn(deadIds))).write(
+        BudgetsCompanion(categoryId: Value(fallbackId)),
+      );
       await (update(recurringTransactions)
             ..where((r) => r.categoryId.isIn(deadIds)))
-          .write(
-              RecurringTransactionsCompanion(categoryId: Value(fallbackId)));
+          .write(RecurringTransactionsCompanion(categoryId: Value(fallbackId)));
       await (update(transactionTemplates)
             ..where((t) => t.categoryId.isIn(deadIds)))
-          .write(
-              TransactionTemplatesCompanion(categoryId: Value(fallbackId)));
-      await (delete(categoryKeywords)
-            ..where((k) => k.categoryId.isIn(deadIds)))
-          .go();
+          .write(TransactionTemplatesCompanion(categoryId: Value(fallbackId)));
+      await (delete(
+        categoryKeywords,
+      )..where((k) => k.categoryId.isIn(deadIds))).go();
       await (delete(categories)..where((c) => c.parentId.equals(id))).go();
       await (delete(categories)..where((c) => c.id.equals(id))).go();
     });
@@ -1456,8 +1595,9 @@ class AppDatabase extends _$AppDatabase {
   Future<int> addBudget(BudgetsCompanion entry) => into(budgets).insert(entry);
 
   Future<void> updateBudgetLimit(int budgetId, int limit) =>
-      (update(budgets)..where((b) => b.id.equals(budgetId)))
-          .write(BudgetsCompanion(limit: Value(limit)));
+      (update(budgets)..where((b) => b.id.equals(budgetId))).write(
+        BudgetsCompanion(limit: Value(limit)),
+      );
 
   Future<void> deleteBudget(int budgetId) =>
       (delete(budgets)..where((b) => b.id.equals(budgetId))).go();
@@ -1476,15 +1616,14 @@ class AppDatabase extends _$AppDatabase {
     required int target,
     DateTime? deadline,
     String? colorHex,
-  }) =>
-      (update(goals)..where((g) => g.id.equals(id))).write(
-        GoalsCompanion(
-          name: Value(name),
-          target: Value(target),
-          deadline: Value(deadline),
-          colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
-        ),
-      );
+  }) => (update(goals)..where((g) => g.id.equals(id))).write(
+    GoalsCompanion(
+      name: Value(name),
+      target: Value(target),
+      deadline: Value(deadline),
+      colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
+    ),
+  );
 
   Future<void> deleteGoal(int id) {
     return transaction(() async {
@@ -1510,12 +1649,14 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       final goal = await getGoalById(goalId);
       if (goal == null) return;
-      await into(goalDeposits).insert(GoalDepositsCompanion.insert(
-        goalId: goalId,
-        amount: amount,
-        date: date,
-        note: Value(note),
-      ));
+      await into(goalDeposits).insert(
+        GoalDepositsCompanion.insert(
+          goalId: goalId,
+          amount: amount,
+          date: date,
+          note: Value(note),
+        ),
+      );
       await updateGoalSaved(goalId, goal.saved + amount);
     });
   }
@@ -1531,9 +1672,9 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  Future<void> updateGoalSaved(int id, int saved) =>
-      (update(goals)..where((g) => g.id.equals(id)))
-          .write(GoalsCompanion(saved: Value(saved)));
+  Future<void> updateGoalSaved(int id, int saved) => (update(
+    goals,
+  )..where((g) => g.id.equals(id))).write(GoalsCompanion(saved: Value(saved)));
 
   Future<int> addDebt(DebtsCompanion entry) => into(debts).insert(entry);
 
@@ -1552,33 +1693,38 @@ class AppDatabase extends _$AppDatabase {
   }) {
     return transaction(() async {
       final now = createdAt ?? DateTime.now();
-      final id = await into(debts).insert(DebtsCompanion.insert(
-        person: person,
-        note: Value(note),
-        amount: amount,
-        direction: direction,
-        dueDate: Value(dueDate),
-        walletId: Value(walletId),
-        colorHex: Value(colorHex),
-        recordAsTransaction: Value(recordAsTransaction),
-        createdAt: Value(now),
-      ));
+      final id = await into(debts).insert(
+        DebtsCompanion.insert(
+          person: person,
+          note: Value(note),
+          amount: amount,
+          direction: direction,
+          dueDate: Value(dueDate),
+          walletId: Value(walletId),
+          colorHex: Value(colorHex),
+          recordAsTransaction: Value(recordAsTransaction),
+          createdAt: Value(now),
+        ),
+      );
       if (walletId != null) {
         if (recordAsTransaction) {
           final catId = await debtCategoryId;
-          await into(transactions).insert(TransactionsCompanion.insert(
-            walletId: walletId,
-            categoryId: catId,
-            kind: direction == 'receivable' ? 'expense' : 'income',
-            amount: amount,
-            note:
-                Value(_debtTxNote(direction, person, note, payment: false)),
-            date: now,
-            debtId: Value(id),
-          ));
+          await into(transactions).insert(
+            TransactionsCompanion.insert(
+              walletId: walletId,
+              categoryId: catId,
+              kind: direction == 'receivable' ? 'expense' : 'income',
+              amount: amount,
+              note: Value(_debtTxNote(direction, person, note, payment: false)),
+              date: now,
+              debtId: Value(id),
+            ),
+          );
         }
         await adjustWalletBalance(
-            walletId, _debtWalletEffect(direction, amount));
+          walletId,
+          _debtWalletEffect(direction, amount),
+        );
       }
       return id;
     });
@@ -1614,28 +1760,30 @@ class AppDatabase extends _$AppDatabase {
 
       // The creation entry is the debt-linked transaction without a
       // payment link; payment entries carry debtPaymentId.
-      final linkedTx = await (select(transactions)
-            ..where((t) =>
-                t.debtId.equals(id) & t.debtPaymentId.isNull()))
-          .getSingleOrNull();
+      final linkedTx =
+          await (select(transactions)
+                ..where((t) => t.debtId.equals(id) & t.debtPaymentId.isNull()))
+              .getSingleOrNull();
 
       // Undo the old wallet effect, however it was applied.
       if (linkedTx != null) {
         await _reverseBalanceEffect(linkedTx);
       } else if (old.walletId != null) {
         await adjustWalletBalance(
-            old.walletId!, -_debtWalletEffect(old.direction, old.amount));
+          old.walletId!,
+          -_debtWalletEffect(old.direction, old.amount),
+        );
       }
 
       // Apply the new wallet effect, with or without a history entry.
       if (recordAsTransaction && walletId != null) {
         final catId = await debtCategoryId;
         final kind = old.direction == 'receivable' ? 'expense' : 'income';
-        final txNote =
-            _debtTxNote(old.direction, person, note, payment: false);
+        final txNote = _debtTxNote(old.direction, person, note, payment: false);
         if (linkedTx != null) {
-          await (update(transactions)..where((t) => t.id.equals(linkedTx.id)))
-              .write(
+          await (update(
+            transactions,
+          )..where((t) => t.id.equals(linkedTx.id))).write(
             TransactionsCompanion(
               walletId: Value(walletId),
               categoryId: Value(catId),
@@ -1646,27 +1794,34 @@ class AppDatabase extends _$AppDatabase {
             ),
           );
         } else {
-          await into(transactions).insert(TransactionsCompanion.insert(
-            walletId: walletId,
-            categoryId: catId,
-            kind: kind,
-            amount: amount,
-            note: Value(txNote),
-            date: old.createdAt,
-            debtId: Value(id),
-          ));
+          await into(transactions).insert(
+            TransactionsCompanion.insert(
+              walletId: walletId,
+              categoryId: catId,
+              kind: kind,
+              amount: amount,
+              note: Value(txNote),
+              date: old.createdAt,
+              debtId: Value(id),
+            ),
+          );
         }
         await adjustWalletBalance(
-            walletId, _debtWalletEffect(old.direction, amount));
+          walletId,
+          _debtWalletEffect(old.direction, amount),
+        );
       } else {
         if (linkedTx != null) {
           // The entry is no longer wanted — drop the orphaned row.
-          await (delete(transactions)..where((t) => t.id.equals(linkedTx.id)))
-              .go();
+          await (delete(
+            transactions,
+          )..where((t) => t.id.equals(linkedTx.id))).go();
         }
         if (walletId != null) {
           await adjustWalletBalance(
-              walletId, _debtWalletEffect(old.direction, amount));
+            walletId,
+            _debtWalletEffect(old.direction, amount),
+          );
         }
       }
 
@@ -1682,9 +1837,9 @@ class AppDatabase extends _$AppDatabase {
       final debt = await getDebtById(id);
       if (debt == null) return;
       // Reverse every debt-linked history entry via its own effect.
-      final linked =
-          await (select(transactions)..where((t) => t.debtId.equals(id)))
-              .get();
+      final linked = await (select(
+        transactions,
+      )..where((t) => t.debtId.equals(id))).get();
       for (final t in linked) {
         await _reverseBalanceEffect(t);
       }
@@ -1694,16 +1849,21 @@ class AppDatabase extends _$AppDatabase {
       // Legacy/manual path: reverse effects that have no history entry.
       final hasCreationTx = linked.any((t) => t.debtPaymentId == null);
       if (!hasCreationTx && debt.walletId != null) {
-        await adjustWalletBalance(debt.walletId!,
-            -_debtWalletEffect(debt.direction, debt.amount));
+        await adjustWalletBalance(
+          debt.walletId!,
+          -_debtWalletEffect(debt.direction, debt.amount),
+        );
       }
-      final payments =
-          await (select(debtPayments)..where((p) => p.debtId.equals(id))).get();
+      final payments = await (select(
+        debtPayments,
+      )..where((p) => p.debtId.equals(id))).get();
       for (final p in payments) {
         final hasTx = linked.any((t) => t.debtPaymentId == p.id);
         if (!hasTx && p.walletId != null) {
           await adjustWalletBalance(
-              p.walletId!, -_debtPaymentEffect(debt.direction, p.amount));
+            p.walletId!,
+            -_debtPaymentEffect(debt.direction, p.amount),
+          );
         }
       }
       await (delete(debtPayments)..where((p) => p.debtId.equals(id))).go();
@@ -1748,20 +1908,25 @@ class AppDatabase extends _$AppDatabase {
       if (walletId != null) {
         if (debt.recordAsTransaction) {
           final catId = await debtCategoryId;
-          await into(transactions).insert(TransactionsCompanion.insert(
-            walletId: walletId,
-            categoryId: catId,
-            kind: debt.direction == 'receivable' ? 'income' : 'expense',
-            amount: amount,
-            note: Value(_debtTxNote(debt.direction, debt.person, note,
-                payment: true)),
-            date: date,
-            debtId: Value(debt.id),
-            debtPaymentId: Value(paymentId),
-          ));
+          await into(transactions).insert(
+            TransactionsCompanion.insert(
+              walletId: walletId,
+              categoryId: catId,
+              kind: debt.direction == 'receivable' ? 'income' : 'expense',
+              amount: amount,
+              note: Value(
+                _debtTxNote(debt.direction, debt.person, note, payment: true),
+              ),
+              date: date,
+              debtId: Value(debt.id),
+              debtPaymentId: Value(paymentId),
+            ),
+          );
         }
         await adjustWalletBalance(
-            walletId, _debtPaymentEffect(debt.direction, amount));
+          walletId,
+          _debtPaymentEffect(debt.direction, amount),
+        );
       }
       final paidTotal = await debtPaidTotal(debt.id);
       if (paidTotal >= debt.amount && !debt.isPaid) {
@@ -1773,16 +1938,19 @@ class AppDatabase extends _$AppDatabase {
   /// Deletes one repayment, reversing its wallet movement.
   Future<void> deleteDebtPayment(DebtPayment payment, Debt debt) {
     return transaction(() async {
-      final linkedTx = await (select(transactions)
-            ..where((t) => t.debtPaymentId.equals(payment.id)))
-          .getSingleOrNull();
+      final linkedTx = await (select(
+        transactions,
+      )..where((t) => t.debtPaymentId.equals(payment.id))).getSingleOrNull();
       if (linkedTx != null) {
         await _reverseBalanceEffect(linkedTx);
-        await (delete(transactions)..where((t) => t.id.equals(linkedTx.id)))
-            .go();
+        await (delete(
+          transactions,
+        )..where((t) => t.id.equals(linkedTx.id))).go();
       } else if (payment.walletId != null) {
-        await adjustWalletBalance(payment.walletId!,
-            -_debtPaymentEffect(debt.direction, payment.amount));
+        await adjustWalletBalance(
+          payment.walletId!,
+          -_debtPaymentEffect(debt.direction, payment.amount),
+        );
       }
       await (delete(debtPayments)..where((p) => p.id.equals(payment.id))).go();
       final paidTotal = await debtPaidTotal(debt.id);
@@ -1792,12 +1960,14 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  Future<void> setDebtPaid(int id, bool paid) =>
-      (update(debts)..where((d) => d.id.equals(id)))
-          .write(DebtsCompanion(isPaid: Value(paid)));
+  Future<void> setDebtPaid(int id, bool paid) => (update(
+    debts,
+  )..where((d) => d.id.equals(id))).write(DebtsCompanion(isPaid: Value(paid)));
 
   Future<List<TransactionWithDetails>> getTransactionsInRange(
-      DateTime from, DateTime to) async {
+    DateTime from,
+    DateTime to,
+  ) async {
     final q = _joinedTransactions()
       ..where(transactions.date.isBetweenValues(from, to));
     return _toDetails(await q.get());
@@ -1806,8 +1976,10 @@ class AppDatabase extends _$AppDatabase {
   /// Live version of [getTransactionsInRange]: joined transaction rows
   /// inside [from, to], newest first. Powers the month-grouped history.
   Stream<List<TransactionWithDetails>> watchTransactionsInRange(
-      DateTime from, DateTime to,
-      {int? accountId}) {
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
     final q = _joinedTransactions()
       ..where(transactions.date.isBetweenValues(from, to));
     if (accountId != null) q.where(wallets.accountId.equals(accountId));
@@ -1825,25 +1997,27 @@ class AppDatabase extends _$AppDatabase {
 
   // ------------------------- recurring transactions ----------------------
 
-  Stream<List<RecurringTransaction>> watchRecurringTransactions() =>
-      (select(recurringTransactions)
-            ..orderBy([(r) => OrderingTerm.asc(r.nextDue)]))
-          .watch();
+  Stream<List<RecurringTransaction>> watchRecurringTransactions() => (select(
+    recurringTransactions,
+  )..orderBy([(r) => OrderingTerm.asc(r.nextDue)])).watch();
 
   Future<int> addRecurringTransaction(RecurringTransactionsCompanion entry) =>
       into(recurringTransactions).insert(entry);
 
   Future<void> updateRecurringTransaction(
-          int id, RecurringTransactionsCompanion entry) =>
-      (update(recurringTransactions)..where((r) => r.id.equals(id)))
-          .write(entry);
+    int id,
+    RecurringTransactionsCompanion entry,
+  ) => (update(
+    recurringTransactions,
+  )..where((r) => r.id.equals(id))).write(entry);
 
   Future<void> deleteRecurringTransaction(int id) =>
       (delete(recurringTransactions)..where((r) => r.id.equals(id))).go();
 
   Future<void> setRecurringActive(int id, bool active) =>
-      (update(recurringTransactions)..where((r) => r.id.equals(id)))
-          .write(RecurringTransactionsCompanion(active: Value(active)));
+      (update(recurringTransactions)..where((r) => r.id.equals(id))).write(
+        RecurringTransactionsCompanion(active: Value(active)),
+      );
 
   /// Materializes every due occurrence of active recurring rules as real
   /// transactions (linked via transactions.recurringId) and advances each
@@ -1857,10 +2031,11 @@ class AppDatabase extends _$AppDatabase {
   /// re-logged) on the next launch.
   Future<int> processDueRecurringTransactions() async {
     final now = DateTime.now();
-    final rules = await (select(recurringTransactions)
-          ..where((r) => r.active.equals(true))
-          ..where((r) => r.nextDue.isSmallerOrEqualValue(now)))
-        .get();
+    final rules =
+        await (select(recurringTransactions)
+              ..where((r) => r.active.equals(true))
+              ..where((r) => r.nextDue.isSmallerOrEqualValue(now)))
+            .get();
     var generated = 0;
     for (final rule in rules) {
       try {
@@ -1872,17 +2047,21 @@ class AppDatabase extends _$AppDatabase {
           while (!due.isAfter(now) &&
               (rule.endDate == null || !due.isAfter(rule.endDate!)) &&
               guard < 36) {
-            await into(transactions).insert(TransactionsCompanion.insert(
-              walletId: rule.walletId,
-              categoryId: rule.categoryId,
-              kind: rule.kind,
-              amount: rule.amount,
-              note: Value(rule.note),
-              date: due,
-              recurringId: Value(rule.id),
-            ));
-            await adjustWalletBalance(rule.walletId,
-                rule.kind == 'income' ? rule.amount : -rule.amount);
+            await into(transactions).insert(
+              TransactionsCompanion.insert(
+                walletId: rule.walletId,
+                categoryId: rule.categoryId,
+                kind: rule.kind,
+                amount: rule.amount,
+                note: Value(rule.note),
+                date: due,
+                recurringId: Value(rule.id),
+              ),
+            );
+            await adjustWalletBalance(
+              rule.walletId,
+              rule.kind == 'income' ? rule.amount : -rule.amount,
+            );
             count++;
             due = _advanceRecurring(due, rule.frequency);
             guard++;
@@ -1894,7 +2073,8 @@ class AppDatabase extends _$AppDatabase {
         });
       } catch (e, st) {
         debugPrint(
-            'processDueRecurringTransactions: rule ${rule.id} failed: $e\n$st');
+          'processDueRecurringTransactions: rule ${rule.id} failed: $e\n$st',
+        );
       }
     }
     return generated;
@@ -1906,11 +2086,10 @@ class AppDatabase extends _$AppDatabase {
   // ------------------------- transaction templates -----------------------
 
   Stream<List<TransactionTemplate>> watchTransactionTemplates() =>
-      (select(transactionTemplates)
-            ..orderBy([
-              (t) => OrderingTerm.desc(t.useCount),
-              (t) => OrderingTerm.asc(t.name),
-            ]))
+      (select(transactionTemplates)..orderBy([
+            (t) => OrderingTerm.desc(t.useCount),
+            (t) => OrderingTerm.asc(t.name),
+          ]))
           .watch();
 
   Future<int> addTransactionTemplate(TransactionTemplatesCompanion entry) =>
@@ -1920,11 +2099,12 @@ class AppDatabase extends _$AppDatabase {
       (delete(transactionTemplates)..where((t) => t.id.equals(id))).go();
 
   Future<void> bumpTemplateUse(int id) async {
-    final row =
-        await (select(transactionTemplates)..where((t) => t.id.equals(id)))
-            .getSingle();
+    final row = await (select(
+      transactionTemplates,
+    )..where((t) => t.id.equals(id))).getSingle();
     await (update(transactionTemplates)..where((t) => t.id.equals(id))).write(
-        TransactionTemplatesCompanion(useCount: Value(row.useCount + 1)));
+      TransactionTemplatesCompanion(useCount: Value(row.useCount + 1)),
+    );
   }
 
   // ------------------------- keyword learning -------------------------
@@ -1939,8 +2119,7 @@ class AppDatabase extends _$AppDatabase {
   Future<void> unlearnKeywords(Set<String> tokens, int categoryId) =>
       _bumpKeywords(tokens, categoryId, -1);
 
-  Future<void> _bumpKeywords(
-      Set<String> tokens, int categoryId, int by) async {
+  Future<void> _bumpKeywords(Set<String> tokens, int categoryId, int by) async {
     if (tokens.isEmpty) return;
     await transaction(() async {
       for (final token in tokens) {
@@ -1951,8 +2130,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// Bulk-learns accumulated keyword → category → count in one transaction
   /// (used by the one-time history backfill).
-  Future<void> learnKeywordCounts(
-      Map<String, Map<int, int>> counts) async {
+  Future<void> learnKeywordCounts(Map<String, Map<int, int>> counts) async {
     await transaction(() async {
       for (final e in counts.entries) {
         for (final ce in e.value.entries) {
@@ -1963,14 +2141,13 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Single UPDATE-or-INSERT; callers own the transaction.
-  Future<void> _bumpKeywordRaw(
-      String token, int categoryId, int by) async {
+  Future<void> _bumpKeywordRaw(String token, int categoryId, int by) async {
     final changed = await customUpdate(
       by >= 0
           ? 'UPDATE category_keywords SET hits = hits + ? '
-              'WHERE keyword = ? AND category_id = ?'
+                'WHERE keyword = ? AND category_id = ?'
           : 'UPDATE category_keywords SET hits = MAX(hits + ?, 0) '
-              'WHERE keyword = ? AND category_id = ?',
+                'WHERE keyword = ? AND category_id = ?',
       variables: [
         Variable.withInt(by),
         Variable.withString(token),
@@ -1990,13 +2167,12 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// keyword → {categoryId → hits} for the given tokens.
-  Future<Map<String, Map<int, int>>> keywordHits(
-      Set<String> tokens) async {
+  Future<Map<String, Map<int, int>>> keywordHits(Set<String> tokens) async {
     final map = <String, Map<int, int>>{};
     if (tokens.isEmpty) return map;
-    final rows = await (select(categoryKeywords)
-          ..where((k) => k.keyword.isIn(tokens)))
-        .get();
+    final rows = await (select(
+      categoryKeywords,
+    )..where((k) => k.keyword.isIn(tokens))).get();
     for (final r in rows) {
       map.putIfAbsent(r.keyword, () => {})[r.categoryId] = r.hits;
     }
@@ -2026,22 +2202,24 @@ class AppDatabase extends _$AppDatabase {
     return q;
   }
 
-  List<TransactionWithDetails> _toDetails(
-      List<TypedResult> rows) {
+  List<TransactionWithDetails> _toDetails(List<TypedResult> rows) {
     return rows
-        .map((row) => TransactionWithDetails(
-              transaction: row.readTable(transactions),
-              category: row.readTable(categories),
-              wallet: row.readTable(wallets),
-            ))
+        .map(
+          (row) => TransactionWithDetails(
+            transaction: row.readTable(transactions),
+            category: row.readTable(categories),
+            wallet: row.readTable(wallets),
+          ),
+        )
         .toList();
   }
 
   // --------------------------------- seed --------------------------------
 
   Future<int> _categoryIdByName(String name) async {
-    final row = await (select(categories)..where((c) => c.name.equals(name)))
-        .getSingle();
+    final row = await (select(
+      categories,
+    )..where((c) => c.name.equals(name))).getSingle();
     return row.id;
   }
 
@@ -2050,12 +2228,14 @@ class AppDatabase extends _$AppDatabase {
     // created by the onboarding flow; sample transactions/budgets/
     // goals/debts are no longer seeded so new users start clean.
     Future<void> cat(String name, String icon, String color, String kind) =>
-        into(categories).insert(CategoriesCompanion.insert(
-          name: name,
-          iconKey: Value(icon),
-          colorHex: Value(color),
-          kind: kind,
-        ));
+        into(categories).insert(
+          CategoriesCompanion.insert(
+            name: name,
+            iconKey: Value(icon),
+            colorHex: Value(color),
+            kind: kind,
+          ),
+        );
 
     // Income (reference order).
     await cat('Allowance', 'payments', '#38BDF8', 'income');
@@ -2076,13 +2256,15 @@ class AppDatabase extends _$AppDatabase {
     await cat('Entertainment', 'entertainment', '#14B8A6', 'expense');
     await cat('Fitness', 'fitness', '#84CC16', 'expense');
     await cat('Food', 'food', '#FACC15', 'expense');
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Coffee',
-      iconKey: const Value('coffee'),
-      colorHex: const Value('#B45309'),
-      kind: 'expense',
-      parentId: Value(await _categoryIdByName('Food')),
-    ));
+    await into(categories).insert(
+      CategoriesCompanion.insert(
+        name: 'Coffee',
+        iconKey: const Value('coffee'),
+        colorHex: const Value('#B45309'),
+        kind: 'expense',
+        parentId: Value(await _categoryIdByName('Food')),
+      ),
+    );
     await cat('Gifts', 'gift', '#FB923C', 'expense');
     await cat('Health', 'health', '#F04444', 'expense');
     await cat('Furniture', 'furniture', '#D946EF', 'expense');
@@ -2093,12 +2275,14 @@ class AppDatabase extends _$AppDatabase {
     await cat('Other', 'other', '#9CA3AF', 'expense');
 
     // Hidden category used by wallet-to-wallet transfers (kind 'transfer').
-    await into(categories).insert(CategoriesCompanion.insert(
-      name: 'Transfer',
-      iconKey: const Value('swap_horiz'),
-      colorHex: const Value('#9CA3AF'),
-      kind: 'transfer',
-    ));
+    await into(categories).insert(
+      CategoriesCompanion.insert(
+        name: 'Transfer',
+        iconKey: const Value('swap_horiz'),
+        colorHex: const Value('#9CA3AF'),
+        kind: 'transfer',
+      ),
+    );
   }
 }
 
