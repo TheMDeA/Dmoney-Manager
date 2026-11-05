@@ -3,6 +3,7 @@ import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/app_page_route.dart';
@@ -20,9 +21,9 @@ class ArrangeWalletsScreen extends ConsumerWidget {
   const ArrangeWalletsScreen({super.key});
 
   static void open(BuildContext context) {
-    Navigator.of(context).push(
-      AppPageRoute(builder: (_) => const ArrangeWalletsScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(AppPageRoute(builder: (_) => const ArrangeWalletsScreen()));
   }
 
   @override
@@ -52,9 +53,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
               final reordered = wallets.toList();
               final moved = reordered.removeAt(oldIndex);
               reordered.insert(newIndex, moved);
-              await db.reorderWallets(
-                [for (final w in reordered) w.id],
-              );
+              await db.reorderWallets([for (final w in reordered) w.id]);
             },
             itemBuilder: (context, i) =>
                 _walletRow(context, db, wallets[i], i, hidden),
@@ -68,7 +67,12 @@ class ArrangeWalletsScreen extends ConsumerWidget {
   /// balance, and a compact logo badge. Explicit Row layout (no ListTile)
   /// so the badge can never squeeze the name out.
   Widget _walletRow(
-      BuildContext context, AppDatabase db, Wallet w, int index, bool hidden) {
+    BuildContext context,
+    AppDatabase db,
+    Wallet w,
+    int index,
+    bool hidden,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = colorFromHex(w.colorHex);
     final brand = walletBrandForWallet(
@@ -81,9 +85,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: color.withValues(alpha: isDark ? 0.38 : 0.3),
-        ),
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.38 : 0.3)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -92,10 +94,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
                   Color.lerp(const Color(0xFF1D1F22), color, 0.16)!,
                   const Color(0xFF131416),
                 ]
-              : [
-                  Color.lerp(Colors.white, color, 0.14)!,
-                  Colors.white,
-                ],
+              : [Color.lerp(Colors.white, color, 0.14)!, Colors.white],
         ),
       ),
       child: Row(
@@ -104,10 +103,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
             index: index,
             child: Padding(
               padding: const EdgeInsets.only(left: 8),
-              child: Icon(
-                Icons.drag_indicator,
-                color: context.textMuted,
-              ),
+              child: Icon(Icons.drag_indicator, color: context.textMuted),
             ),
           ),
           // Brand edge stripe, like the stack cards.
@@ -141,11 +137,10 @@ class ArrangeWalletsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    hidden ? maskMoneyText(formatMoney(w.balance)) : formatMoney(w.balance),
-                    style: TextStyle(
-                      color: context.textMuted,
-                      fontSize: 13,
-                    ),
+                    hidden
+                        ? maskMoneyText(formatMoney(w.balance))
+                        : formatMoney(w.balance),
+                    style: TextStyle(color: context.textMuted, fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -160,10 +155,7 @@ class ArrangeWalletsScreen extends ConsumerWidget {
           IconButton(
             tooltip: l10n.walletDeleteWallet,
             onPressed: () => _confirmDelete(context, db, w),
-            icon: Icon(
-              Icons.delete_outline,
-              color: AppColors.expense,
-            ),
+            icon: Icon(Icons.delete_outline, color: AppColors.expense),
           ),
           const SizedBox(width: 4),
         ],
@@ -172,7 +164,10 @@ class ArrangeWalletsScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(
-      BuildContext context, AppDatabase db, Wallet w) async {
+    BuildContext context,
+    AppDatabase db,
+    Wallet w,
+  ) async {
     final l10n = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -181,15 +176,15 @@ class ArrangeWalletsScreen extends ConsumerWidget {
         content: Text(l10n.walletDeleteMessage),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.commonCancel)),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.commonCancel),
+          ),
           FilledButton(
             onPressed: () {
               Haptics.medium();
               Navigator.pop(context, true);
             },
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.expense),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
             child: Text(l10n.commonDelete),
           ),
         ],
@@ -197,12 +192,13 @@ class ArrangeWalletsScreen extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
     final ok = await db.deleteWallet(w.id);
+    // A deleted paylater wallet must not leave a ghost reminder.
+    if (ok) await syncPaylaterReminder(db, w.id);
     if (!context.mounted) return;
     if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(l10n.walletDeleteHasTransactions)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.walletDeleteHasTransactions)));
     }
     // On success the stream rebuilds and the row vanishes — no pop needed.
   }

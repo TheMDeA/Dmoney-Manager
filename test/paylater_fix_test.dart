@@ -132,22 +132,88 @@ void main() {
       );
     });
 
-    test('installment amount caps at plan remaining', () async {
+    test('rated plan pays down to completion at totalCount', () async {
       final account = await makeAccount();
       final pl = await makeWallet(account, 'PayLater', 'paylater');
+      final payer = await makeWallet(
+        account,
+        'Bank',
+        'bank',
+        initialAmount: 1000000,
+      );
+      // The exact params the add sheet would store for Rp 300.000 at
+      // 12x with a 2.5%/mo rate: monthly carries the fee (32.500), the
+      // plan total is the principal (300.000). Keying the remaining
+      // off the principal used to strand the plan at payment 10 of 12
+      // with a dead Pay button.
+      final params = autoPlanParams(
+        isNew: true,
+        transactionKind: 'expense',
+        walletKind: 'paylater',
+        amount: 300000,
+        tenor: 12,
+        monthlyRatePercent: 2.5,
+        note: 'Rated',
+      )!;
+      expect(params.totalAmount, 300000);
+      expect(params.installmentAmount, 32500);
       final planId = await db.addInstallmentPlan(
         walletId: pl,
-        name: 'Partial',
-        totalAmount: 450000,
-        installmentAmount: 100000,
-        totalCount: 5,
+        name: params.name,
+        totalAmount: params.totalAmount,
+        installmentAmount: params.installmentAmount,
+        totalCount: params.totalCount,
       );
-      for (var i = 0; i < 4; i++) {
+      var totalPaid = 0;
+      for (var step = 0; step < 12; step++) {
+        final plan = await getPlan(planId);
+        final due = installmentDueAmount(plan);
+        expect(due, greaterThan(0), reason: 'payment ${step + 1} stalled');
+        await db.addTransfer(
+          fromWalletId: payer,
+          toWalletId: pl,
+          amount: due,
+          note: 'Installment payment',
+          planId: planId,
+        );
         await db.markInstallmentPaid(planId);
+        totalPaid += due;
       }
       final plan = await getPlan(planId);
-      expect(planRemaining(plan), 50000);
-      expect(installmentDueAmount(plan), 50000);
+      expect(plan.paidCount, 12);
+      expect(totalPaid, 390000); // the quote's total payable
+      expect(planRemaining(plan), 0);
+      expect(installmentDueAmount(plan), 0);
+    });
+
+    test('unrated rounding settles exactly on the last installment',
+        () async {
+      final account = await makeAccount();
+      final pl = await makeWallet(account, 'PayLater', 'paylater');
+      final quote = calcTenor(
+        principal: 100000,
+        tenor: 3,
+        monthlyRatePercent: null,
+      );
+      expect(quote.monthlyAmount, 33333);
+      final planId = await db.addInstallmentPlan(
+        walletId: pl,
+        name: 'Rounded',
+        totalAmount: 100000,
+        installmentAmount: quote.monthlyAmount,
+        totalCount: 3,
+      );
+      final amounts = <int>[];
+      for (var step = 0; step < 3; step++) {
+        final plan = await getPlan(planId);
+        amounts.add(installmentDueAmount(plan));
+        await db.markInstallmentPaid(planId);
+      }
+      // The final installment absorbs the Rp 1 rounding residue
+      // instead of leaving it owed forever.
+      expect(amounts, [33333, 33333, 33334]);
+      final plan = await getPlan(planId);
+      expect(planRemaining(plan), 0);
     });
   });
 

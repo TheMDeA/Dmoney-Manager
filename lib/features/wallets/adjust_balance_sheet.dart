@@ -3,6 +3,7 @@ import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/paylater.dart';
 import '../../core/utils/haptics.dart';
@@ -36,8 +37,7 @@ class AdjustBalanceSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<AdjustBalanceSheet> createState() =>
-      _AdjustBalanceSheetState();
+  ConsumerState<AdjustBalanceSheet> createState() => _AdjustBalanceSheetState();
 }
 
 enum _AdjustMode { byTransaction, initialAmount }
@@ -50,9 +50,8 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
 
   /// The amount the "Current" line and the prefill show: the outstanding
   /// debt in owed mode, the raw balance otherwise.
-  int get _currentDisplay => _owedMode
-      ? paylaterOutstanding(widget.wallet)
-      : widget.wallet.balance;
+  int get _currentDisplay =>
+      _owedMode ? paylaterOutstanding(widget.wallet) : widget.wallet.balance;
 
   late final TextEditingController _ctrl = TextEditingController(
     text: formatAmountInput(_currentDisplay),
@@ -77,9 +76,8 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
 
   /// The balance the wallet should end at. In owed mode the field holds
   /// the outstanding amount, so the target balance is its negation.
-  int get _targetBalance => _owedMode
-      ? -parseAmountInput(_ctrl.text)
-      : parseAmountInput(_ctrl.text);
+  int get _targetBalance =>
+      _owedMode ? -parseAmountInput(_ctrl.text) : parseAmountInput(_ctrl.text);
 
   int get _diff => _targetBalance - widget.wallet.balance;
 
@@ -99,6 +97,7 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+    await syncPaylaterReminder(db, widget.wallet.id);
     if (!mounted) return;
     Haptics.medium();
     final messenger = ScaffoldMessenger.of(context);
@@ -108,7 +107,8 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
         content: Text(
           _mode == _AdjustMode.byTransaction
               ? l10n.walletAdjustmentRecorded(
-                  formatSignedMoney(diff.abs(), isIncome: diff > 0))
+                  formatSignedMoney(diff.abs(), isIncome: diff > 0),
+                )
               : l10n.walletInitialUpdated,
         ),
       ),
@@ -134,22 +134,23 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-                _owedMode
-                    ? l10n.walletCurrentOutstanding
-                    : l10n.walletCurrentBalance,
-                style: TextStyle(color: context.textMuted, fontSize: 13)),
+              _owedMode
+                  ? l10n.walletCurrentOutstanding
+                  : l10n.walletCurrentBalance,
+              style: TextStyle(color: context.textMuted, fontSize: 13),
+            ),
             Text(
               hidden
                   ? maskMoneyText(formatMoney(_currentDisplay))
                   : formatMoney(_currentDisplay),
-              style:
-                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ],
         ),
         const SizedBox(height: 16),
         FormSectionLabel(
-            _owedMode ? l10n.walletNewOutstanding : l10n.walletNewBalance),
+          _owedMode ? l10n.walletNewOutstanding : l10n.walletNewBalance,
+        ),
         const SizedBox(height: 8),
         FormAmountEntry(controller: _ctrl, autofocus: true),
         const SizedBox(height: 8),
@@ -157,7 +158,8 @@ class _AdjustBalanceSheetState extends ConsumerState<AdjustBalanceSheet> {
           diff == 0
               ? l10n.walletNoChange
               : l10n.walletDifference(
-                  formatSignedMoney(diff.abs(), isIncome: diff > 0)),
+                  formatSignedMoney(diff.abs(), isIncome: diff > 0),
+                ),
           style: TextStyle(color: diffColor, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),

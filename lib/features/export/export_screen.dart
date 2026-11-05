@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:csv/csv.dart';
@@ -52,10 +53,11 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           SectionHeader(title: l10n.exportDateRange),
           SegmentedButton<String>(
             segments: [
+              ButtonSegment(value: 'month', label: Text(l10n.exportThisMonth)),
               ButtonSegment(
-                  value: 'month', label: Text(l10n.exportThisMonth)),
-              ButtonSegment(
-                  value: 'quarter', label: Text(l10n.exportThreeMonths)),
+                value: 'quarter',
+                label: Text(l10n.exportThreeMonths),
+              ),
               ButtonSegment(value: 'all', label: Text(l10n.exportAllTime)),
             ],
             selected: {_range},
@@ -83,7 +85,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             onPressed: _exporting ? null : _export,
             icon: _exporting
                 ? const SizedBox(
-                    width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.file_download_outlined),
             label: Text(_exporting ? l10n.exportExporting : l10n.exportExport),
             style: FilledButton.styleFrom(
@@ -117,9 +122,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   Future<void> _export() async {
     final l10n = AppLocalizations.of(context)!;
     if (!_includeTransactions && !_includeBudgets && !_includeDebts) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.exportSelectDataset)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.exportSelectDataset)));
       return;
     }
     setState(() => _exporting = true);
@@ -130,45 +135,54 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
       late final List<int> bytes;
       if (_format == 'csv') {
-        bytes = (await _buildCsv(db, from, to)).codeUnits;
+        // UTF-8, with the BOM so Excel detects the encoding — the old
+        // `.codeUnits` wrote UTF-16 code units truncated to bytes,
+        // corrupting any non-ASCII note or name in the file.
+        bytes = utf8.encode('\uFEFF${await _buildCsv(db, from, to)}');
       } else {
         bytes = await _buildExcel(db, from, to);
       }
 
       final dir = await getTemporaryDirectory();
       final file = File(
-          '${dir.path}/money_manager_export_${DateTime.now().millisecondsSinceEpoch}.$ext');
+        '${dir.path}/money_manager_export_${DateTime.now().millisecondsSinceEpoch}.$ext',
+      );
       await file.writeAsBytes(bytes);
 
       if (mounted) {
         await SharePlus.instance.share(
-          ShareParams(
-            text: l10n.exportShareText,
-            files: [XFile(file.path)],
-          ),
+          ShareParams(text: l10n.exportShareText, files: [XFile(file.path)]),
         );
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.exportReady)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.exportReady)));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l10n.exportFailed('$e'))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.exportFailed('$e'))));
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
 
-  Future<String> _buildCsv(
-      AppDatabase db, DateTime from, DateTime to) async {
+  Future<String> _buildCsv(AppDatabase db, DateTime from, DateTime to) async {
     final rows = <List<dynamic>>[];
     if (_includeTransactions) {
       final txs = await db.getTransactionsInRange(from, to);
       rows.add(['TRANSACTIONS']);
-      rows.add(['Date', 'Wallet', 'Category', 'Type', 'Amount (IDR)', 'Description', 'Memo']);
+      rows.add([
+        'Date',
+        'Wallet',
+        'Category',
+        'Type',
+        'Amount (IDR)',
+        'Description',
+        'Memo',
+      ]);
       for (final d in txs) {
         rows.add([
           formatDate(d.transaction.date),
@@ -185,7 +199,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     if (_includeBudgets) {
       final budgets = await db.select(db.budgets).get();
       final cats = {
-        for (final c in await db.select(db.categories).get()) c.id: c.name
+        for (final c in await db.select(db.categories).get()) c.id: c.name,
       };
       rows.add(['BUDGETS']);
       rows.add(['Month', 'Category', 'Limit (IDR)']);
@@ -206,14 +220,23 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       rows.add(['DEBTS']);
       rows.add(['Person', 'Note', 'Direction', 'Amount (IDR)', 'Paid']);
       for (final d in debts) {
-        rows.add(
-            [d.person, d.note, d.direction, d.amount, d.isPaid ? 'yes' : 'no']);
+        rows.add([
+          d.person,
+          d.note,
+          d.direction,
+          d.amount,
+          d.isPaid ? 'yes' : 'no',
+        ]);
       }
     }
     return Csv().encode(rows);
   }
 
-  Future<List<int>> _buildExcel(AppDatabase db, DateTime from, DateTime to) async {
+  Future<List<int>> _buildExcel(
+    AppDatabase db,
+    DateTime from,
+    DateTime to,
+  ) async {
     final excel = Excel.createExcel();
     excel.delete('Sheet1');
 
@@ -243,9 +266,15 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     }
     if (_includeBudgets) {
       final budgets = await db.select(db.budgets).get();
-      final cats = {for (final c in await db.select(db.categories).get()) c.id: c.name};
+      final cats = {
+        for (final c in await db.select(db.categories).get()) c.id: c.name,
+      };
       final sheet = excel['Budgets'];
-      sheet.appendRow([TextCellValue('Month'), TextCellValue('Category'), TextCellValue('Limit (IDR)')]);
+      sheet.appendRow([
+        TextCellValue('Month'),
+        TextCellValue('Category'),
+        TextCellValue('Limit (IDR)'),
+      ]);
       for (final b in budgets) {
         sheet.appendRow([
           TextCellValue(b.month),
@@ -255,7 +284,11 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       }
       final goals = await db.select(db.goals).get();
       final gSheet = excel['Goals'];
-      gSheet.appendRow([TextCellValue('Goal'), TextCellValue('Target (IDR)'), TextCellValue('Saved (IDR)')]);
+      gSheet.appendRow([
+        TextCellValue('Goal'),
+        TextCellValue('Target (IDR)'),
+        TextCellValue('Saved (IDR)'),
+      ]);
       for (final g in goals) {
         gSheet.appendRow([
           TextCellValue(g.name),

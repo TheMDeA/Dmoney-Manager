@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dmoney_manager/core/widgets/form_sheet.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/app_page_route.dart';
@@ -149,6 +150,15 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     for (final b in backup) {
       await db.deleteTransaction(b.t.id);
     }
+    // Deleting records on paylater wallets changes what they owe.
+    final affectedWallets = <int>{
+      for (final b in backup) b.t.walletId,
+      for (final b in backup)
+        if (b.t.toWalletId != null) b.t.toWalletId!,
+    };
+    for (final id in affectedWallets) {
+      await syncPaylaterReminder(db, id);
+    }
     _clearSelection();
     // Don't let rapid deletes queue up a seemingly endless snackbar.
     messenger.clearSnackBars();
@@ -168,6 +178,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             Haptics.light();
             for (final b in backup) {
               await db.restoreTransaction(b.t, b.photos);
+            }
+            for (final id in affectedWallets) {
+              await syncPaylaterReminder(db, id);
             }
             messenger.clearSnackBars();
             messenger.showSnackBar(

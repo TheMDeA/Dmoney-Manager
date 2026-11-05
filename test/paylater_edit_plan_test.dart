@@ -146,4 +146,54 @@ void main() {
     );
     expect((await getPlan(planId)).name, 'Old renamed');
   });
+
+  test('counter guards reject impossible paid/total combinations',
+      () async {
+    final planId = await addLinkedPlan();
+    await db.markInstallmentPaid(planId);
+    await db.markInstallmentPaid(planId);
+    final plan = await getPlan(planId);
+    expect(plan.paidCount, 2);
+    // Shrinking the plan below what is already paid is refused.
+    await expectLater(
+      db.editInstallmentPlan(
+        planId: planId,
+        name: 'Phone',
+        totalAmount: 300000,
+        installmentAmount: 100000,
+        totalCount: 1,
+        createdAt: plan.createdAt,
+      ),
+      throwsArgumentError,
+    );
+    // A counter sync above the plan's count is refused too.
+    await expectLater(
+      db.editInstallmentPlan(
+        planId: planId,
+        name: 'Phone',
+        totalAmount: 300000,
+        installmentAmount: 100000,
+        totalCount: 3,
+        createdAt: plan.createdAt,
+        paidCount: 4,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('addInstallmentPlan stores an explicit createdAt', () async {
+    // The add sheet passes the purchase's picked date so a backdated
+    // purchase anchors its schedule to the purchase, not to today.
+    final backdated = DateTime(2026, 10, 10, 14, 30);
+    final planId = await db.addInstallmentPlan(
+      walletId: walletId,
+      name: 'Backdated',
+      totalAmount: 120000,
+      installmentAmount: 120000,
+      totalCount: 1,
+      createdAt: backdated,
+    );
+    final plan = await getPlan(planId);
+    expect(plan.createdAt, backdated);
+  });
 }
