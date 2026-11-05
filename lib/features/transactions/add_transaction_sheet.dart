@@ -8,6 +8,7 @@ import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/services/app_prefs.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import '../../core/services/budget_alerts.dart';
 import '../../core/services/category_suggester.dart';
 import '../../core/theme/app_accents.dart';
@@ -1136,6 +1137,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 totalAmount: p.totalAmount,
                 installmentAmount: p.installmentAmount,
                 totalCount: p.totalCount,
+                // The plan's schedule anchors to the purchase date
+                // the user picked, not the moment they typed it in.
+                createdAt: _dateTime,
               );
               await db.setTransactionPlan(expenseId, planId);
             });
@@ -1187,6 +1191,12 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       } else {
         unawaited(suggester.learn(note: newNote, categoryId: _categoryId!));
       }
+    }
+    // A save on a paylater wallet changes what it owes — keep its
+    // due reminder in sync (no-op for other wallet kinds).
+    await syncPaylaterReminder(db, _walletId!);
+    if (_editing && widget.existing!.transaction.walletId != _walletId) {
+      await syncPaylaterReminder(db, widget.existing!.transaction.walletId);
     }
     if (!mounted) return;
     // Brief success state (checkmark + scale animation), then close.

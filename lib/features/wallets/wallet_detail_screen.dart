@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dmoney_manager/core/widgets/form_sheet.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math' as math;
 import '../../core/widgets/app_page_route.dart';
@@ -730,6 +731,8 @@ class _WalletDetailScreenState extends ConsumerState<WalletDetailScreen> {
     );
     if (confirmed != true || !context.mounted) return;
     final ok = await db.deleteWallet(_walletId);
+    // A deleted paylater wallet must not leave a ghost reminder.
+    if (ok) await syncPaylaterReminder(db, _walletId);
     if (!context.mounted) return;
     if (ok) {
       Navigator.pop(context);
