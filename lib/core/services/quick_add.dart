@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../utils/app_navigator.dart';
+import '../widgets/form_sheet.dart';
 import '../../features/transactions/add_transaction_sheet.dart';
 import '../../state/providers.dart';
 
@@ -32,11 +33,9 @@ class QuickAdd {
   }
 
   static void _handle(WidgetRef ref, String? action) {
-    final kind =
-        (action == 'expense' || action == 'income') ? action : null;
+    final kind = (action == 'expense' || action == 'income') ? action : null;
     if (kind == null) return;
-    final locked =
-        ref.read(lockEnabledProvider) && ref.read(lockedProvider);
+    final locked = ref.read(lockEnabledProvider) && ref.read(lockedProvider);
     if (locked) {
       // Don't open the sheet over the lock screen; deliver after unlock.
       _pending = kind;
@@ -58,12 +57,7 @@ class QuickAdd {
       _pending = action;
       return;
     }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => AddTransactionSheet(initialKind: action),
-    );
+    showSnackSheet(context, (_) => AddTransactionSheet(initialKind: action));
   }
 }
 
@@ -75,12 +69,10 @@ class QuickAddListener extends ConsumerStatefulWidget {
   final Widget child;
 
   @override
-  ConsumerState<QuickAddListener> createState() =>
-      _QuickAddListenerState();
+  ConsumerState<QuickAddListener> createState() => _QuickAddListenerState();
 }
 
-class _QuickAddListenerState
-    extends ConsumerState<QuickAddListener> {
+class _QuickAddListenerState extends ConsumerState<QuickAddListener> {
   @override
   void initState() {
     super.initState();
