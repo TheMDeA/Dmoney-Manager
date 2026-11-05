@@ -1294,6 +1294,74 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// Edits a plan's terms in place. When the total changes, the new
+  /// amount is written through to the plan's linked purchase expense
+  /// via [updateTransaction] — reversing the old expense and applying
+  /// the new one — so the plan and the wallet balance never disagree
+  /// about what was bought. A plan with no linked purchase expense
+  /// cannot have its total changed: that throws a [StateError]
+  /// rather than letting the plan drift from the ledger. The
+  /// purchase's date follows [createdAt]'s day (keeping its own
+  /// time), so the expense and the plan's schedule anchor keep
+  /// describing the same purchase. [paidCount] is written only when
+  /// provided — it exists for repairing the counter from the
+  /// recorded payments, never for normal edits.
+  Future<void> editInstallmentPlan({
+    required int planId,
+    required String name,
+    required int totalAmount,
+    required int installmentAmount,
+    required int totalCount,
+    required DateTime createdAt,
+    int? paidCount,
+  }) {
+    return transaction(() async {
+      final plan = await (select(installmentPlans)
+            ..where((p) => p.id.equals(planId)))
+          .getSingleOrNull();
+      if (plan == null) return;
+      Transaction? purchase;
+      for (final t in await planTransactions(planId)) {
+        if (t.kind == 'expense') {
+          purchase = t;
+          break;
+        }
+      }
+      final dayChanged = createdAt.year != plan.createdAt.year ||
+          createdAt.month != plan.createdAt.month ||
+          createdAt.day != plan.createdAt.day;
+      if (purchase != null &&
+          (totalAmount != plan.totalAmount || dayChanged)) {
+        await updateTransaction(
+          id: purchase.id,
+          walletId: purchase.walletId,
+          categoryId: purchase.categoryId,
+          kind: purchase.kind,
+          amount: totalAmount,
+          note: purchase.note,
+          memo: purchase.memo,
+          date: dayChanged
+              ? DateTime(createdAt.year, createdAt.month, createdAt.day,
+                  purchase.date.hour, purchase.date.minute)
+              : purchase.date,
+        );
+      } else if (totalAmount != plan.totalAmount) {
+        throw StateError(
+            'Plan $planId has no linked purchase; its total cannot change.');
+      }
+      await (update(installmentPlans)..where((p) => p.id.equals(planId)))
+          .write(InstallmentPlansCompanion(
+        name: Value(name),
+        totalAmount: Value(totalAmount),
+        installmentAmount: Value(installmentAmount),
+        totalCount: Value(totalCount),
+        createdAt: Value(createdAt),
+        paidCount:
+            paidCount == null ? const Value.absent() : Value(paidCount),
+      ));
+    });
+  }
+
   Stream<List<InstallmentPlan>> watchInstallmentPlans() =>
       (select(installmentPlans)
             ..orderBy([(p) => OrderingTerm.desc(p.createdAt)]))
