@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app.dart';
 import 'core/services/app_prefs.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/paylater_reminder_sync.dart';
 import 'data/database/app_database.dart';
 import 'state/providers.dart';
 
@@ -33,6 +34,15 @@ Future<void> main() async {
     // recurring transactions did not post, and that must be visible
     // in the logs instead of vanishing.
     debugPrint('Recurring generation failed: $e\n$st');
+  }
+  // Generated records can change what paylater wallets owe — keep
+  // their due reminders in sync. Never fatal at startup either.
+  try {
+    for (final w in await db.watchWallets().first) {
+      if (w.kind == 'paylater') await syncPaylaterReminder(db, w.id);
+    }
+  } catch (e) {
+    debugPrint('Paylater reminder sync failed: $e');
   }
   runApp(
     ProviderScope(

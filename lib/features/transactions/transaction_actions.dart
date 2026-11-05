@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dmoney_manager/core/widgets/form_sheet.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/haptics.dart';
@@ -88,6 +89,9 @@ Future<void> deleteTransactionFlow(
     for (final f in feeRows) f.id: await db.watchPhotos(f.id).first,
   };
   await db.deleteTransaction(t.id);
+  // Deleting a record on a paylater wallet changes what it owes.
+  await syncPaylaterReminder(db, t.walletId);
+  if (t.toWalletId != null) await syncPaylaterReminder(db, t.toWalletId!);
   afterDelete?.call();
   // Don't let rapid deletes queue up a seemingly endless snackbar.
   messenger.clearSnackBars();
@@ -105,6 +109,10 @@ Future<void> deleteTransactionFlow(
           await db.restoreTransaction(t, photos);
           for (final f in feeRows) {
             await db.restoreTransaction(f, feePhotos[f.id] ?? const []);
+          }
+          await syncPaylaterReminder(db, t.walletId);
+          if (t.toWalletId != null) {
+            await syncPaylaterReminder(db, t.toWalletId!);
           }
           messenger.clearSnackBars();
           messenger.showSnackBar(
