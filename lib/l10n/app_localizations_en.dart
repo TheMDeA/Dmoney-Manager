@@ -1374,6 +1374,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupNotDmoneyFile => 'Not a Dmoney Manager backup file.';
 
   @override
+  String get backupFromNewerApp =>
+      'This backup was made by a newer version of Dmoney Manager. Update the app first.';
+
+  @override
+  String get backupDatabaseCorrupt =>
+      'The database inside this backup is damaged or missing.';
+
+  @override
   String get formCalculator => 'Calculator';
 
   @override
@@ -2000,6 +2008,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get paylaterPayInstallment => 'Pay installment';
+
+  @override
+  String get paylaterPayInstallments => 'Pay installments';
 
   @override
   String get paylaterPaylaterWalletLabel => 'Paylater wallet';
