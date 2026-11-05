@@ -305,6 +305,105 @@ void main() {
       await disposeTrap(tester);
     });
 
+    testWidgets('custom tenor saves a plan with the typed count',
+        (tester) async {
+      final db = await openDb();
+      final paylaterId = await makeWallet(db, 'ShopeePay', 'paylater');
+      await pumpSheet(tester, db, walletId: paylaterId);
+      expect(tester.takeException(), isNull);
+
+      final descField = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.hintText == 'What was this for?',
+      );
+      await tester.enterText(descField, 'Kulkas');
+      await tester.pump();
+      final amountField = find.descendant(
+        of: find.byType(AmountField),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(amountField, '500000');
+      await tester.pump();
+      await tester.ensureVisible(find.text('All'));
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Food'));
+      await tester.tap(find.text('Food'));
+      await tester.pumpAndSettle();
+
+      // Custom chip -> type the count; the quote follows it.
+      await tester.ensureVisible(find.text('Custom'));
+      await tester.tap(find.text('Custom'));
+      await tester.pump();
+      final countField = find.byWidgetPredicate(
+        (w) =>
+            w is TextField &&
+            w.decoration?.labelText == 'Number of installments',
+      );
+      await tester.enterText(countField, '5');
+      await tester.pump();
+      expect(find.textContaining('100.000/mo'), findsOneWidget);
+
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump();
+
+      final txs = await db.select(db.transactions).get();
+      expect(txs, hasLength(1));
+      expect(txs.first.amount, 500000);
+      final plans = await db.select(db.installmentPlans).get();
+      expect(plans, hasLength(1));
+      expect(plans.first.totalAmount, 500000);
+      expect(plans.first.installmentAmount, 100000);
+      expect(plans.first.totalCount, 5);
+      expect(plans.first.paidCount, 0);
+      await disposeTrap(tester);
+    });
+
+    testWidgets('custom tenor with no count blocks the save',
+        (tester) async {
+      final db = await openDb();
+      final paylaterId = await makeWallet(db, 'ShopeePay', 'paylater');
+      await pumpSheet(tester, db, walletId: paylaterId);
+      expect(tester.takeException(), isNull);
+
+      final descField = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.hintText == 'What was this for?',
+      );
+      await tester.enterText(descField, 'Kulkas');
+      await tester.pump();
+      final amountField = find.descendant(
+        of: find.byType(AmountField),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(amountField, '500000');
+      await tester.pump();
+      await tester.ensureVisible(find.text('All'));
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Food'));
+      await tester.tap(find.text('Food'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Custom'));
+      await tester.tap(find.text('Custom'));
+      await tester.pump();
+
+      // With an amount in and Custom on but no count typed, the quote
+      // line prompts for the count.
+      expect(find.text('Enter the number of installments'), findsOneWidget);
+
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump();
+
+      // Nothing was saved: no expense, no plan. (Timing-proof: the
+      // guard returns before any insert, whenever it runs.)
+      expect(await db.select(db.transactions).get(), isEmpty);
+      expect(await db.select(db.installmentPlans).get(), isEmpty);
+      await disposeTrap(tester);
+    });
+
     testWidgets('non-paylater expense saves no plan', (tester) async {
       final db = await openDb();
       final bankId = await makeWallet(db, 'Jago', 'bank');

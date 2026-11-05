@@ -99,10 +99,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   /// last parsed amount (so typing only rebuilds the quote when the
   /// amount itself actually changes).
   int _tenor = 1;
+  bool _customTenor = false;
+  final _customTenorCtrl = TextEditingController();
   int _lastQuoteAmount = -1;
+
+  /// The tenor a save should use: the typed count while Custom is on
+  /// (0 while the field is empty or invalid, which blocks the save).
+  int get _effectiveTenor => _customTenor
+      ? (int.tryParse(_customTenorCtrl.text.trim()) ?? 0)
+      : _tenor;
   bool _saving = false;
   bool _success = false;
   String? _descError;
+  String? _tenorError;
   String? _amountError;
   String? _categoryError;
   String? _walletError;
@@ -176,6 +185,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     }
     _descCtrl.addListener(_onDescChanged);
     _amountCtrl.addListener(_onAmountChanged);
+    _customTenorCtrl.addListener(_onCustomTenorChanged);
     // Rebuild when the description field gains/loses focus so the
     // autocomplete list shows and hides at the right time.
     _descFocus.addListener(() {
@@ -192,7 +202,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     _suggestTimer?.cancel();
     _descCtrl.removeListener(_onDescChanged);
     _amountCtrl.removeListener(_onAmountChanged);
+    _customTenorCtrl.removeListener(_onCustomTenorChanged);
     _amountCtrl.dispose();
+    _customTenorCtrl.dispose();
     _descCtrl.dispose();
     _memoCtrl.dispose();
     _descFocus.dispose();
@@ -222,6 +234,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
       _lastQuoteAmount = parsed;
       if (mounted) setState(() => _amountError = null);
     }
+  }
+
+  /// Typing in the Custom tenor field rebuilds the quote.
+  void _onCustomTenorChanged() {
+    if (mounted) setState(() => _tenorError = null);
   }
 
   /// Inline field error, styled like the description field's error text.
@@ -339,202 +356,211 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     final db = ref.watch(databaseProvider);
     return ScaffoldMessenger(
       key: _messengerKey,
-      child: Stack(
-        children: [
-          FormSheet(
-            title: _editing
-                ? l10n.txEditRecord
-                : (_kind == 'income' ? l10n.txAddIncome : l10n.txAddExpense),
-            actionLabel: _editing ? l10n.commonSaveChanges : l10n.commonSave,
-            onAction: _save,
-            busy: _saving,
-            children: [
-              SlidingSegmented<String>(
-                values: const ['expense', 'income'],
-                labels: [l10n.txExpense, l10n.txIncome],
-                selected: _kind,
-                onChanged: (v) {
-                  setState(() {
-                    _kind = v;
-                    _categoryId = null;
-                    _suggestedId = null;
-                  });
-                  // The description didn't change, but the kind did: re-suggest.
-                  _runSuggestion();
-                },
-              ),
-              const SizedBox(height: 16),
-              _templateRow(context, db, l10n),
-              const SizedBox(height: 16),
-              Shaker(
-                controller: _amountShake,
-                child: FormAmountEntry(controller: _amountCtrl),
-              ),
-              _fieldError(_amountError),
-              const SizedBox(height: 16),
-              FormSectionLabel(l10n.txDescription),
-              const SizedBox(height: 8),
-              Shaker(
-                controller: _descShake,
-                child: TextField(
-                  controller: _descCtrl,
-                  focusNode: _descFocus,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    hintText: l10n.txDescriptionHint,
-                    errorText: _descError,
+      // A Scaffold in the subtree is what gives this messenger
+      // somewhere to present: without one, every _snack in this sheet
+      // queued forever and never showed. Transparent and not
+      // keyboard-resizing — FormSheet already pads viewInsets itself,
+      // so the layout math is unchanged.
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          children: [
+            FormSheet(
+              title: _editing
+                  ? l10n.txEditRecord
+                  : (_kind == 'income' ? l10n.txAddIncome : l10n.txAddExpense),
+              actionLabel: _editing ? l10n.commonSaveChanges : l10n.commonSave,
+              onAction: _save,
+              busy: _saving,
+              children: [
+                SlidingSegmented<String>(
+                  values: const ['expense', 'income'],
+                  labels: [l10n.txExpense, l10n.txIncome],
+                  selected: _kind,
+                  onChanged: (v) {
+                    setState(() {
+                      _kind = v;
+                      _categoryId = null;
+                      _suggestedId = null;
+                    });
+                    // The description didn't change, but the kind did: re-suggest.
+                    _runSuggestion();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _templateRow(context, db, l10n),
+                const SizedBox(height: 16),
+                Shaker(
+                  controller: _amountShake,
+                  child: FormAmountEntry(controller: _amountCtrl),
+                ),
+                _fieldError(_amountError),
+                const SizedBox(height: 16),
+                FormSectionLabel(l10n.txDescription),
+                const SizedBox(height: 8),
+                Shaker(
+                  controller: _descShake,
+                  child: TextField(
+                    controller: _descCtrl,
+                    focusNode: _descFocus,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: l10n.txDescriptionHint,
+                      errorText: _descError,
+                    ),
                   ),
                 ),
-              ),
-              if (_descFocus.hasFocus && _descSuggestions.isNotEmpty)
-                _descAutocompleteList(),
-              const SizedBox(height: 16),
-              Shaker(
-                controller: _categoryShake,
-                child: CategoryPickerSection(
-                  kind: _kind,
-                  selectedId: _categoryId,
-                  suggestedId: _suggestedId,
-                  onSelected: (c) => setState(() {
-                    _kind = c.kind;
-                    _categoryId = c.id;
-                    _categoryError = null;
-                  }),
+                if (_descFocus.hasFocus && _descSuggestions.isNotEmpty)
+                  _descAutocompleteList(),
+                const SizedBox(height: 16),
+                Shaker(
+                  controller: _categoryShake,
+                  child: CategoryPickerSection(
+                    kind: _kind,
+                    selectedId: _categoryId,
+                    suggestedId: _suggestedId,
+                    onSelected: (c) => setState(() {
+                      _kind = c.kind;
+                      _categoryId = c.id;
+                      _categoryError = null;
+                    }),
+                  ),
                 ),
-              ),
-              _fieldError(_categoryError),
-              const SizedBox(height: 16),
-              FormSectionLabel(l10n.txWallet),
-              StreamBuilder<List<Wallet>>(
-                // In edit mode the transaction's own wallet must stay
-                // selectable even when it sits outside the active scope.
-                stream: db.watchWallets(
-                  accountId: _editing
-                      ? null
-                      : ref.watch(selectedAccountProvider),
-                ),
-                builder: (context, snap) {
-                  final wallets = snap.data ?? const <Wallet>[];
-                  _walletId = resolveWalletId(wallets, _walletId);
-                  Wallet? selected;
-                  for (final w in wallets) {
-                    if (w.id == _walletId) selected = w;
-                  }
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Shaker(
-                        controller: _walletShake,
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final w in wallets)
-                              ChoiceChip(
-                                label: Text(w.name),
-                                selected: _walletId == w.id,
-                                selectedColor: context.accent,
-                                showCheckmark: false,
-                                labelStyle: TextStyle(
-                                  color: _walletId == w.id
-                                      ? onAccent(context.accent)
-                                      : Theme.of(
-                                          context,
-                                        ).colorScheme.onSurface,
-                                  fontWeight: FontWeight.w600,
+                _fieldError(_categoryError),
+                const SizedBox(height: 16),
+                FormSectionLabel(l10n.txWallet),
+                StreamBuilder<List<Wallet>>(
+                  // In edit mode the transaction's own wallet must stay
+                  // selectable even when it sits outside the active scope.
+                  stream: db.watchWallets(
+                    accountId: _editing
+                        ? null
+                        : ref.watch(selectedAccountProvider),
+                  ),
+                  builder: (context, snap) {
+                    final wallets = snap.data ?? const <Wallet>[];
+                    _walletId = resolveWalletId(wallets, _walletId);
+                    Wallet? selected;
+                    for (final w in wallets) {
+                      if (w.id == _walletId) selected = w;
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Shaker(
+                          controller: _walletShake,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final w in wallets)
+                                ChoiceChip(
+                                  label: Text(w.name),
+                                  selected: _walletId == w.id,
+                                  selectedColor: context.accent,
+                                  showCheckmark: false,
+                                  labelStyle: TextStyle(
+                                    color: _walletId == w.id
+                                        ? onAccent(context.accent)
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  onSelected: (_) => setState(() {
+                                    _walletId = w.id;
+                                    _walletError = null;
+                                  }),
                                 ),
-                                onSelected: (_) => setState(() {
-                                  _walletId = w.id;
-                                  _walletError = null;
-                                }),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
+                        // Tenor calculator: only for new expenses on a
+                        // paylater wallet, where splitting across months is
+                        // a real decision. The quote is display-only — it
+                        // never creates an installment plan by itself.
+                        if (selected != null &&
+                            selected.kind == 'paylater' &&
+                            _kind == 'expense' &&
+                            !_editing)
+                          _tenorSection(selected, l10n),
+                      ],
+                    );
+                  },
+                ),
+                _fieldError(_walletError),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: FormSectionLabel(l10n.txDateTime)),
+                    if (!_isToday)
+                      TextButton(
+                        onPressed: () {
+                          Haptics.select();
+                          setState(() => _date = DateTime.now());
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        child: Text(l10n.commonToday),
                       ),
-                      // Tenor calculator: only for new expenses on a
-                      // paylater wallet, where splitting across months is
-                      // a real decision. The quote is display-only — it
-                      // never creates an installment plan by itself.
-                      if (selected != null &&
-                          selected.kind == 'paylater' &&
-                          _kind == 'expense' &&
-                          !_editing)
-                        _tenorSection(selected, l10n),
-                    ],
-                  );
-                },
-              ),
-              _fieldError(_walletError),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: FormSectionLabel(l10n.txDateTime)),
-                  if (!_isToday)
-                    TextButton(
-                      onPressed: () {
-                        Haptics.select();
-                        setState(() => _date = DateTime.now());
-                      },
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        visualDensity: VisualDensity.compact,
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FormDatePill(
+                        date: _date,
+                        placeholder: l10n.txPickDate,
+                        onTap: () async {
+                          Haptics.select();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _date,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (picked != null) setState(() => _date = picked);
+                        },
                       ),
-                      child: Text(l10n.commonToday),
                     ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: FormDatePill(
-                      date: _date,
-                      placeholder: l10n.txPickDate,
-                      onTap: () async {
-                        Haptics.select();
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _date,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now(),
-                        );
-                        if (picked != null) setState(() => _date = picked);
-                      },
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FormDatePill(
+                        date: _date,
+                        placeholder: '',
+                        icon: Icons.schedule_outlined,
+                        text:
+                            '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
+                        onTap: () async {
+                          Haptics.select();
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: _time,
+                          );
+                          if (picked != null) setState(() => _time = picked);
+                        },
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FormDatePill(
-                      date: _date,
-                      placeholder: '',
-                      icon: Icons.schedule_outlined,
-                      text:
-                          '${_time.hour.toString().padLeft(2, '0')}.${_time.minute.toString().padLeft(2, '0')}',
-                      onTap: () async {
-                        Haptics.select();
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: _time,
-                        );
-                        if (picked != null) setState(() => _time = picked);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              FormSectionLabel(l10n.txMemo),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _memoCtrl,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(hintText: l10n.txMemoHint),
-              ),
-              if (!_editing) ...[const SizedBox(height: 16), _receiptSection(l10n)],
-              const SizedBox(height: 8),
-            ],
-          ),
-          if (_success) const _SuccessOverlay(),
-        ],
+                  ],
+                ),
+                const SizedBox(height: 16),
+                FormSectionLabel(l10n.txMemo),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _memoCtrl,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(hintText: l10n.txMemoHint),
+                ),
+                if (!_editing) ...[const SizedBox(height: 16), _receiptSection(l10n)],
+                const SizedBox(height: 8),
+              ],
+            ),
+            if (_success) const _SuccessOverlay(),
+          ],
+        ),
       ),
     );
   }
@@ -777,14 +803,16 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   /// Tenor picker + quote for a paylater expense. Flat-monthly-fee math
   /// from the wallet's own rate; when no rate is set the monthly amount
   /// is shown without interest and the gap is stated, never filled with
-  /// an invented rate.
+  /// an invented rate. The Custom chip mirrors the Add Plan sheet: any
+  /// count from 1 to 99, with the same quote behavior.
   Widget _tenorSection(Wallet wallet, AppLocalizations l10n) {
     const tenors = [1, 3, 6, 12];
     final amount = parseAmountInput(_amountCtrl.text);
-    final quote = amount > 0
+    final effTenor = _effectiveTenor;
+    final quote = amount > 0 && effTenor >= 1
         ? calcTenor(
             principal: amount,
-            tenor: _tenor,
+            tenor: effTenor,
             monthlyRatePercent: wallet.interestRateMonthly,
           )
         : null;
@@ -800,23 +828,57 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             for (final t in tenors)
               ChoiceChip(
                 label: Text('${t}x'),
-                selected: _tenor == t,
+                selected: !_customTenor && _tenor == t,
                 selectedColor: context.accent,
                 showCheckmark: false,
                 labelStyle: TextStyle(
-                  color: _tenor == t
+                  color: !_customTenor && _tenor == t
                       ? onAccent(context.accent)
                       : Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
                 ),
-                onSelected: (_) => setState(() => _tenor = t),
+                onSelected: (_) => setState(() {
+                  _customTenor = false;
+                  _tenor = t;
+                  _tenorError = null;
+                }),
               ),
+            ChoiceChip(
+              label: Text(l10n.paylaterCustomTenor),
+              selected: _customTenor,
+              selectedColor: context.accent,
+              showCheckmark: false,
+              labelStyle: TextStyle(
+                color: _customTenor
+                    ? onAccent(context.accent)
+                    : Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+              onSelected: (_) => setState(() {
+                    _customTenor = true;
+                    _tenorError = null;
+                  }),
+            ),
           ],
         ),
+        if (_customTenor) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _customTenorCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: 2,
+            decoration: InputDecoration(
+              labelText: l10n.paylaterInstallmentCountLabel,
+              counterText: '',
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Text(
           quote == null
-              ? l10n.txEnterAmountBreakdown
+              ? (amount <= 0
+                    ? l10n.txEnterAmountBreakdown
+                    : l10n.paylaterEnterCount)
               : quote.totalInterest == null
               ? l10n.txInstallmentNoRate(formatMoney(quote.monthlyAmount))
               // gen-l10n orders params alphabetically: interest, monthly, total.
@@ -827,6 +889,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 ),
           style: TextStyle(color: context.textMuted, fontSize: 13),
         ),
+        _fieldError(_tenorError),
       ],
     );
   }
@@ -1028,12 +1091,19 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             for (final c in await db.select(db.categories).get()) {
               if (c.id == _categoryId!) category = c;
             }
+            if (_customTenor && _effectiveTenor < 1) {
+              // Inline error, not _snack: this sheet's private
+              // ScaffoldMessenger has no Scaffold in its subtree, so
+              // its snackbars never actually present.
+              setState(() => _tenorError = l10n.paylaterEnterCount);
+              return;
+            }
             plan = autoPlanParams(
               isNew: true,
               transactionKind: _kind,
               walletKind: wallet.kind,
               amount: amount,
-              tenor: _tenor,
+              tenor: _effectiveTenor,
               monthlyRatePercent: wallet.interestRateMonthly,
               note: desc,
               categoryName: category?.name,
