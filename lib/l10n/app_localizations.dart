@@ -3261,6 +3261,18 @@ abstract class AppLocalizations {
   /// **'Enter the total amount'**
   String get paylaterEnterTotal;
 
+  /// No description provided for @paylaterEnterCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the number of installments'**
+  String get paylaterEnterCount;
+
+  /// No description provided for @paylaterCustomTenor.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get paylaterCustomTenor;
+
   /// No description provided for @paylaterFreezeSubtitle.
   ///
   /// In en, this message translates to:
@@ -3411,6 +3423,66 @@ abstract class AppLocalizations {
   /// **'Installment plan added'**
   String get paylaterPlanAdded;
 
+  /// No description provided for @paylaterEditPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit plan'**
+  String get paylaterEditPlan;
+
+  /// No description provided for @paylaterEditPlanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit installment plan'**
+  String get paylaterEditPlanTitle;
+
+  /// No description provided for @paylaterPlanUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Installment plan updated'**
+  String get paylaterPlanUpdated;
+
+  /// No description provided for @paylaterStartDateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Start date'**
+  String get paylaterStartDateLabel;
+
+  /// No description provided for @paylaterNoLinkedPurchaseNote.
+  ///
+  /// In en, this message translates to:
+  /// **'No purchase is linked to this plan, so its total can\'t be changed.'**
+  String get paylaterNoLinkedPurchaseNote;
+
+  /// No description provided for @paylaterTotalBelowPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'The total can\'t be below the {amount} already paid'**
+  String paylaterTotalBelowPaid(String amount);
+
+  /// No description provided for @paylaterCountBelowPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'Already {count} paid — the count can\'t be lower than that'**
+  String paylaterCountBelowPaid(int count);
+
+  /// No description provided for @paylaterEditPaidLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Paid: {paid} of {total}'**
+  String paylaterEditPaidLine(int paid, int total);
+
+  /// No description provided for @paylaterPaidCountMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'The counter says {set} paid, but {recorded} payments are recorded.'**
+  String paylaterPaidCountMismatch(int recorded, int set);
+
+  /// No description provided for @paylaterSyncPaidCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync counter'**
+  String get paylaterSyncPaidCount;
+
   /// No description provided for @paylaterPlanProgress.
   ///
   /// In en, this message translates to:
@@ -3433,12 +3505,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Installment plans'**
   String get paylaterPlans;
-
-  /// No description provided for @paylaterPlansNeed2.
-  ///
-  /// In en, this message translates to:
-  /// **'Plans need at least 2 installments'**
-  String get paylaterPlansNeed2;
 
   /// No description provided for @paylaterProviders.
   ///
