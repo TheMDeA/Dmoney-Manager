@@ -211,7 +211,9 @@ class _PaylaterDashboardScreenState
         plan == null ? paylaterOutstanding(wallet) : installmentDueAmount(plan);
     final shownDue = plan == null
         ? dueDate
-        : (nextInstallmentDueDate(plan, wallet.dueDay) ?? dueDate);
+        : (nextInstallmentDueDate(plan, wallet.dueDay,
+                walletStatementDay: wallet.statementDay) ??
+            dueDate);
     String m(int v) =>
         hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     return GlassCard(
@@ -323,7 +325,7 @@ class _PaylaterDashboardScreenState
         walletId: fresh.id,
         walletName: fresh.name,
         amount: paylaterOutstanding(fresh),
-        dueDate: nextDueDate(dueDay: fresh.dueDay!, from: DateTime.now()),
+        dueDate: walletNextDueDate(fresh, DateTime.now())!,
       );
     } else {
       await NotificationService.cancelPaylaterReminder(walletId);
@@ -506,7 +508,8 @@ class _PaylaterDashboardScreenState
       if (w.id == p.walletId) wallet = w;
     }
     final complete = p.paidCount >= p.totalCount;
-    final due = nextInstallmentDueDate(p, wallet?.dueDay);
+    final due = nextInstallmentDueDate(p, wallet?.dueDay,
+        walletStatementDay: wallet?.statementDay);
     // Tapping the card opens the plan's history: its purchase plus
     // every installment payment. The buttons inside still win their
     // own taps.
@@ -569,6 +572,11 @@ class _PaylaterDashboardScreenState
                     fontWeight: FontWeight.w700,
                   ),
                 ),
+              IconButton(
+                tooltip: l10n.paylaterEditPlan,
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                onPressed: () => _editPlanSheet(p, wallet),
+              ),
               IconButton(
                 tooltip: l10n.paylaterDeletePlan,
                 icon: const Icon(Icons.delete_outline, size: 20),
@@ -669,10 +677,278 @@ class _PaylaterDashboardScreenState
     }
   }
 
+  /// Edits a plan's terms: name, total, tenor and start date. The
+  /// total writes through to the linked purchase (and the wallet
+  /// balance with it) via the DB's editInstallmentPlan; without a
+  /// linked purchase the total is shown read-only, since there is
+  /// nothing in the ledger to correct. The start date moves both the
+  /// plan's schedule anchor and the purchase's date. The paid counter
+  /// is never typed here — paying stays a real transfer — but when
+  /// it disagrees with the plan's recorded payments, a one-tap sync
+  /// to the recorded count is offered.
+  Future<void> _editPlanSheet(InstallmentPlan p, Wallet? wallet) async {
+    final db = ref.read(databaseProvider);
+    final linked = await db.planTransactions(p.id);
+    if (!mounted) return;
+    final hasPurchase = linked.any((t) => t.kind == 'expense');
+    final recordedPayments =
+        linked.where((t) => t.kind == 'transfer').length.clamp(0, p.totalCount);
+    final nameCtrl = TextEditingController(text: p.name);
+    final totalCtrl =
+        TextEditingController(text: formatAmountInput(p.totalAmount));
+    final isPreset = const [1, 3, 6, 12].contains(p.totalCount);
+    var tenor = isPreset ? p.totalCount : 3;
+    var customTenor = !isPreset;
+    final customCtrl =
+        TextEditingController(text: isPreset ? '' : '${p.totalCount}');
+    var selectedDate =
+        DateTime(p.createdAt.year, p.createdAt.month, p.createdAt.day);
+    var paidCountEff = p.paidCount;
+    var syncedPaid = false;
+    final saved = await showSnackSheet<bool>(
+      context,
+      (context) => StatefulBuilder(
+        builder: (context, setSheetState) => FormSheet(
+          title: AppLocalizations.of(context)!.paylaterEditPlanTitle,
+          actionLabel: AppLocalizations.of(context)!.commonSave,
+          onAction: () async {
+            final l10n = AppLocalizations.of(context)!;
+            final name = nameCtrl.text.trim();
+            if (name.isEmpty) {
+              _snack(l10n.paylaterEnterPlanName);
+              return;
+            }
+            final total = parseAmountInput(totalCtrl.text);
+            if (total <= 0) {
+              _snack(l10n.paylaterEnterTotal);
+              return;
+            }
+            final effectiveTenor = customTenor
+                ? (int.tryParse(customCtrl.text.trim()) ?? 0)
+                : tenor;
+            if (effectiveTenor < 1) {
+              _snack(l10n.paylaterEnterCount);
+              return;
+            }
+            if (effectiveTenor < paidCountEff) {
+              _snack(l10n.paylaterCountBelowPaid(paidCountEff));
+              return;
+            }
+            // Money already repaid under the old terms floors the
+            // new total.
+            final paidFloor = paidCountEff * p.installmentAmount;
+            if (total < paidFloor) {
+              _snack(l10n.paylaterTotalBelowPaid(formatMoney(paidFloor)));
+              return;
+            }
+            final termsChanged =
+                total != p.totalAmount || effectiveTenor != p.totalCount;
+            await db.editInstallmentPlan(
+              planId: p.id,
+              name: name,
+              totalAmount: total,
+              installmentAmount: termsChanged
+                  ? calcTenor(
+                      principal: total,
+                      tenor: effectiveTenor,
+                      monthlyRatePercent: wallet?.interestRateMonthly,
+                    ).monthlyAmount
+                  : p.installmentAmount,
+              totalCount: effectiveTenor,
+              createdAt: DateTime(selectedDate.year, selectedDate.month,
+                  selectedDate.day, p.createdAt.hour, p.createdAt.minute),
+              paidCount: syncedPaid ? paidCountEff : null,
+            );
+            if (context.mounted) Navigator.of(context).pop(true);
+          },
+          children: [
+            TextField(
+              controller: nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context)!.walletFormName),
+            ),
+            const SizedBox(height: 16),
+            FormSectionLabel(
+                AppLocalizations.of(context)!.paylaterTotalAmountLabel),
+            if (hasPurchase)
+              FormAmountEntry(controller: totalCtrl)
+            else ...[
+              TextField(controller: totalCtrl, enabled: false),
+              const SizedBox(height: 6),
+              Text(
+                AppLocalizations.of(context)!.paylaterNoLinkedPurchaseNote,
+                style: TextStyle(color: context.textMuted, fontSize: 12),
+              ),
+            ],
+            const SizedBox(height: 16),
+            FormSectionLabel(
+                AppLocalizations.of(context)!.paylaterStartDateLabel),
+            // A plain row, not a ListTile: the sheet's glass
+            // background would hide a ListTile's ink anyway (the
+            // framework asserts about exactly that in debug).
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: selectedDate,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now(),
+                );
+                if (picked != null) {
+                  setSheetState(() => selectedDate = picked);
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(formatDate(selectedDate))),
+                    const Icon(Icons.chevron_right, size: 20),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FormSectionLabel(
+                AppLocalizations.of(context)!.txPayInInstallments),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final t in const [1, 3, 6, 12])
+                  ChoiceChip(
+                    label: Text('${t}x'),
+                    selected: !customTenor && tenor == t,
+                    selectedColor: context.accent,
+                    showCheckmark: false,
+                    labelStyle: TextStyle(
+                      color: !customTenor && tenor == t
+                          ? onAccent(context.accent)
+                          : Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    onSelected: (_) => setSheetState(() {
+                      customTenor = false;
+                      tenor = t;
+                    }),
+                  ),
+                ChoiceChip(
+                  label: Text(
+                      AppLocalizations.of(context)!.paylaterCustomTenor),
+                  selected: customTenor,
+                  selectedColor: context.accent,
+                  showCheckmark: false,
+                  labelStyle: TextStyle(
+                    color: customTenor
+                        ? onAccent(context.accent)
+                        : Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  onSelected: (_) =>
+                      setSheetState(() => customTenor = true),
+                ),
+              ],
+            ),
+            if (customTenor) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: customCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 2,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context)!
+                      .paylaterInstallmentCountLabel,
+                  counterText: '',
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            AnimatedBuilder(
+              animation: Listenable.merge([totalCtrl, customCtrl]),
+              builder: (context, _) {
+                final l10n = AppLocalizations.of(context)!;
+                final total = parseAmountInput(totalCtrl.text);
+                final effTenor = customTenor
+                    ? (int.tryParse(customCtrl.text.trim()) ?? 0)
+                    : tenor;
+                final quote = total > 0 && effTenor >= 1
+                    ? calcTenor(
+                        principal: total,
+                        tenor: effTenor,
+                        monthlyRatePercent: wallet?.interestRateMonthly,
+                      )
+                    : null;
+                return Text(
+                  quote == null
+                      ? (total <= 0
+                          ? l10n.txEnterAmountBreakdown
+                          : l10n.paylaterEnterCount)
+                      : quote.totalInterest == null
+                          ? l10n.txInstallmentNoRate(
+                              formatMoney(quote.monthlyAmount))
+                          // gen-l10n orders params alphabetically:
+                          // interest, monthly, total.
+                          : l10n.txInstallmentQuote(
+                              formatMoney(quote.totalInterest!),
+                              formatMoney(quote.monthlyAmount),
+                              formatMoney(quote.totalPayable),
+                            ),
+                  style: TextStyle(color: context.textMuted, fontSize: 13),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            Text(
+              AppLocalizations.of(context)!
+                  .paylaterEditPaidLine(paidCountEff, p.totalCount),
+              style: TextStyle(color: context.textMuted, fontSize: 13),
+            ),
+            if (recordedPayments != paidCountEff) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.warning_amber_outlined,
+                      size: 16, color: Colors.amber),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      AppLocalizations.of(context)!
+                          .paylaterPaidCountMismatch(
+                              recordedPayments, paidCountEff),
+                      style: TextStyle(
+                          color: context.textMuted, fontSize: 12),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setSheetState(() {
+                      paidCountEff = recordedPayments;
+                      syncedPaid = true;
+                    }),
+                    child: Text(
+                        AppLocalizations.of(context)!.paylaterSyncPaidCount),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (saved == true && mounted) {
+      _snack(AppLocalizations.of(context)!.paylaterPlanUpdated);
+    }
+  }
+
   Future<void> _addPlanSheet(List<Wallet> paylater) async {
     final nameCtrl = TextEditingController();
     final totalCtrl = TextEditingController();
-    final countCtrl = TextEditingController(text: '3');
+    var tenor = 1;
+    var customTenor = false;
+    final customCtrl = TextEditingController();
     var selectedWalletId = paylater.first.id;
     int? selectedCategoryId;
     final saved = await showSnackSheet<bool>(
@@ -688,13 +964,15 @@ class _PaylaterDashboardScreenState
               return;
             }
             final total = parseAmountInput(totalCtrl.text);
-            final count = int.tryParse(countCtrl.text.trim()) ?? 0;
             if (total <= 0) {
               _snack(AppLocalizations.of(context)!.paylaterEnterTotal);
               return;
             }
-            if (count < 2) {
-              _snack(AppLocalizations.of(context)!.paylaterPlansNeed2);
+            final effectiveTenor = customTenor
+                ? (int.tryParse(customCtrl.text.trim()) ?? 0)
+                : tenor;
+            if (effectiveTenor < 1) {
+              _snack(AppLocalizations.of(context)!.paylaterEnterCount);
               return;
             }
             if (selectedCategoryId == null) {
@@ -728,12 +1006,18 @@ class _PaylaterDashboardScreenState
               if (unfreeze != true) return;
               await AppPrefs.setPaylaterFrozen(false);
             }
+            final planWallet =
+                paylater.firstWhere((w) => w.id == selectedWalletId);
             await ref.read(databaseProvider).addPlanWithPurchase(
                   walletId: selectedWalletId,
                   name: name,
                   totalAmount: total,
-                  installmentAmount: (total / count).round(),
-                  totalCount: count,
+                  installmentAmount: calcTenor(
+                    principal: total,
+                    tenor: effectiveTenor,
+                    monthlyRatePercent: planWallet.interestRateMonthly,
+                  ).monthlyAmount,
+                  totalCount: effectiveTenor,
                   categoryId: selectedCategoryId!,
                 );
             if (context.mounted) Navigator.of(context).pop(true);
@@ -760,13 +1044,95 @@ class _PaylaterDashboardScreenState
                 AppLocalizations.of(context)!.paylaterTotalAmountLabel),
             FormAmountEntry(controller: totalCtrl),
             const SizedBox(height: 16),
-            TextField(
-              controller: countCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText:
-                    AppLocalizations.of(context)!.paylaterInstallmentCountLabel,
+            FormSectionLabel(
+                AppLocalizations.of(context)!.txPayInInstallments),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final t in const [1, 3, 6, 12])
+                  ChoiceChip(
+                    label: Text('${t}x'),
+                    selected: !customTenor && tenor == t,
+                    selectedColor: context.accent,
+                    showCheckmark: false,
+                    labelStyle: TextStyle(
+                      color: !customTenor && tenor == t
+                          ? onAccent(context.accent)
+                          : Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    onSelected: (_) => setSheetState(() {
+                      customTenor = false;
+                      tenor = t;
+                    }),
+                  ),
+                  ChoiceChip(
+                    label: Text(
+                        AppLocalizations.of(context)!.paylaterCustomTenor),
+                    selected: customTenor,
+                    selectedColor: context.accent,
+                    showCheckmark: false,
+                    labelStyle: TextStyle(
+                      color: customTenor
+                          ? onAccent(context.accent)
+                          : Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    onSelected: (_) =>
+                        setSheetState(() => customTenor = true),
+                  ),
+              ],
+            ),
+            if (customTenor) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: customCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 2,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context)!
+                      .paylaterInstallmentCountLabel,
+                  counterText: '',
+                ),
               ),
+            ],
+            const SizedBox(height: 8),
+            AnimatedBuilder(
+              animation: Listenable.merge([totalCtrl, customCtrl]),
+              builder: (context, _) {
+                final l10n = AppLocalizations.of(context)!;
+                final total = parseAmountInput(totalCtrl.text);
+                final wallet =
+                    paylater.firstWhere((w) => w.id == selectedWalletId);
+                final effTenor = customTenor
+                    ? (int.tryParse(customCtrl.text.trim()) ?? 0)
+                    : tenor;
+                final quote = total > 0 && effTenor >= 1
+                    ? calcTenor(
+                        principal: total,
+                        tenor: effTenor,
+                        monthlyRatePercent: wallet.interestRateMonthly,
+                      )
+                    : null;
+                return Text(
+                  quote == null
+                      ? (total <= 0
+                          ? l10n.txEnterAmountBreakdown
+                          : l10n.paylaterEnterCount)
+                      : quote.totalInterest == null
+                          ? l10n.txInstallmentNoRate(
+                              formatMoney(quote.monthlyAmount))
+                          // gen-l10n orders params alphabetically:
+                          // interest, monthly, total.
+                          : l10n.txInstallmentQuote(
+                              formatMoney(quote.totalInterest!),
+                              formatMoney(quote.monthlyAmount),
+                              formatMoney(quote.totalPayable),
+                            ),
+                  style: TextStyle(color: context.textMuted, fontSize: 13),
+                );
+              },
             ),
             const SizedBox(height: 16),
             CategoryPickerSection(
