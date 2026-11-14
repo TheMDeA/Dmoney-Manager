@@ -1143,6 +1143,18 @@ abstract class AppLocalizations {
   /// **'Remind me a day before a debt is due'**
   String get settingsDebtRemindersSubtitle;
 
+  /// No description provided for @settingsPaylaterReminders.
+  ///
+  /// In en, this message translates to:
+  /// **'Paylater reminders'**
+  String get settingsPaylaterReminders;
+
+  /// No description provided for @settingsPaylaterRemindersSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remind me a day before a paylater bill is due'**
+  String get settingsPaylaterRemindersSubtitle;
+
   /// No description provided for @settingsDisplayName.
   ///
   /// In en, this message translates to:
@@ -2397,6 +2409,12 @@ abstract class AppLocalizations {
   /// **'The database inside this backup is damaged or missing.'**
   String get backupDatabaseCorrupt;
 
+  /// No description provided for @backupBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'A backup or restore is already running. Try again in a moment.'**
+  String get backupBusy;
+
   /// Tooltip of the calculator button in AmountField.
   ///
   /// In en, this message translates to:
@@ -2912,6 +2930,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New paylater spending is blocked while frozen. Unfreeze to save this expense?'**
   String get txPaylaterFrozenBody;
+
+  /// No description provided for @txPlanPurchaseHasPayments.
+  ///
+  /// In en, this message translates to:
+  /// **'This purchase already has installment payments — delete the installment plan instead'**
+  String get txPlanPurchaseHasPayments;
+
+  /// No description provided for @txPlanPurchaseKindLocked.
+  ///
+  /// In en, this message translates to:
+  /// **'A paylater purchase can\'t change between expense and income'**
+  String get txPlanPurchaseKindLocked;
+
+  /// No description provided for @txPlanPurchaseWalletPaylater.
+  ///
+  /// In en, this message translates to:
+  /// **'A paylater purchase can only move to another paylater wallet'**
+  String get txPlanPurchaseWalletPaylater;
 
   /// No description provided for @txPhotoUnavailable.
   ///
@@ -3721,6 +3757,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wallets with transactions cannot be deleted. An empty wallet will be removed permanently.'**
   String get walletDeleteMessage;
+
+  /// No description provided for @walletKindChangeHasPlans.
+  ///
+  /// In en, this message translates to:
+  /// **'This wallet still has installment plans. Finish or delete them before changing its type.'**
+  String get walletKindChangeHasPlans;
 
   /// No description provided for @walletDeleteTitle.
   ///
