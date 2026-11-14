@@ -77,6 +77,13 @@ class DriveBackupService {
   static const _autoBackupKey = 'drive_auto_backup';
   static const _accountEmailKey = 'drive_account_email';
 
+  /// Every Drive call must bound its wait: without a timeout a
+  /// stalled upload never resolves, and [maybeAutoBackup] — whose
+  /// only exit from the stuck state is its `finally` — keeps
+  /// `_autoRunning` true forever, silently disabling all later
+  /// auto-backups until the app restarts.
+  static const _httpTimeout = Duration(seconds: 30);
+
   GoogleSignInAccount? _account;
   String? _persistedEmail;
   Future<void>? _initFuture;
@@ -217,6 +224,12 @@ class DriveBackupService {
   /// throws — auto backups must not disturb app startup or exit.
   Future<void> maybeAutoBackup(AppDatabase db) async {
     if (_autoRunning) return;
+    // Never run while a manual backup or a restore is in progress:
+    // the auto-backup could otherwise list the receipts folder
+    // mid-swap and upload a zip whose database and receipts come
+    // from different sides of the restore. createBackup's own guard
+    // closes the check-then-act window below.
+    if (BackupService.isBusy) return;
     final last = _lastAutoAt;
     if (last != null &&
         DateTime.now().difference(last) < const Duration(seconds: 60)) {
@@ -282,15 +295,17 @@ class DriveBackupService {
       ...utf8.encode('\r\n--$boundary--'),
     ];
 
-    final response = await http.post(
-      Uri.parse('$_uploadBase/files?uploadType=multipart'
-          '&fields=id,name,createdTime,modifiedTime,size'),
-      headers: {
-        ...headers,
-        'Content-Type': 'multipart/related; boundary=$boundary',
-      },
-      body: body,
-    );
+    final response = await http
+        .post(
+          Uri.parse('$_uploadBase/files?uploadType=multipart'
+              '&fields=id,name,createdTime,modifiedTime,size'),
+          headers: {
+            ...headers,
+            'Content-Type': 'multipart/related; boundary=$boundary',
+          },
+          body: body,
+        )
+        .timeout(_httpTimeout);
     if (response.statusCode != 200) {
       throw DriveException(_errorMessage(
           response,
@@ -305,12 +320,14 @@ class DriveBackupService {
   Future<DriveBackup> _updateFile(String id, File file) async {
     final headers = await _headers();
     final bytes = await file.readAsBytes();
-    final response = await http.patch(
-      Uri.parse('$_uploadBase/files/$id?uploadType=media'
-          '&fields=id,name,createdTime,modifiedTime,size'),
-      headers: {...headers, 'Content-Type': 'application/zip'},
-      body: bytes,
-    );
+    final response = await http
+        .patch(
+          Uri.parse('$_uploadBase/files/$id?uploadType=media'
+              '&fields=id,name,createdTime,modifiedTime,size'),
+          headers: {...headers, 'Content-Type': 'application/zip'},
+          body: bytes,
+        )
+        .timeout(_httpTimeout);
     if (response.statusCode != 200) {
       throw DriveException(_errorMessage(
           response,
@@ -334,12 +351,14 @@ class DriveBackupService {
     }
     final query = Uri.encodeQueryComponent(
         "name contains 'dmoney-backup-' or name = '$autoFileName'");
-    final response = await http.get(
-      Uri.parse('$_apiBase/files?spaces=appDataFolder&q=$query'
-          '&fields=files(id,name,createdTime,modifiedTime,size)'
-          '&orderBy=createdTime desc'),
-      headers: headers,
-    );
+    final response = await http
+        .get(
+          Uri.parse('$_apiBase/files?spaces=appDataFolder&q=$query'
+              '&fields=files(id,name,createdTime,modifiedTime,size)'
+              '&orderBy=createdTime desc'),
+          headers: headers,
+        )
+        .timeout(_httpTimeout);
     if (response.statusCode != 200) {
       throw DriveException(_errorMessage(
           response,
@@ -360,10 +379,12 @@ class DriveBackupService {
   /// [BackupService.restoreBackup].
   Future<File> downloadBackup(DriveBackup backup) async {
     final headers = await _headers();
-    final response = await http.get(
-      Uri.parse('$_apiBase/files/${backup.id}?alt=media'),
-      headers: headers,
-    );
+    final response = await http
+        .get(
+          Uri.parse('$_apiBase/files/${backup.id}?alt=media'),
+          headers: headers,
+        )
+        .timeout(_httpTimeout);
     if (response.statusCode != 200) {
       throw DriveException(_errorMessage(
           response,
@@ -378,10 +399,12 @@ class DriveBackupService {
 
   Future<void> deleteBackup(String id) async {
     final headers = await _headers();
-    final response = await http.delete(
-      Uri.parse('$_apiBase/files/$id'),
-      headers: headers,
-    );
+    final response = await http
+        .delete(
+          Uri.parse('$_apiBase/files/$id'),
+          headers: headers,
+        )
+        .timeout(_httpTimeout);
     if (response.statusCode != 204 && response.statusCode != 200) {
       throw DriveException(_errorMessage(
           response,

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/paylater_reminder_sync.dart';
+import '../../state/providers.dart';
 import '../../core/theme/app_colors.dart';
 
 /// Notification preferences: budget threshold alerts and debt reminders.
@@ -18,12 +20,14 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   late bool _budgetAlerts;
   late bool _debtReminders;
+  late bool _paylaterReminders;
 
   @override
   void initState() {
     super.initState();
     _budgetAlerts = AppPrefs.budgetAlerts;
     _debtReminders = AppPrefs.debtReminders;
+    _paylaterReminders = AppPrefs.paylaterReminders;
   }
 
   Future<bool> _ensurePermission() async {
@@ -37,6 +41,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       );
     }
     return granted;
+  }
+
+  /// Re-runs the per-wallet paylater reminder sweep (same as the
+  /// main.dart launch loop): schedules when the pref is ON, cancels
+  /// when it is OFF — syncPaylaterReminder reads the pref itself, so
+  /// one sweep covers both directions.
+  Future<void> _resyncPaylaterReminders() async {
+    try {
+      final db = ref.read(databaseProvider);
+      for (final w in await db.watchWallets().first) {
+        if (w.kind == 'paylater') await syncPaylaterReminder(db, w.id);
+      }
+    } catch (e) {
+      debugPrint('Paylater reminder sync failed: $e');
+    }
   }
 
   @override
@@ -73,6 +92,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               if (v && !await _ensurePermission()) return;
               await AppPrefs.setDebtReminders(v);
               setState(() => _debtReminders = v);
+            },
+          ),
+          SwitchListTile(
+            secondary: const Icon(Icons.credit_card_outlined),
+            title: Text(l10n.settingsPaylaterReminders),
+            subtitle: Text(
+              l10n.settingsPaylaterRemindersSubtitle,
+              style: TextStyle(color: context.textMuted, fontSize: 12),
+            ),
+            value: _paylaterReminders,
+            onChanged: (v) async {
+              if (v && !await _ensurePermission()) return;
+              await AppPrefs.setPaylaterReminders(v);
+              await _resyncPaylaterReminders();
+              if (mounted) setState(() => _paylaterReminders = v);
             },
           ),
           Padding(
