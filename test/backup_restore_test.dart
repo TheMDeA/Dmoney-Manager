@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -152,6 +153,133 @@ void main() {
     },
   );
 
+  test('a pre-v17 backup relinks plans to their purchase and payments',
+      () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(db.close);
+    final paylaterId = await db.createWallet(
+      accountId: 1,
+      name: 'SPayLater',
+      kind: 'paylater',
+      initialAmount: 0,
+    );
+    final fundingId = await db.createWallet(
+      accountId: 1,
+      name: 'BCA',
+      kind: 'bank',
+      initialAmount: 1000000,
+    );
+    final categoryId = await db
+        .into(db.categories)
+        .insert(CategoriesCompanion.insert(name: 'Gadget', kind: 'expense'));
+
+    // Two plans with the SAME total on the same wallet — the matcher
+    // must not cross-link them (the purchase note disambiguates).
+    final phoneId = await db.addPlanWithPurchase(
+      walletId: paylaterId,
+      name: 'Phone',
+      totalAmount: 300000,
+      installmentAmount: 100000,
+      totalCount: 3,
+      categoryId: categoryId,
+    );
+    final tabletId = await db.addPlanWithPurchase(
+      walletId: paylaterId,
+      name: 'Tablet',
+      totalAmount: 300000,
+      installmentAmount: 150000,
+      totalCount: 2,
+      categoryId: categoryId,
+    );
+    // One installment paid on the Phone plan only.
+    await db.addTransfer(
+      fromWalletId: fundingId,
+      toWalletId: paylaterId,
+      amount: 100000,
+      note: 'Installment payment: Phone',
+      planId: phoneId,
+    );
+    await db.markInstallmentPaid(phoneId);
+
+    // A backdated purchase (auto-plan shape): the expense predates the
+    // plan by 30 days and its note is not the plan name, so only
+    // amount + date can identify it.
+    final watchId = await db.addInstallmentPlan(
+      walletId: paylaterId,
+      name: 'Watch',
+      totalAmount: 120000,
+      installmentAmount: 60000,
+      totalCount: 2,
+    );
+    final watchPurchaseId = await db.into(db.transactions).insert(
+          TransactionsCompanion.insert(
+            walletId: paylaterId,
+            categoryId: categoryId,
+            kind: 'expense',
+            amount: 120000,
+            note: const Value('Tokopedia'),
+            date: DateTime.now().subtract(const Duration(days: 30)),
+          ),
+        );
+    await db.adjustWalletBalance(paylaterId, -120000);
+    await db.setTransactionPlan(watchPurchaseId, watchId);
+
+    final zip = await BackupService.createBackup(db);
+
+    // Downgrade the backup to schema 16: drop the plan_id column and
+    // rewrite the manifest, exactly as a backup made by 2.7.1 would
+    // look — every transaction arrives unlinked.
+    final decoded = ZipDecoder().decodeBytes(await zip.readAsBytes());
+    final files = <String, List<int>>{};
+    for (final f in decoded) {
+      if (!f.isFile) continue;
+      if (f.name == 'database.sqlite') {
+        final dbPath = '${root.path}/v16.sqlite';
+        await File(dbPath).writeAsBytes(f.content as List<int>);
+        final raw = sqlite3.sqlite3.open(dbPath);
+        raw.execute('ALTER TABLE transactions DROP COLUMN plan_id');
+        raw.close();
+        files[f.name] = await File(dbPath).readAsBytes();
+      } else if (f.name == 'manifest.json') {
+        files[f.name] = utf8.encode(
+          jsonEncode({
+            'app': 'dmoney_manager',
+            'format': 1,
+            'schemaVersion': 16,
+            'createdAt': DateTime.now().toIso8601String(),
+          }),
+        );
+      } else {
+        files[f.name] = f.content as List<int>;
+      }
+    }
+    final oldZip = packZip(files, 'v16.zip');
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    await BackupService.restoreBackup(target, oldZip);
+
+    // Each plan got its own purchase back — no swaps, no duplicates.
+    final phoneTxs = await target.planTransactions(phoneId);
+    expect(phoneTxs.map((t) => t.note), contains('Phone'));
+    expect(
+      phoneTxs.where((t) => t.note == 'Installment payment: Phone'),
+      hasLength(1),
+    );
+    final tabletTxs = await target.planTransactions(tabletId);
+    expect(tabletTxs, hasLength(1));
+    expect(tabletTxs.single.note, 'Tablet');
+    final watchTxs = await target.planTransactions(watchId);
+    expect(watchTxs, hasLength(1));
+    expect(watchTxs.single.note, 'Tokopedia');
+    // Nothing linked twice: 3 purchases + 1 payment.
+    final linked = await target.select(target.transactions).get();
+    expect(linked.where((t) => t.planId != null), hasLength(4));
+    // Paid counts survived the round trip.
+    final plans = await target.plansForWallet(paylaterId);
+    expect(plans.firstWhere((p) => p.id == phoneId).paidCount, 1);
+  });
+
   test('an empty database file is refused, data intact', () async {
     final target = await seedTargetWithDecoy();
     addTearDown(target.close);
@@ -241,5 +369,26 @@ void main() {
     );
     final wallets = await target.select(target.wallets).get();
     expect(wallets.map((w) => w.name), contains('Decoy'));
+  });
+
+  test('restore leaves the current app-lock PIN untouched', () async {
+    // The backup was made while the device had the old PIN.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pinHash', 'old-pin-hash');
+    final src = await seedSource();
+    addTearDown(src.db.close);
+    final zip = await BackupService.createBackup(src.db);
+
+    // The PIN has since been changed on this device.
+    await prefs.setString('pinHash', 'current-pin-hash');
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    await BackupService.restoreBackup(target, zip);
+
+    // The restored backup's old PIN must not overwrite the current
+    // one — restoring it would lock the user out with a PIN they
+    // may no longer remember.
+    expect(prefs.getString('pinHash'), 'current-pin-hash');
   });
 }

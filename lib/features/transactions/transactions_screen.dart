@@ -97,17 +97,37 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final l10n = AppLocalizations.of(context)!;
     final db = ref.read(databaseProvider);
     final targets = _targets;
-    final deletable = targets
-        .where((d) => d.transaction.debtId == null)
-        .toList();
+    final deletable = <TransactionWithDetails>[];
+    var skippedPlans = 0;
+    for (final d in targets) {
+      final t = d.transaction;
+      if (t.debtId != null) continue;
+      // Like debt rows, a plan purchase with payments is never
+      // bulk-deletable: the plan card is the designed path.
+      if (t.kind == 'expense' && t.planId != null) {
+        final plan = await db.getInstallmentPlan(t.planId!);
+        if (plan != null && plan.paidCount > 0) {
+          skippedPlans++;
+          continue;
+        }
+      }
+      deletable.add(d);
+    }
     final skipped = targets.length - deletable.length;
     if (deletable.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.txDebtDeleteHere)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            skippedPlans == skipped
+                ? l10n.txPlanPurchaseHasPayments
+                : l10n.txDebtDeleteHere,
+          ),
+        ),
+      );
       return;
     }
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -147,8 +167,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         }
       }
     }
+    // Unpaid plans removed alongside their purchases are collected
+    // so undo can restore them before the transactions that link them.
+    final deletedPlans = <InstallmentPlan>[];
     for (final b in backup) {
-      await db.deleteTransaction(b.t.id);
+      final plan = await db.deleteTransaction(b.t.id);
+      if (plan != null) deletedPlans.add(plan);
     }
     // Deleting records on paylater wallets changes what they owe.
     final affectedWallets = <int>{
@@ -176,6 +200,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           label: l10n.txUndo,
           onPressed: () async {
             Haptics.light();
+            for (final p in deletedPlans) {
+              await db.restoreInstallmentPlan(p);
+            }
             for (final b in backup) {
               await db.restoreTransaction(b.t, b.photos);
             }

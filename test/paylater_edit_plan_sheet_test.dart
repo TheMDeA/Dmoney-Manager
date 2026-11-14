@@ -160,4 +160,62 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 100));
   });
+
+  testWidgets('rated plan late in life: unchanged total still saves',
+      (tester) async {
+    final (db, walletId) = await pumpDashboard(tester);
+    final categoryId = await tester.runAsync(
+      () => db.into(db.categories).insert(
+            CategoriesCompanion.insert(name: 'Gadget', kind: 'expense'),
+          ),
+    );
+    // 300k at 2.5%/mo over 12x: the monthly is 32.500, so after 10
+    // payments the 325.000 already collected exceeds the 300.000
+    // principal — the old floor blocked every save on this plan,
+    // even just renaming it.
+    final planId = await tester.runAsync(
+      () => db.addPlanWithPurchase(
+        walletId: walletId,
+        name: 'Phone',
+        totalAmount: 300000,
+        installmentAmount: 32500,
+        totalCount: 12,
+        categoryId: categoryId!,
+      ),
+    );
+    await tester.runAsync(
+      () => db.editInstallmentPlan(
+        planId: planId!,
+        name: 'Phone',
+        totalAmount: 300000,
+        installmentAmount: 32500,
+        totalCount: 12,
+        createdAt: DateTime(2026, 11, 1),
+        paidCount: 10,
+      ),
+    );
+    await settle(tester);
+
+    await tester.ensureVisible(find.byIcon(Icons.edit_outlined));
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await settle(tester);
+    expect(find.text('Edit installment plan'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, 'Phone renamed');
+    await tester.tap(find.text('Save'));
+    await settle(tester);
+
+    expect(find.text('Edit installment plan'), findsNothing);
+    final plan = await tester.runAsync(
+      () => db
+          .plansForWallet(walletId)
+          .then((ps) => ps.firstWhere((p) => p.id == planId)),
+    );
+    expect(plan!.name, 'Phone renamed');
+    expect(plan.totalAmount, 300000);
+    expect(plan.paidCount, 10);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 100));
+  });
 }
