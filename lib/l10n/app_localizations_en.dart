@@ -678,6 +678,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Remind me a day before a debt is due';
 
   @override
+  String get settingsPaylaterReminders => 'Paylater reminders';
+
+  @override
+  String get settingsPaylaterRemindersSubtitle =>
+      'Remind me a day before a paylater bill is due';
+
+  @override
   String get settingsDisplayName => 'Display name';
 
   @override
@@ -1382,6 +1389,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The database inside this backup is damaged or missing.';
 
   @override
+  String get backupBusy =>
+      'A backup or restore is already running. Try again in a moment.';
+
+  @override
   String get formCalculator => 'Calculator';
 
   @override
@@ -1705,6 +1716,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get txPaylaterFrozenBody =>
       'New paylater spending is blocked while frozen. Unfreeze to save this expense?';
+
+  @override
+  String get txPlanPurchaseHasPayments =>
+      'This purchase already has installment payments — delete the installment plan instead';
+
+  @override
+  String get txPlanPurchaseKindLocked =>
+      'A paylater purchase can\'t change between expense and income';
+
+  @override
+  String get txPlanPurchaseWalletPaylater =>
+      'A paylater purchase can only move to another paylater wallet';
 
   @override
   String get txPhotoUnavailable => 'This photo is no longer available';
@@ -2198,6 +2221,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get walletDeleteMessage =>
       'Wallets with transactions cannot be deleted. An empty wallet will be removed permanently.';
+
+  @override
+  String get walletKindChangeHasPlans =>
+      'This wallet still has installment plans. Finish or delete them before changing its type.';
 
   @override
   String get walletDeleteTitle => 'Delete wallet?';
