@@ -60,45 +60,72 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           final debts = snap.data ?? const <Debt>[];
           final outstanding = debts.where((d) => !d.isPaid).toList();
           final paid = debts.where((d) => d.isPaid).toList();
-          final outstandingTotal =
-              outstanding.fold<int>(0, (s, d) => s + d.amount);
           final paidTotal = paid.fold<int>(0, (s, d) => s + d.amount);
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-            children: [
-              Center(
-                child: SlidingSegmented<String>(
-                  values: const ['payable', 'receivable'],
-                  labels: [l10n.debtPayableLabel, l10n.debtReceivableLabel],
-                  selected: _direction,
-                  onChanged: (v) => setState(() => _direction = v),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _band(context, _direction == 'payable' ? l10n.debtNotYetPay : l10n.debtNotYetReceived,
-                  outstandingTotal, hidden),
-              if (outstanding.isEmpty)
-                EmptyState(
-                    icon: Icons.handshake_outlined,
-                    title: l10n.debtsAllClearTitle,
-                    message: l10n.debtsAllClearMessage)
-              else
+          // Amounts still owed, per debt: payments reduce what is left,
+          // floored at zero. The list is small and each total is one
+          // indexed SUM, so fetch them together per emission.
+          return FutureBuilder<List<int>>(
+            future: Future.wait(
+              outstanding.map((d) => db.debtPaidTotal(d.id)),
+            ),
+            builder: (context, paidSnap) {
+              final paidTotals =
+                  paidSnap.data ?? List<int>.filled(outstanding.length, 0);
+              final remainingById = <int, int>{
                 for (var i = 0; i < outstanding.length; i++)
-                  Entrance(
-                    key: ValueKey(outstanding[i].id),
-                    delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
-                    child: _debtTile(context, ref, outstanding[i], false),
+                  outstanding[i].id: _remaining(
+                    outstanding[i].amount,
+                    paidTotals[i],
                   ),
-              const SizedBox(height: 8),
-              _band(context, _direction == 'payable' ? l10n.debtPaid : l10n.debtReceived, paidTotal, hidden),
-              for (var i = 0; i < paid.length; i++)
-                Entrance(
-                  key: ValueKey(paid[i].id),
-                  delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
-                  child: _debtTile(context, ref, paid[i], true),
-                ),
-            ],
+              };
+              final outstandingTotal = remainingById.values.fold<int>(
+                0,
+                (s, v) => s + v,
+              );
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                children: [
+                  Center(
+                    child: SlidingSegmented<String>(
+                      values: const ['payable', 'receivable'],
+                      labels: [l10n.debtPayableLabel, l10n.debtReceivableLabel],
+                      selected: _direction,
+                      onChanged: (v) => setState(() => _direction = v),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _band(context, _direction == 'payable' ? l10n.debtNotYetPay : l10n.debtNotYetReceived,
+                      outstandingTotal, hidden),
+                  if (outstanding.isEmpty)
+                    EmptyState(
+                        icon: Icons.handshake_outlined,
+                        title: l10n.debtsAllClearTitle,
+                        message: l10n.debtsAllClearMessage)
+                  else
+                    for (var i = 0; i < outstanding.length; i++)
+                      Entrance(
+                        key: ValueKey(outstanding[i].id),
+                        delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
+                        child: _debtTile(
+                          context,
+                          ref,
+                          outstanding[i],
+                          false,
+                          remaining: remainingById[outstanding[i].id],
+                        ),
+                      ),
+                  const SizedBox(height: 8),
+                  _band(context, _direction == 'payable' ? l10n.debtPaid : l10n.debtReceived, paidTotal, hidden),
+                  for (var i = 0; i < paid.length; i++)
+                    Entrance(
+                      key: ValueKey(paid[i].id),
+                      delay: Duration(milliseconds: (i * 60).clamp(0, 300)),
+                      child: _debtTile(context, ref, paid[i], true),
+                    ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -132,7 +159,17 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     );
   }
 
-  Widget _debtTile(BuildContext context, WidgetRef ref, Debt d, bool paid) {
+  /// Amount still owed on a debt: total minus payments, never below zero.
+  int _remaining(int amount, int paid) =>
+      amount - paid < 0 ? 0 : amount - paid;
+
+  Widget _debtTile(
+    BuildContext context,
+    WidgetRef ref,
+    Debt d,
+    bool paid, {
+    int? remaining,
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final hidden = ref.watch(balanceHiddenProvider);
     final color = colorFromHex(d.colorHex);
@@ -168,11 +205,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         contentPadding: const EdgeInsets.symmetric(vertical: 4),
         onTap: () {
           Haptics.select();
-          Navigator.of(context).push(
-            AppPageRoute(
-              builder: (_) => DebtDetailScreen(debtId: d.id),
-            ),
-          );
+          Navigator.of(context)
+              .push(
+                AppPageRoute(
+                  builder: (_) => DebtDetailScreen(debtId: d.id),
+                ),
+              )
+              .then((_) {
+                if (mounted) setState(() {});
+              });
         },
         leading: CircleAvatar(
           backgroundColor: color,
@@ -205,7 +246,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           ],
         ),
         trailing: Text(
-          hidden ? maskMoneyText(formatMoney(d.amount)) : formatMoney(d.amount),
+          hidden
+              ? maskMoneyText(formatMoney(remaining ?? d.amount))
+              : formatMoney(remaining ?? d.amount),
           style: AppTextStyles.amount(size: 15).copyWith(
             color: AppColors.expense,
             decoration: paid ? TextDecoration.lineThrough : null,

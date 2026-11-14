@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -7,11 +8,16 @@ import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/services/app_prefs.dart';
+import '../../core/services/budget_alerts.dart';
+import '../../core/services/category_suggester.dart';
+import '../../core/services/paylater_reminder_sync.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
+import '../../core/utils/paylater.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'photo_viewer_screen.dart';
@@ -372,22 +378,94 @@ class _TransactionDetailScreenState
       }
       return;
     }
+    // A duplicated paylater purchase is new paylater spending, so the
+    // freeze gate applies — duplicating must not be a back door around
+    // the lock the user set.
+    InstallmentPlan? plan;
+    if (t.kind == 'expense' && t.planId != null) {
+      plan = await db.getInstallmentPlan(t.planId!);
+    }
+    if (plan != null) {
+      final wallet = await db.getWalletById(t.walletId);
+      if (wallet != null &&
+          isPaylaterSpendBlocked(
+            frozen: AppPrefs.paylaterFrozen,
+            walletKind: wallet.kind,
+            isNewExpense: true,
+          )) {
+        if (!context.mounted) return;
+        final unfreeze = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(l10n.txPaylaterFrozen),
+            content: Text(l10n.txPaylaterFrozenBody),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(l10n.commonCancel),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(l10n.txUnfreezeAndSave),
+              ),
+            ],
+          ),
+        );
+        if (unfreeze != true) return;
+        await AppPrefs.setPaylaterFrozen(false);
+      }
+    }
     if (t.kind == 'transfer' && t.toWalletId != null) {
+      // A duplicated payment is a plain transfer: it moves money
+      // again, but it must not silently advance the plan — paying an
+      // installment is the dashboard's job.
+      var fee = 0;
+      for (final f in await db.transferFeeRows(t.id)) {
+        fee += f.amount;
+      }
       await db.addTransfer(
         fromWalletId: t.walletId,
         toWalletId: t.toWalletId!,
         amount: t.amount,
         note: t.note,
+        fee: fee,
       );
     } else {
-      await db.addTransaction(TransactionsCompanion.insert(
+      final newId = await db.addTransaction(TransactionsCompanion.insert(
         walletId: t.walletId,
         categoryId: t.categoryId,
         kind: t.kind,
         amount: t.amount,
         note: Value(t.note),
+        memo: Value(t.memo),
         date: DateTime.now(),
       ));
+      for (final photo in await db.watchPhotos(t.id).first) {
+        await db.addPhoto(newId, photo.path);
+      }
+      if (plan != null) {
+        // The copy is a new purchase with the same terms: a fresh
+        // unpaid plan, anchored to today, linked to the new row.
+        final planId = await db.addInstallmentPlan(
+          walletId: t.walletId,
+          name: plan.name,
+          totalAmount: t.amount,
+          installmentAmount: plan.installmentAmount,
+          totalCount: plan.totalCount,
+          createdAt: DateTime.now(),
+        );
+        await db.setTransactionPlan(newId, planId);
+      }
+    }
+    // The copy is a real new record: reminders, budget alerts and the
+    // suggester all treat it like a fresh save.
+    await syncPaylaterReminder(db, t.walletId);
+    if (t.toWalletId != null) await syncPaylaterReminder(db, t.toWalletId!);
+    await checkBudgetAlerts(ref);
+    if (AppPrefs.smartSuggestions) {
+      unawaited(
+        CategorySuggester(db).learn(note: t.note, categoryId: t.categoryId),
+      );
     }
     if (context.mounted) {
       ScaffoldMessenger.of(context)

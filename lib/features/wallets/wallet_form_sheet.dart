@@ -191,6 +191,19 @@ class _WalletFormSheetState extends ConsumerState<_WalletFormSheet> {
         }
       }
     }
+    // Changing a paylater wallet's kind strands its installment plans
+    // (they become unpayable) and flips its owed balance into Combined
+    // as an asset. Block the change while any plan exists.
+    if (_editing &&
+        widget.existing!.kind == 'paylater' &&
+        _kind != 'paylater') {
+      final db = ref.read(databaseProvider);
+      final plans = await db.plansForWallet(widget.existing!.id);
+      if (plans.isNotEmpty) {
+        _snack(l10n.walletKindChangeHasPlans);
+        return;
+      }
+    }
     setState(() => _saving = true);
     final db = ref.read(databaseProvider);
     int? walletId;
