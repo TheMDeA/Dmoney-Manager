@@ -41,6 +41,9 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
     // Privacy mode: budget figures mask, transaction rows stay.
     final hidden = ref.watch(balanceHiddenProvider);
+    // The list's spent figures are account-scoped; the detail rows
+    // must be too, or the two disagree when a filter is active.
+    final accountId = ref.watch(selectedAccountProvider);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.budgetsDetailTitle),
@@ -88,7 +91,11 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           ).subtract(const Duration(seconds: 1));
           return StreamBuilder<List<TransactionWithDetails>>(
             stream: db.watchTransactionsForCategory(
-                categoryId, monthStart, monthEnd),
+              categoryId,
+              monthStart,
+              monthEnd,
+              accountId: accountId,
+            ),
             builder: (context, txSnap) {
               final txs = (txSnap.data ?? const <TransactionWithDetails>[])
                   .where((d) => d.transaction.kind == 'expense')

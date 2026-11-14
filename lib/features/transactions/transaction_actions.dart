@@ -55,6 +55,20 @@ Future<void> deleteTransactionFlow(
     ).showSnackBar(SnackBar(content: Text(l10n.txDebtDeleteHere)));
     return;
   }
+  // A plan purchase with payments can't be deleted on its own: the
+  // payments are real money, and removing the purchase would leave a
+  // plan that still claims to be owed. Delete the plan instead.
+  if (t.kind == 'expense' && t.planId != null) {
+    final plan = await db.getInstallmentPlan(t.planId!);
+    if (plan != null && plan.paidCount > 0) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.txPlanPurchaseHasPayments)));
+      return;
+    }
+  }
+  if (!context.mounted) return;
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
@@ -88,7 +102,9 @@ Future<void> deleteTransactionFlow(
   final feePhotos = <int, List<TransactionPhoto>>{
     for (final f in feeRows) f.id: await db.watchPhotos(f.id).first,
   };
-  await db.deleteTransaction(t.id);
+  // deleteTransaction also removes an unpaid plan hanging off this
+  // purchase — keep it so undo can bring the plan back too.
+  final deletedPlan = await db.deleteTransaction(t.id);
   // Deleting a record on a paylater wallet changes what it owes.
   await syncPaylaterReminder(db, t.walletId);
   if (t.toWalletId != null) await syncPaylaterReminder(db, t.toWalletId!);
@@ -106,6 +122,9 @@ Future<void> deleteTransactionFlow(
         label: l10n.txUndo,
         onPressed: () async {
           Haptics.light();
+          if (deletedPlan != null) {
+            await db.restoreInstallmentPlan(deletedPlan);
+          }
           await db.restoreTransaction(t, photos);
           for (final f in feeRows) {
             await db.restoreTransaction(f, feePhotos[f.id] ?? const []);
