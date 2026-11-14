@@ -27,6 +27,23 @@ DateTime advanceRecurringDate(DateTime date, String frequency) {
   }
 }
 
+/// Builds a [DateTime] for [year]/[month]/[day], normalizing out-of-range
+/// months (month 0 -> December of the previous year, month 13 -> January
+/// of the next) and clamping [day] to the last day of the target month.
+/// Use this instead of the raw constructor when stepping by months:
+/// `DateTime(2026, 3 - 1, 31)` overflows to Mar 3, while this gives Feb 28.
+DateTime clampedMonthDate(int year, int month, int day) {
+  final totalMonths = year * 12 + (month - 1);
+  final normalizedYear = totalMonths ~/ 12;
+  final normalizedMonth = totalMonths % 12 + 1;
+  final lastDay = DateTime(normalizedYear, normalizedMonth + 1, 0).day;
+  return DateTime(
+    normalizedYear,
+    normalizedMonth,
+    day > lastDay ? lastDay : day,
+  );
+}
+
 /// Builds a [DateTime], clamping [day] to the last day of the month when it
 /// doesn't fit (e.g. Feb 30 -> Feb 28).
 DateTime _withClampedDay(int year, int month, int day, int hour, int minute) {

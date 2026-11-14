@@ -755,10 +755,14 @@ class _PaylaterDashboardScreenState
               _snack(l10n.paylaterCountBelowPaid(paidCountEff));
               return;
             }
-            // Money already repaid under the old terms floors the
-            // new total.
+            // Money already repaid under the old terms floors a
+            // LOWER total. An unchanged total passes even when it
+            // already sits below that floor: rated plans collect
+            // fees on top of the principal, so their totals
+            // legitimately do — the old check blocked every save on
+            // such a plan, even just renaming it.
             final paidFloor = paidCountEff * p.installmentAmount;
-            if (total < paidFloor) {
+            if (total < p.totalAmount && total < paidFloor) {
               _snack(l10n.paylaterTotalBelowPaid(formatMoney(paidFloor)));
               return;
             }

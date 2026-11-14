@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../core/utils/app_locale.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/recurring_dates.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/utils/haptics.dart';
 import '../../../data/database/app_database.dart';
@@ -127,7 +128,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     // stream the entire history — bound it to the start of that day
     // (the rules apply their own precise cutoffs on top).
     final now = DateTime.now();
-    final insightFrom = DateTime(now.year, now.month - 2, now.day);
+    final insightFrom = clampedMonthDate(now.year, now.month - 2, now.day);
     return StreamBuilder<List<TransactionWithDetails>>(
       stream: db.watchTransactions(accountId: accountId, from: insightFrom),
       builder: (context, snap) {
@@ -315,7 +316,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
     final twoWeeksAgo = now.subtract(const Duration(days: 14));
-    final monthAgo = DateTime(now.year, now.month - 1, now.day);
+    final monthAgo = clampedMonthDate(now.year, now.month - 1, now.day);
 
     final thisWeek = <int, int>{};
     final lastWeek = <int, int>{};
@@ -397,7 +398,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
 
     // Extra aggregates shared by the newer insights.
     final today = DateTime(now.year, now.month, now.day);
-    final twoMonthsAgo = DateTime(now.year, now.month - 2, now.day);
+    final twoMonthsAgo = clampedMonthDate(now.year, now.month - 2, now.day);
     var monthTotal = 0, prevMonthTotal = 0, incomeTotal = 0;
     var weekendTotal = 0, weekdayTotal = 0;
     var cashTotal = 0, cashlessTotal = 0;
