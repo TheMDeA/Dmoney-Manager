@@ -175,6 +175,7 @@ class WalletsScreen extends ConsumerWidget {
                                 if (paylaterWallets(wallets).isNotEmpty) ...[
                                   _paylaterSummaryCard(
                                     context,
+                                    db,
                                     wallets,
                                     hidden,
                                   ),
@@ -224,6 +225,7 @@ class WalletsScreen extends ConsumerWidget {
   /// the full Paylater dashboard.
   Widget _paylaterSummaryCard(
     BuildContext context,
+    AppDatabase db,
     List<Wallet> wallets,
     bool hidden,
   ) {
@@ -232,6 +234,40 @@ class WalletsScreen extends ConsumerWidget {
     final outstanding = totalPaylaterOutstanding(wallets);
     final ratio = paylaterLimitUsedRatio(wallets);
     final next = nextPaylaterDue(wallets, DateTime.now());
+    // The "Next due" line shows what the dashboard's Next-due card
+    // pays: the installments due together on the next due date, not
+    // the wallet's full outstanding — falling back to the full
+    // outstanding when the wallet has no payable plan.
+    final subtitle = next == null
+        ? Text(
+            [
+              if (ratio != null)
+                l10n.walletLimitUsed((ratio * 100).round()),
+            ].join(' · '),
+            style: TextStyle(color: context.textMuted, fontSize: 12),
+          )
+        : StreamBuilder<List<InstallmentPlan>>(
+            stream: db.watchInstallmentPlans(),
+            builder: (context, snap) {
+              final plans = snap.data ?? const <InstallmentPlan>[];
+              final group = dueInstallmentGroup(plans, next.wallet);
+              final amount =
+                  group?.amount ?? paylaterOutstanding(next.wallet);
+              final dueDate = group?.dueDate ?? next.dueDate;
+              return Text(
+                [
+                  if (ratio != null)
+                    l10n.walletLimitUsed((ratio * 100).round()),
+                  l10n.walletPaylaterNextDue(
+                    m(amount),
+                    formatDate(dueDate),
+                    next.wallet.name,
+                  ),
+                ].join(' · '),
+                style: TextStyle(color: context.textMuted, fontSize: 12),
+              );
+            },
+          );
     return GestureDetector(
       onTap: () {
         Haptics.select();
@@ -264,18 +300,7 @@ class WalletsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              [
-                if (ratio != null) l10n.walletLimitUsed((ratio * 100).round()),
-                if (next != null)
-                  l10n.walletPaylaterNextDue(
-                    m(paylaterOutstanding(next.wallet)),
-                    formatDate(next.dueDate),
-                    next.wallet.name,
-                  ),
-              ].join(' · '),
-              style: TextStyle(color: context.textMuted, fontSize: 12),
-            ),
+            subtitle,
           ],
         ),
       ),
