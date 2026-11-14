@@ -676,6 +676,13 @@ class AppLocalizationsId extends AppLocalizations {
       'Ingatkan sehari sebelum utang jatuh tempo';
 
   @override
+  String get settingsPaylaterReminders => 'Pengingat paylater';
+
+  @override
+  String get settingsPaylaterRemindersSubtitle =>
+      'Ingatkan sehari sebelum tagihan paylater jatuh tempo';
+
+  @override
   String get settingsDisplayName => 'Nama tampilan';
 
   @override
@@ -1382,6 +1389,10 @@ class AppLocalizationsId extends AppLocalizations {
       'Basis data di dalam cadangan ini rusak atau hilang.';
 
   @override
+  String get backupBusy =>
+      'Pencadangan atau pemulihan sedang berjalan. Coba lagi sebentar lagi.';
+
+  @override
   String get formCalculator => 'Kalkulator';
 
   @override
@@ -1701,6 +1712,18 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get txPaylaterFrozenBody =>
       'Pengeluaran paylater baru diblokir selama dibekukan. Buka pembekuan untuk menyimpan pengeluaran ini?';
+
+  @override
+  String get txPlanPurchaseHasPayments =>
+      'Pembelian ini sudah ada cicilan yang dibayar — hapus rencana cicilannya saja';
+
+  @override
+  String get txPlanPurchaseKindLocked =>
+      'Pembelian paylater tidak bisa diubah antara pengeluaran dan pemasukan';
+
+  @override
+  String get txPlanPurchaseWalletPaylater =>
+      'Pembelian paylater hanya bisa dipindah ke dompet paylater lain';
 
   @override
   String get txPhotoUnavailable => 'Foto ini sudah tidak tersedia';
@@ -2191,6 +2214,10 @@ class AppLocalizationsId extends AppLocalizations {
   @override
   String get walletDeleteMessage =>
       'Dompet yang memiliki transaksi tidak dapat dihapus. Dompet kosong akan dihapus permanen.';
+
+  @override
+  String get walletKindChangeHasPlans =>
+      'Dompet ini masih memiliki rencana cicilan. Selesaikan atau hapus dulu sebelum mengubah jenisnya.';
 
   @override
   String get walletDeleteTitle => 'Hapus dompet?';
