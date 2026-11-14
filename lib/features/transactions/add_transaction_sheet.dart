@@ -1061,6 +1061,72 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     try {
       if (_editing) {
         final e = widget.existing!.transaction;
+        // A plan's purchase is the plan's anchor: the plan's total,
+        // monthly amount, wallet and schedule date all describe this
+        // row. Editing it must move the plan with it, and must not
+        // break the ledger the plan's payments already built.
+        InstallmentPlan? plan;
+        if (e.kind == 'expense' && e.planId != null) {
+          plan = await db.getInstallmentPlan(e.planId!);
+        }
+        if (plan != null) {
+          // A purchase can't stop being an expense while a plan hangs
+          // off it, and the plan can't live on a non-paylater wallet.
+          if (_kind != 'expense') {
+            _snack(l10n.txPlanPurchaseKindLocked);
+            return;
+          }
+          if (_walletId != e.walletId) {
+            final newWallet = await db.getWalletById(_walletId!);
+            if (newWallet == null || newWallet.kind != 'paylater') {
+              _snack(l10n.txPlanPurchaseWalletPaylater);
+              return;
+            }
+          }
+          // Money already paid under the old terms floors a lower
+          // total — dropping below it would leave the wallet paid up
+          // while the plan still expects installments. An unchanged
+          // total passes even when it already sits below that floor:
+          // rated plans collect fees on top of the principal, so
+          // their totals legitimately do.
+          if (amount < e.amount &&
+              amount < plan.paidCount * plan.installmentAmount) {
+            _snack(
+              l10n.paylaterTotalBelowPaid(
+                formatMoney(plan.paidCount * plan.installmentAmount),
+              ),
+            );
+            return;
+          }
+        }
+        // Raising the purchase records a bigger buy, so the paylater
+        // freeze gate applies like it does to Add Plan and the plan
+        // edit sheet — the purchase edit used to bypass the freeze
+        // entirely.
+        if (plan != null &&
+            amount > e.amount &&
+            AppPrefs.paylaterFrozen) {
+          if (!mounted) return;
+          final unfreeze = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text(l10n.txPaylaterFrozen),
+              content: Text(l10n.txPaylaterFrozenBody),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(l10n.commonCancel),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text(l10n.txUnfreezeAndSave),
+                ),
+              ],
+            ),
+          );
+          if (unfreeze != true) return;
+          await AppPrefs.setPaylaterFrozen(false);
+        }
         await db.updateTransaction(
           id: e.id,
           walletId: _walletId!,
@@ -1071,6 +1137,30 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
           memo: memo,
           date: _dateTime,
         );
+        if (plan != null) {
+          // The purchase moved; the plan follows: its total, its
+          // monthly amount (re-priced from the new total, same tenor
+          // and the new wallet's rate), its wallet, and its schedule
+          // anchor. editInstallmentPlan writes the total through to
+          // the purchase too, which is a no-op here — the row already
+          // carries the new values.
+          final wallet = await db.getWalletById(_walletId!);
+          await db.editInstallmentPlan(
+            planId: plan.id,
+            name: plan.name,
+            totalAmount: amount,
+            installmentAmount: amount != e.amount
+                ? calcTenor(
+                    principal: amount,
+                    tenor: plan.totalCount,
+                    monthlyRatePercent: wallet?.interestRateMonthly,
+                  ).monthlyAmount
+                : plan.installmentAmount,
+            totalCount: plan.totalCount,
+            createdAt: _dateTime,
+            walletId: _walletId != e.walletId ? _walletId : null,
+          );
+        }
       } else {
         // Tenor auto-plan: every NEW paylater expense becomes a plan —
         // including the default 1x, a 1-of-1 "pay next month" plan.

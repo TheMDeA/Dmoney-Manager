@@ -9,6 +9,9 @@ import 'package:sqlite3/sqlite3.dart';
 
 import '../../data/database/app_database.dart';
 import '../utils/app_locale.dart';
+import 'app_prefs.dart';
+import 'notification_service.dart';
+import 'paylater_reminder_sync.dart';
 
 /// Thrown when a backup file is not a valid Dmoney Manager backup.
 class BackupException implements Exception {
@@ -27,6 +30,32 @@ class BackupException implements Exception {
 class BackupService {
   static const _appId = 'dmoney_manager';
   static const _formatVersion = 1;
+
+  /// In-process guard so a backup, a restore, and a Drive auto-backup
+  /// can never run at the same time: they share the temp snapshot
+  /// path and the receipts folder, so interleaving them could corrupt
+  /// a zip or mix two restores' data. Dart is single-threaded and
+  /// [_tryAcquire] has no await between the check and the set, so a
+  /// plain boolean is enough — every holder releases in a `finally`.
+  static bool _busy = false;
+
+  /// True while a backup or restore is running in this process.
+  static bool get isBusy => _busy;
+
+  static bool _tryAcquire() {
+    if (_busy) return false;
+    _busy = true;
+    return true;
+  }
+
+  static void _release() {
+    _busy = false;
+  }
+
+  /// Makes each backup run's temp paths unique (millis + a counter),
+  /// so two runs can never share a snapshot file or zip name — even
+  /// across a crashed run that left stale temp files behind.
+  static int _runCounter = 0;
 
   /// Tables in parent-before-child order for the restore copy.
   /// Every table in the schema belongs here — this list used to
@@ -53,18 +82,37 @@ class BackupService {
   ];
 
   /// Creates a backup zip in the temp directory and returns it.
+  /// Throws [BackupException] when another backup or restore is
+  /// already running in this process.
   static Future<File> createBackup(AppDatabase db) async {
+    if (!_tryAcquire()) {
+      throw BackupException(
+        localizedOrFallback(
+          (l) => l.backupBusy,
+          'A backup or restore is already running. Try again in a moment.',
+        ),
+      );
+    }
+    try {
+      return await _createBackup(db);
+    } finally {
+      _release();
+    }
+  }
+
+  static Future<File> _createBackup(AppDatabase db) async {
     final tmp = await getTemporaryDirectory();
     final stamp = DateTime.now()
         .toIso8601String()
         .replaceAll(':', '-')
         .split('.')
         .first;
+    _runCounter++;
+    final runId = '${DateTime.now().millisecondsSinceEpoch}_$_runCounter';
 
     // A consistent snapshot while the database stays open.
-    final snapshotPath = '${tmp.path}/dmoney_snapshot.sqlite';
+    final snapshotPath = '${tmp.path}/dmoney_snapshot_$runId.sqlite';
     final snapshotFile = File(snapshotPath);
-    if (await snapshotFile.exists()) await snapshotFile.delete();
     await db.customStatement("VACUUM INTO '${_escape(snapshotPath)}'");
 
     final archive = Archive();
@@ -105,15 +153,32 @@ class BackupService {
     archive.addFile(ArchiveFile('prefs.json', prefsBytes.length, prefsBytes));
 
     final zipBytes = ZipEncoder().encode(archive)!;
-    final out = File('${tmp.path}/dmoney-backup-$stamp.zip');
+    final out = File('${tmp.path}/dmoney-backup-$stamp-$runId.zip');
     await out.writeAsBytes(zipBytes);
     await snapshotFile.delete();
     return out;
   }
 
   /// Restores [zipFile] into the live database, replacing all current
-  /// data. Throws [BackupException] on invalid files.
+  /// data. Throws [BackupException] on invalid files, or when another
+  /// backup or restore is already running in this process.
   static Future<void> restoreBackup(AppDatabase db, File zipFile) async {
+    if (!_tryAcquire()) {
+      throw BackupException(
+        localizedOrFallback(
+          (l) => l.backupBusy,
+          'A backup or restore is already running. Try again in a moment.',
+        ),
+      );
+    }
+    try {
+      await _restoreBackup(db, zipFile);
+    } finally {
+      _release();
+    }
+  }
+
+  static Future<void> _restoreBackup(AppDatabase db, File zipFile) async {
     final tmp = await getTemporaryDirectory();
     final workDir = Directory(
       '${tmp.path}/dmoney_restore_${DateTime.now().millisecondsSinceEpoch}',
@@ -215,13 +280,82 @@ class BackupService {
         );
       }
 
+      // Snapshot the reminder-bearing ids before the restore wipes
+      // the tables — a wallet or debt the restore removes must stop
+      // firing, and only a pre-restore list can name it.
+      final prevPaylaterWalletIds = {
+        for (final w in await db.select(db.wallets).get())
+          if (w.kind == 'paylater') w.id,
+      };
+      final prevDebtIds = {
+        for (final d in await db.select(db.debts).get()) d.id,
+      };
+
       await _restoreDatabase(db, backupDb.path);
       await _restoreReceipts(db, workDir);
       await _restorePrefs(workDir);
+      // Reminders must reflect the restored data, not the pre-restore
+      // state. Best-effort only — a notification failure must never
+      // fail the restore itself (and the calls no-op entirely when
+      // notifications were never initialized).
+      try {
+        await _resyncNotifications(
+          db,
+          prevPaylaterWalletIds: prevPaylaterWalletIds,
+          prevDebtIds: prevDebtIds,
+        );
+      } catch (_) {
+        // Best-effort only.
+      }
     } finally {
       if (await workDir.exists()) {
         await workDir.delete(recursive: true);
       }
+    }
+  }
+
+  /// Brings due-date reminders in line with the restored data.
+  ///
+  /// Paylater: reschedule (or cancel) for every restored wallet via
+  /// the shared helper, and cancel reminders for wallets the restore
+  /// removed. Debts: same shape — reschedule with the restored
+  /// person/amount/due date, cancel for debts that are paid, dateless,
+  /// have reminders off, or are gone entirely. Mirrors the add/edit/
+  /// swipe call sites (which all schedule with the full debt amount).
+  static Future<void> _resyncNotifications(
+    AppDatabase db, {
+    required Set<int> prevPaylaterWalletIds,
+    required Set<int> prevDebtIds,
+  }) async {
+    final wallets = await db.select(db.wallets).get();
+    final currentPaylaterIds = <int>{};
+    for (final w in wallets) {
+      if (w.kind != 'paylater') continue;
+      currentPaylaterIds.add(w.id);
+      await syncPaylaterReminder(db, w.id);
+    }
+    for (final id in prevPaylaterWalletIds.difference(currentPaylaterIds)) {
+      await NotificationService.cancelPaylaterReminder(id);
+    }
+
+    final debts = await db.select(db.debts).get();
+    final currentDebtIds = <int>{};
+    for (final d in debts) {
+      currentDebtIds.add(d.id);
+      if (!d.isPaid && d.dueDate != null && AppPrefs.debtReminders) {
+        await NotificationService.scheduleDebtReminder(
+          debtId: d.id,
+          person: d.person,
+          amount: d.amount,
+          payable: d.direction == 'payable',
+          dueDate: d.dueDate!,
+        );
+      } else {
+        await NotificationService.cancelDebtReminder(d.id);
+      }
+    }
+    for (final id in prevDebtIds.difference(currentDebtIds)) {
+      await NotificationService.cancelDebtReminder(id);
     }
   }
 
@@ -299,6 +433,17 @@ class BackupService {
         } catch (_) {
           // Backup has no autoincrement counters — nothing to sync.
         }
+        // Backups from before schema 17 have no plan_id column, so
+        // every restored transaction lands unlinked — reconnect each
+        // plan to its purchase (and payments) from their fingerprints
+        // before this transaction commits.
+        final backupTxCols = [
+          for (final r in backup.select('PRAGMA table_info("transactions")'))
+            r['name'] as String,
+        ];
+        if (!backupTxCols.contains('plan_id')) {
+          await _backfillPlanLinks(db);
+        }
       });
     } finally {
       backup.close();
@@ -315,6 +460,88 @@ class BackupService {
     return [for (final r in rows) r.read<String>('name')];
   }
 
+  /// Reconnects installment plans to their purchase expense (and
+  /// installment payments) after restoring a backup whose transactions
+  /// table predates the plan_id column (backups from before 2.7.2,
+  /// schema older than 17). Without this, every restored plan loses its
+  /// history and deleting a plan leaves its purchase orphaned.
+  ///
+  /// Matching is deliberately conservative. A purchase must be an
+  /// expense on the plan's wallet for exactly the plan total, dated at
+  /// or shortly before the plan was created — manual plans record the
+  /// purchase under the plan's name, which wins ties. A payment must
+  /// be a transfer into the plan wallet with the exact
+  /// `Installment payment: <name>` note and the monthly amount, capped
+  /// at the plan's paid count. Each transaction is claimed by at most
+  /// one plan, so a wrong guess can at worst link a plan to a
+  /// same-amount purchase — never duplicate a link. Plans with no
+  /// matching purchase stay unlinked, exactly as before.
+  static Future<void> _backfillPlanLinks(AppDatabase db) async {
+    final plans = await db.select(db.installmentPlans).get();
+    if (plans.isEmpty) return;
+    final unlinked = (await db.select(db.transactions).get())
+        .where((t) => t.planId == null)
+        .toList();
+    if (unlinked.isEmpty) return;
+    final claimed = <int>{};
+
+    Future<void> link(int transactionId, int planId) =>
+        db.customStatement(
+          'UPDATE "transactions" SET "plan_id" = ? WHERE "id" = ?',
+          [planId, transactionId],
+        );
+
+    for (final plan in plans) {
+      if (plan.totalAmount <= 0) continue;
+      // --- purchase expense ---
+      final purchases = unlinked.where((t) {
+        if (t.kind != 'expense' ||
+            t.walletId != plan.walletId ||
+            t.amount != plan.totalAmount ||
+            claimed.contains(t.id)) {
+          return false;
+        }
+        // The purchase predates (or coincides with) the plan's
+        // creation; allow an hour of clock skew the other way and up
+        // to 90 days back for a backdated purchase.
+        final age = plan.createdAt.difference(t.date);
+        return age >= const Duration(hours: -1) &&
+            age <= const Duration(days: 90);
+      }).toList();
+      if (purchases.isNotEmpty) {
+        purchases.sort((a, b) {
+          final aName = a.note == plan.name ? 0 : 1;
+          final bName = b.note == plan.name ? 0 : 1;
+          if (aName != bName) return aName - bName;
+          final aAge = plan.createdAt.difference(a.date).abs();
+          final bAge = plan.createdAt.difference(b.date).abs();
+          return aAge.compareTo(bAge);
+        });
+        final purchase = purchases.first;
+        claimed.add(purchase.id);
+        await link(purchase.id, plan.id);
+      }
+      // --- installment payments ---
+      if (plan.installmentAmount > 0 && plan.paidCount > 0) {
+        final payments = unlinked
+            .where(
+              (t) =>
+                  t.kind == 'transfer' &&
+                  t.toWalletId == plan.walletId &&
+                  t.amount == plan.installmentAmount &&
+                  t.note == 'Installment payment: ${plan.name}' &&
+                  !claimed.contains(t.id),
+            )
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
+        for (final p in payments.take(plan.paidCount)) {
+          claimed.add(p.id);
+          await link(p.id, plan.id);
+        }
+      }
+    }
+  }
+
   static Future<void> _restoreReceipts(
     AppDatabase db,
     Directory workDir,
@@ -326,6 +553,20 @@ class BackupService {
     // only once the new set is fully on disk — the old code deleted
     // every live receipt first, so a failure mid-copy lost them all.
     final staging = Directory('${docs.path}/receipts_staging');
+    final oldDir = Directory('${docs.path}/receipts_old');
+    // A leftover receipts_old means a previous swap was interrupted
+    // after the live folder was moved aside. If the live folder is
+    // back in place, the old set is stale — the live folder is
+    // authoritative, delete it. If the live folder is missing, the
+    // swap crashed mid-way: put the old photos back so the folder
+    // exists again (the new set is staged below either way).
+    if (await oldDir.exists()) {
+      if (await receipts.exists()) {
+        await oldDir.delete(recursive: true);
+      } else {
+        await oldDir.rename(receipts.path);
+      }
+    }
     if (await staging.exists()) {
       await staging.delete(recursive: true);
     }
@@ -334,10 +575,30 @@ class BackupService {
     } else {
       await staging.create(recursive: true);
     }
+    // Swap by renaming, never by deleting: move the live folder
+    // aside first, so a crash between the two renames leaves the
+    // old photos recoverable in receipts_old instead of deleted.
     if (await receipts.exists()) {
-      await receipts.delete(recursive: true);
+      await receipts.rename(oldDir.path);
     }
-    await staging.rename(receipts.path);
+    try {
+      await staging.rename(receipts.path);
+    } catch (_) {
+      // The restore failed — put the old photos back so the
+      // previous live set survives.
+      if (await oldDir.exists()) {
+        await oldDir.rename(receipts.path);
+      }
+      rethrow;
+    }
+    // Best-effort cleanup of the superseded set; a failure here must
+    // not fail the restore — a leftover receipts_old is stale but
+    // harmless and is cleared at the start of the next restore.
+    try {
+      if (await oldDir.exists()) {
+        await oldDir.delete(recursive: true);
+      }
+    } catch (_) {}
     // Photo paths are absolute — point them at this device's folder.
     final rows = await db
         .customSelect('SELECT id, path FROM transaction_photos')
@@ -373,13 +634,16 @@ class BackupService {
     final map =
         jsonDecode(await prefsFile.readAsString()) as Map<String, dynamic>;
     final prefs = await SharedPreferences.getInstance();
-    // These keys describe THIS device's Drive link, not user data —
-    // restoring them would resurrect a stale account email and
-    // backup timestamps over the current sign-in.
+    // These keys describe THIS device, not user data — restoring
+    // them would resurrect a stale Drive account email and backup
+    // timestamps over the current sign-in, or an old app-lock PIN
+    // over a changed one (and lock the user out with a PIN they may
+    // no longer remember).
     const localOnlyKeys = {
       'drive_account_email',
       'drive_last_backup_at',
       'drive_auto_backup',
+      'pinHash',
     };
     for (final entry in map.entries) {
       final key = entry.key;
