@@ -1059,12 +1059,39 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  Future<void> deleteTransaction(int id) {
+  /// Deletes a transaction, reversing its balance effect. Returns the
+  /// installment plan removed alongside it, if any — the caller needs
+  /// it to offer undo — or null.
+  ///
+  /// Plan linkage is part of the ledger, not an afterthought:
+  /// - Deleting a plan's purchase expense also deletes the plan, but
+  ///   only while nothing has been paid on it. A plan with payments
+  ///   throws a [StateError]: its history is real money, and the plan
+  ///   card is the designed path to remove it.
+  /// - Deleting an installment payment re-derives the plan's paid
+  ///   counter from the payments that remain.
+  Future<InstallmentPlan?> deleteTransaction(int id) {
     return transaction(() async {
       final t = await (select(
         transactions,
       )..where((e) => e.id.equals(id))).getSingleOrNull();
-      if (t == null) return;
+      if (t == null) return null;
+      InstallmentPlan? deletedPlan;
+      if (t.planId != null) {
+        final plan = await getInstallmentPlan(t.planId!);
+        if (plan != null && t.kind == 'expense') {
+          if (plan.paidCount > 0) {
+            throw StateError(
+              'Plan ${plan.id} has ${plan.paidCount} paid installments; '
+              'delete the plan instead of its purchase.',
+            );
+          }
+          await (delete(
+            installmentPlans,
+          )..where((p) => p.id.equals(plan.id))).go();
+          deletedPlan = plan;
+        }
+      }
       // A transfer takes its fee expense rows with it, so the source
       // wallet is made whole again.
       if (t.kind == 'transfer') {
@@ -1083,8 +1110,19 @@ class AppDatabase extends _$AppDatabase {
         transactionPhotos,
       )..where((p) => p.transactionId.equals(id))).go();
       await (delete(transactions)..where((e) => e.id.equals(id))).go();
+      if (t.planId != null && t.kind == 'transfer') {
+        await _resyncPlanPaidCount(t.planId!);
+      }
+      return deletedPlan;
     });
   }
+
+  /// Re-inserts a plan removed alongside its purchase (see
+  /// [deleteTransaction]). Backs the "Undo" action after deleting a
+  /// plan purchase. The caller restores the plan before its purchase
+  /// so the linked rows never point at a missing plan.
+  Future<void> restoreInstallmentPlan(InstallmentPlan plan) =>
+      into(installmentPlans).insert(plan.toCompanion(false));
 
   /// Re-inserts a previously deleted transaction with its original id,
   /// re-applying its wallet balance effect and photo attachments.
@@ -1112,6 +1150,9 @@ class AppDatabase extends _$AppDatabase {
         await into(transactionPhotos).insert(
           TransactionPhotosCompanion.insert(transactionId: t.id, path: p.path),
         );
+      }
+      if (t.planId != null && t.kind == 'transfer') {
+        await _resyncPlanPaidCount(t.planId!);
       }
     });
   }
@@ -1326,6 +1367,34 @@ class AppDatabase extends _$AppDatabase {
     ),
   );
 
+  /// Single plan by id, or null. Used by the delete/edit guards, which
+  /// need the plan's counters before deciding whether a linked
+  /// transaction may change.
+  Future<InstallmentPlan?> getInstallmentPlan(int id) =>
+      (select(installmentPlans)..where((p) => p.id.equals(id)))
+          .getSingleOrNull();
+
+  /// Re-derives a plan's paid counter from its recorded installment
+  /// payments (plan-linked transfers), capped at [totalCount]. The
+  /// counter is the count of payments, so deleting or restoring a
+  /// payment must move it — a blind +/-1 would drift when undos
+  /// interleave with other deletes.
+  Future<void> _resyncPlanPaidCount(int planId) async {
+    final plan = await getInstallmentPlan(planId);
+    if (plan == null) return;
+    final payments =
+        await (select(transactions)
+              ..where((t) => t.planId.equals(planId))
+              ..where((t) => t.kind.equals('transfer')))
+            .get();
+    final count = payments.length.clamp(0, plan.totalCount);
+    if (count != plan.paidCount) {
+      await (update(installmentPlans)..where((p) => p.id.equals(planId))).write(
+        InstallmentPlansCompanion(paidCount: Value(count)),
+      );
+    }
+  }
+
   /// Advances a plan by one paid installment, capped at [totalCount].
   /// No-op for unknown or already-complete plans.
   Future<void> markInstallmentPaid(int id) async {
@@ -1406,10 +1475,13 @@ class AppDatabase extends _$AppDatabase {
   /// returns to its pre-plan state.
   Future<void> deleteInstallmentPlan(int id) {
     return transaction(() async {
-      for (final t in await planTransactions(id)) {
+      final linked = await planTransactions(id);
+      // The plan row goes first: deleting its purchase through the
+      // normal path would otherwise refuse while payments exist.
+      await (delete(installmentPlans)..where((p) => p.id.equals(id))).go();
+      for (final t in linked) {
         await deleteTransaction(t.id);
       }
-      await (delete(installmentPlans)..where((p) => p.id.equals(id))).go();
     });
   }
 
@@ -1433,6 +1505,7 @@ class AppDatabase extends _$AppDatabase {
     required int totalCount,
     required DateTime createdAt,
     int? paidCount,
+    int? walletId,
   }) {
     return transaction(() async {
       final plan = await (select(
@@ -1496,6 +1569,9 @@ class AppDatabase extends _$AppDatabase {
           paidCount: paidCount == null
               ? const Value.absent()
               : Value(paidCount),
+          walletId: walletId == null
+              ? const Value.absent()
+              : Value(walletId),
         ),
       );
     });
@@ -1512,7 +1588,11 @@ class AppDatabase extends _$AppDatabase {
   )..where((p) => p.walletId.equals(walletId))).get();
 
   /// Deletes a wallet. Returns false when it still has transactions —
-  /// those must be moved or deleted first.
+  /// those must be moved or deleted first — or when it still has
+  /// installment plans, recurring rules, templates, or debts. Foreign
+  /// keys are unenforced at runtime, so deleting a wallet with any of
+  /// those would strand them: a recurring rule would keep posting
+  /// transactions that no wallet list can show.
   Future<bool> deleteWallet(int id) async {
     final txCount =
         await (select(transactions)..where(
@@ -1520,6 +1600,24 @@ class AppDatabase extends _$AppDatabase {
             ))
             .get();
     if (txCount.isNotEmpty) return false;
+    final plans =
+        await (select(
+          installmentPlans,
+        )..where((p) => p.walletId.equals(id))).get();
+    if (plans.isNotEmpty) return false;
+    final rules =
+        await (select(
+          recurringTransactions,
+        )..where((r) => r.walletId.equals(id))).get();
+    if (rules.isNotEmpty) return false;
+    final templates =
+        await (select(
+          transactionTemplates,
+        )..where((t) => t.walletId.equals(id))).get();
+    if (templates.isNotEmpty) return false;
+    final linkedDebts =
+        await (select(debts)..where((d) => d.walletId.equals(id))).get();
+    if (linkedDebts.isNotEmpty) return false;
     await (delete(wallets)..where((w) => w.id.equals(id))).go();
     return true;
   }
