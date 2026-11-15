@@ -638,12 +638,16 @@ class BackupService {
     // them would resurrect a stale Drive account email and backup
     // timestamps over the current sign-in, or an old app-lock PIN
     // over a changed one (and lock the user out with a PIN they may
-    // no longer remember).
+    // no longer remember). The lock switch itself belongs here too:
+    // a backup made on a locked device must never enable the lock
+    // on a device with no PIN, or the app boots to a lock screen
+    // no passcode can open.
     const localOnlyKeys = {
       'drive_account_email',
       'drive_last_backup_at',
       'drive_auto_backup',
       'pinHash',
+      'lockEnabled',
     };
     for (final entry in map.entries) {
       final key = entry.key;

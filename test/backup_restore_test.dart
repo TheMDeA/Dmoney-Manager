@@ -391,4 +391,26 @@ void main() {
     // may no longer remember.
     expect(prefs.getString('pinHash'), 'current-pin-hash');
   });
+
+  test('restore never enables the app lock from a backup', () async {
+    // The backup was made on a device with the app lock on.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('lockEnabled', true);
+    final src = await seedSource();
+    addTearDown(src.db.close);
+    final zip = await BackupService.createBackup(src.db);
+
+    // This device is fresh: no PIN, lock off.
+    await prefs.setBool('lockEnabled', false);
+    await prefs.remove('pinHash');
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    await BackupService.restoreBackup(target, zip);
+
+    // The backup's lock switch must not carry over — restoring it
+    // would boot the app into a lock screen no passcode can open.
+    expect(prefs.getBool('lockEnabled'), isFalse);
+    expect(prefs.containsKey('pinHash'), isFalse);
+  });
 }
