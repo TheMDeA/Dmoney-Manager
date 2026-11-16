@@ -273,6 +273,16 @@ typedef KindTotal = ({String kind, int total});
 typedef DailyTotal = ({String day, String kind, int total});
 typedef HourlyTotal = ({String hour, String kind, int total});
 
+/// Cash-basis expressions for one transaction row: the source and
+/// destination wallet aliases plus the effective kind/category
+/// expressions built over them by the `_cashJoin` helper.
+typedef _CashBasis = ({
+  $WalletsTable src,
+  $WalletsTable dst,
+  CustomExpression<String> kind,
+  CustomExpression<int> category,
+});
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -739,6 +749,78 @@ class AppDatabase extends _$AppDatabase {
     return q.watch().map(_toDetails);
   }
 
+  /// Cash-basis version of [watchTransactionsForCategory]: the rows
+  /// behind a cash-basis category total — a paylater purchase is
+  /// excluded (unpaid borrowing), while an installment transfer
+  /// attributed to this category is included, so the listed rows sum
+  /// to the header total. Powers the Structure and budget detail
+  /// screens. [kind] filters on the row's EFFECTIVE kind, so pass
+  /// 'expense' to include installments (their stored kind is
+  /// 'transfer'); omit it to get every cash-counting row.
+  Stream<List<TransactionWithDetails>> watchCashTransactionsForCategory(
+    int categoryId,
+    DateTime from,
+    DateTime to, {
+    String? kind,
+    int? accountId,
+  }) {
+    final q = _joinedTransactions();
+    final cash = _cashJoin(q);
+    q.where(
+      cash.category.equals(categoryId) &
+          transactions.date.isBetweenValues(from, to),
+    );
+    if (kind != null) {
+      q.where(cash.kind.equals(kind));
+    } else {
+      q.where(cash.kind.isNotNull());
+    }
+    if (accountId != null) q.where(cash.src.accountId.equals(accountId));
+    return q.watch().map(_toDetails);
+  }
+
+  /// Cash-basis expressions shared by the cash aggregates below.
+  ///
+  /// Joins the source wallet (aliased `src`) and, for transfers, the
+  /// destination wallet (aliased `dst`) onto [q], and returns:
+  /// - [kind]: the row's cash-basis kind — 'income' / 'expense', or NULL
+  ///   when the row counts toward neither total (a paylater purchase, an
+  ///   income on a paylater wallet, a transfer between two paylater
+  ///   wallets, a transfer out of a paylater wallet, or any transfer
+  ///   between non-paylater wallets);
+  /// - [category]: the spending category — the linked purchase's category
+  ///   for a plan installment, otherwise the row's own category.
+  /// Account scoping is the source wallet's account, matching
+  /// [_scopeToAccount] — callers filter on the returned [src].
+  _CashBasis _cashJoin(JoinedSelectStatement<HasResultSet, dynamic> q) {
+    final src = alias(wallets, 'src');
+    final dst = alias(wallets, 'dst');
+    q.join([
+      innerJoin(src, src.id.equalsExp(transactions.walletId)),
+      leftOuterJoin(dst, dst.id.equalsExp(transactions.toWalletId)),
+    ]);
+    final kind = CustomExpression<String>(
+      "CASE "
+      "WHEN transactions.kind = 'income' AND src.kind <> 'paylater' "
+      "THEN 'income' "
+      "WHEN transactions.kind = 'expense' AND src.kind <> 'paylater' "
+      "THEN 'expense' "
+      "WHEN transactions.kind = 'transfer' AND src.kind <> 'paylater' "
+      "AND dst.kind = 'paylater' THEN 'expense' "
+      "ELSE NULL END",
+    );
+    // The purchase is the expense row carrying the same plan id; when
+    // there is none (unlinked paydown, or the purchase was deleted) the
+    // transfer falls back to its own category.
+    final category = CustomExpression<int>(
+      'COALESCE('
+      "(SELECT p.category_id FROM transactions p WHERE "
+      "p.plan_id = transactions.plan_id AND p.kind = 'expense' LIMIT 1), "
+      'transactions.category_id)',
+    );
+    return (src: src, dst: dst, kind: kind, category: category);
+  }
+
   /// Per-category expense totals inside [from, to], largest first.
   /// The database aggregates; the UI only receives one row per category.
   Stream<List<CategoryTotal>> watchCategoryExpenseTotals(
@@ -762,6 +844,44 @@ class AppDatabase extends _$AppDatabase {
           .map(
             (row) => (
               categoryId: row.read(transactions.categoryId)!,
+              total: row.read(total) ?? 0,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  /// Cash-basis version of [watchCategoryExpenseTotals]: expense rows on
+  /// non-paylater wallets grouped by their own category, PLUS transfers
+  /// from a non-paylater wallet into a paylater wallet (installment
+  /// payments / paydowns) grouped by the spending category — the linked
+  /// purchase's category when the transfer belongs to a plan, otherwise
+  /// the transfer row's own (hidden Transfer) category. Expense rows on
+  /// paylater wallets never appear: they are unpaid borrowing, not
+  /// spending. The grouping expression always falls back to the row's
+  /// own non-null category, so no null category can reach the grouping.
+  Stream<List<CategoryTotal>> watchCashCategoryExpenseTotals(
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions);
+    final cash = _cashJoin(q);
+    q.addColumns([cash.category, total]);
+    if (accountId != null) q.where(cash.src.accountId.equals(accountId));
+    q
+      ..where(
+        cash.kind.equals('expense') &
+            transactions.date.isBetweenValues(from, to),
+      )
+      ..groupBy([cash.category])
+      ..orderBy([OrderingTerm.desc(total)]);
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
+              categoryId: row.read(cash.category)!,
               total: row.read(total) ?? 0,
             ),
           )
@@ -802,6 +922,40 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Cash-basis version of [watchCategoryKindStats]. Only 'income' and
+  /// 'expense' ever produce rows — a paylater-bound transfer counts
+  /// under 'expense', never as its own kind.
+  Stream<List<CategoryStat>> watchCashCategoryKindStats(
+    String kind,
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
+    final total = transactions.amount.sum();
+    final count = transactions.id.count();
+    final q = selectOnly(transactions);
+    final cash = _cashJoin(q);
+    q.addColumns([cash.category, total, count]);
+    if (accountId != null) q.where(cash.src.accountId.equals(accountId));
+    q
+      ..where(
+        cash.kind.equals(kind) & transactions.date.isBetweenValues(from, to),
+      )
+      ..groupBy([cash.category])
+      ..orderBy([OrderingTerm.desc(total)]);
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
+              categoryId: row.read(cash.category)!,
+              total: row.read(total) ?? 0,
+              count: row.read(count) ?? 0,
+            ),
+          )
+          .toList(),
+    );
+  }
+
   /// Per-kind totals inside [from, to]: one row per kind present.
   /// Backs range summaries like the home balance card.
   Stream<List<KindTotal>> watchKindTotals(
@@ -822,6 +976,35 @@ class AppDatabase extends _$AppDatabase {
               kind: row.read(transactions.kind) ?? '',
               total: row.read(total) ?? 0,
             ),
+          )
+          .toList(),
+    );
+  }
+
+  /// Cash-basis version of [watchKindTotals]: one row per kind present,
+  /// counting only rows where cash actually moved — paylater purchases
+  /// and paylater-to-paylater moves are excluded, while transfers from
+  /// a funding wallet into a paylater wallet count as 'expense'.
+  Stream<List<KindTotal>> watchCashKindTotals(
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions);
+    final cash = _cashJoin(q);
+    q.addColumns([cash.kind, total]);
+    if (accountId != null) q.where(cash.src.accountId.equals(accountId));
+    q
+      ..where(
+        cash.kind.isNotNull() & transactions.date.isBetweenValues(from, to),
+      )
+      ..groupBy([cash.kind]);
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) =>
+                (kind: row.read(cash.kind) ?? '', total: row.read(total) ?? 0),
           )
           .toList(),
     );
@@ -913,6 +1096,40 @@ class AppDatabase extends _$AppDatabase {
             (row) => (
               month: row.read(monthExpr) ?? '',
               kind: row.read(transactions.kind) ?? '',
+              total: row.read(total) ?? 0,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  /// Cash-basis version of [watchMonthlyKindTotals]: per-month
+  /// income/expense totals counting only rows where cash actually moved.
+  Stream<List<MonthlyTotal>> watchCashMonthlyKindTotals(
+    DateTime from,
+    DateTime to, {
+    int? accountId,
+  }) {
+    final monthExpr = CustomExpression<String>(
+      "strftime('%Y-%m', transactions.date, 'unixepoch', 'localtime')",
+    );
+    final total = transactions.amount.sum();
+    final q = selectOnly(transactions);
+    final cash = _cashJoin(q);
+    q.addColumns([monthExpr, cash.kind, total]);
+    if (accountId != null) q.where(cash.src.accountId.equals(accountId));
+    q
+      ..where(
+        cash.kind.isNotNull() & transactions.date.isBetweenValues(from, to),
+      )
+      ..groupBy([monthExpr, cash.kind])
+      ..orderBy([OrderingTerm.asc(monthExpr)]);
+    return q.watch().map(
+      (rows) => rows
+          .map(
+            (row) => (
+              month: row.read(monthExpr) ?? '',
+              kind: row.read(cash.kind) ?? '',
               total: row.read(total) ?? 0,
             ),
           )
@@ -1370,9 +1587,9 @@ class AppDatabase extends _$AppDatabase {
   /// Single plan by id, or null. Used by the delete/edit guards, which
   /// need the plan's counters before deciding whether a linked
   /// transaction may change.
-  Future<InstallmentPlan?> getInstallmentPlan(int id) =>
-      (select(installmentPlans)..where((p) => p.id.equals(id)))
-          .getSingleOrNull();
+  Future<InstallmentPlan?> getInstallmentPlan(int id) => (select(
+    installmentPlans,
+  )..where((p) => p.id.equals(id))).getSingleOrNull();
 
   /// Re-derives a plan's paid counter from its recorded installment
   /// payments (plan-linked transfers), capped at [totalCount]. The
@@ -1461,6 +1678,29 @@ class AppDatabase extends _$AppDatabase {
             ..where((t) => t.planId.equals(planId))
             ..orderBy([(t) => OrderingTerm.desc(t.date)]))
           .get();
+
+  /// Plan id → category id of its purchase expense row. Backs the
+  /// Dart-fold sites that attribute an installment payment to the
+  /// purchase's category (see `spendingCategoryOf`). A plan whose
+  /// purchase is gone simply has no entry; callers fall back to the
+  /// transfer row's own category.
+  Future<Map<int, int>> planPurchaseCategories() async {
+    final rows =
+        await (selectOnly(transactions)
+              ..addColumns([transactions.planId, transactions.categoryId])
+              ..where(
+                transactions.planId.isNotNull() &
+                    transactions.kind.equals('expense'),
+              ))
+            .get();
+    final map = <int, int>{};
+    for (final row in rows) {
+      final planId = row.read(transactions.planId);
+      final categoryId = row.read(transactions.categoryId);
+      if (planId != null && categoryId != null) map[planId] = categoryId;
+    }
+    return map;
+  }
 
   /// Live version of [planTransactions] with wallet/category details,
   /// for the plan history sheet.
@@ -1569,9 +1809,7 @@ class AppDatabase extends _$AppDatabase {
           paidCount: paidCount == null
               ? const Value.absent()
               : Value(paidCount),
-          walletId: walletId == null
-              ? const Value.absent()
-              : Value(walletId),
+          walletId: walletId == null ? const Value.absent() : Value(walletId),
         ),
       );
     });
@@ -1600,23 +1838,21 @@ class AppDatabase extends _$AppDatabase {
             ))
             .get();
     if (txCount.isNotEmpty) return false;
-    final plans =
-        await (select(
-          installmentPlans,
-        )..where((p) => p.walletId.equals(id))).get();
+    final plans = await (select(
+      installmentPlans,
+    )..where((p) => p.walletId.equals(id))).get();
     if (plans.isNotEmpty) return false;
-    final rules =
-        await (select(
-          recurringTransactions,
-        )..where((r) => r.walletId.equals(id))).get();
+    final rules = await (select(
+      recurringTransactions,
+    )..where((r) => r.walletId.equals(id))).get();
     if (rules.isNotEmpty) return false;
-    final templates =
-        await (select(
-          transactionTemplates,
-        )..where((t) => t.walletId.equals(id))).get();
+    final templates = await (select(
+      transactionTemplates,
+    )..where((t) => t.walletId.equals(id))).get();
     if (templates.isNotEmpty) return false;
-    final linkedDebts =
-        await (select(debts)..where((d) => d.walletId.equals(id))).get();
+    final linkedDebts = await (select(
+      debts,
+    )..where((d) => d.walletId.equals(id))).get();
     if (linkedDebts.isNotEmpty) return false;
     await (delete(wallets)..where((w) => w.id.equals(id))).go();
     return true;
