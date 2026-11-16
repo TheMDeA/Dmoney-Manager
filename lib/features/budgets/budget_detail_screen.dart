@@ -77,29 +77,31 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           final budget = found;
           if (budget == null) {
             return Center(
-              child: Text(l10n.budgetsNotFound,
-                  style: TextStyle(color: context.textMuted)),
+              child: Text(
+                l10n.budgetsNotFound,
+                style: TextStyle(color: context.textMuted),
+              ),
             );
           }
           final categoryId = budget.categoryId;
           final parts = widget.month.split('-');
-          final monthStart =
-              DateTime(int.parse(parts[0]), int.parse(parts[1]));
+          final monthStart = DateTime(int.parse(parts[0]), int.parse(parts[1]));
           final monthEnd = DateTime(
             monthStart.year,
             monthStart.month + 1,
           ).subtract(const Duration(seconds: 1));
           return StreamBuilder<List<TransactionWithDetails>>(
-            stream: db.watchTransactionsForCategory(
+            stream: db.watchCashTransactionsForCategory(
               categoryId,
               monthStart,
               monthEnd,
+              // Effective kind: installments count as spending here even
+              // though their stored kind is 'transfer'.
+              kind: 'expense',
               accountId: accountId,
             ),
             builder: (context, txSnap) {
-              final txs = (txSnap.data ?? const <TransactionWithDetails>[])
-                  .where((d) => d.transaction.kind == 'expense')
-                  .toList();
+              final txs = txSnap.data ?? const <TransactionWithDetails>[];
               return StreamBuilder<List<Category>>(
                 stream: db.watchCategories(),
                 builder: (context, catSnap) {
@@ -126,8 +128,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     bool hidden,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final spent = txs.fold<int>(0, (s, d) => s + d.transaction.amount);
     final left = budget.limit - spent;
     final ratio = budget.limit == 0 ? 0.0 : spent / budget.limit;
@@ -140,16 +141,17 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     final isCurrentMonth = now.year == year && now.month == month;
     final daysElapsed = isCurrentMonth ? now.day : daysInMonth;
     final daysLeft = isCurrentMonth ? daysInMonth - now.day : 0;
-    final recommended =
-        daysLeft > 0 ? left / (daysLeft + 1) : 0.0; // per day, incl. today
+    final recommended = daysLeft > 0
+        ? left / (daysLeft + 1)
+        : 0.0; // per day, incl. today
     final average = daysElapsed > 0 ? spent / daysElapsed : 0.0;
 
     final catColor = colorFromHex(cat?.colorHex ?? '#9CA3AF');
     final barColor = ratio >= 1
         ? AppColors.expense
         : ratio >= 0.8
-            ? AppColors.warning
-            : AppColors.income;
+        ? AppColors.warning
+        : AppColors.income;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -169,8 +171,11 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _amountColumn(l10n.budgetsSpent, m(spent), context.textMuted),
-              _amountColumn(l10n.budgetsLeftLabel, m(left),
-                  left < 0 ? AppColors.expense : context.textMuted),
+              _amountColumn(
+                l10n.budgetsLeftLabel,
+                m(left),
+                left < 0 ? AppColors.expense : context.textMuted,
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -211,21 +216,31 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           _infoRow(l10n.budgetsDetailTitle, m(budget.limit)),
           _infoRow(
             l10n.budgetsPeriod,
-            l10n.budgetsPeriodValue(daysInMonth.toString().padLeft(2, '0'), monthAbbreviations()[month - 1], year),
+            l10n.budgetsPeriodValue(
+              daysInMonth.toString().padLeft(2, '0'),
+              monthAbbreviations()[month - 1],
+              year,
+            ),
             sub: isCurrentMonth ? l10n.budgetsDaysLeft(daysLeft) : null,
           ),
           const SizedBox(height: 8),
           _dailyChart(
-              context, txs, budget.limit, daysInMonth, month, year, catColor, hidden),
+            context,
+            txs,
+            budget.limit,
+            daysInMonth,
+            month,
+            year,
+            catColor,
+            hidden,
+          ),
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: _paceStat(l10n.budgetsRecommended, recommended, hidden),
               ),
-              Expanded(
-                child: _paceStat(l10n.budgetsAverage, average, hidden),
-              ),
+              Expanded(child: _paceStat(l10n.budgetsAverage, average, hidden)),
             ],
           ),
           const SizedBox(height: 28),
@@ -239,11 +254,12 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           ),
           const SizedBox(height: 12),
           if (txs.isEmpty)
-            Text(l10n.budgetsNoTransactions,
-                style: TextStyle(color: context.textMuted))
+            Text(
+              l10n.budgetsNoTransactions,
+              style: TextStyle(color: context.textMuted),
+            )
           else
-            for (final d in txs)
-              _txRow(context, d, catColor),
+            for (final d in txs) _txRow(context, d, catColor),
         ],
       ),
     );
@@ -268,23 +284,28 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
         children: [
           SizedBox(
             width: 110,
-            child: Text(label,
-                style:
-                    TextStyle(color: context.textMuted, fontSize: 15)),
+            child: Text(
+              label,
+              style: TextStyle(color: context.textMuted, fontSize: 15),
+            ),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(value,
-                    style: TextStyle(
-                        color: context.textPrimary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: context.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 if (sub != null)
-                  Text(sub,
-                      style: TextStyle(
-                          color: context.textMuted, fontSize: 13)),
+                  Text(
+                    sub,
+                    style: TextStyle(color: context.textMuted, fontSize: 13),
+                  ),
               ],
             ),
           ),
@@ -304,8 +325,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     bool hidden,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     // Cumulative spend per day.
     final perDay = List<int>.filled(daysInMonth + 1, 0);
     for (final d in txs) {
@@ -319,8 +339,12 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
       spots.add(FlSpot(day.toDouble(), cumulative.toDouble()));
     }
     final maxY =
-        [limit.toDouble(), cumulative.toDouble(), 1.0].reduce((a, b) => a > b ? a : b) *
-            1.15;
+        [
+          limit.toDouble(),
+          cumulative.toDouble(),
+          1.0,
+        ].reduce((a, b) => a > b ? a : b) *
+        1.15;
     final fmt = NumberFormat('#,##0', currentCurrency.locale);
     final mm = month.toString().padLeft(2, '0');
 
@@ -337,13 +361,16 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
             touchTooltipData: LineTouchTooltipData(
               getTooltipColor: (_) => context.raised,
               getTooltipItems: (items) => items
-                  .map((s) => LineTooltipItem(
-                        l10n.budgetsChartTooltip(m(s.y.toInt()), s.x.toInt()),
-                        TextStyle(
-                            color: context.textPrimary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600),
-                      ))
+                  .map(
+                    (s) => LineTooltipItem(
+                      l10n.budgetsChartTooltip(m(s.y.toInt()), s.x.toInt()),
+                      TextStyle(
+                        color: context.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
                   .toList(),
             ),
           ),
@@ -358,10 +385,12 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           ),
           borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
-            topTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
+            rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ),
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
@@ -369,8 +398,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                 interval: maxY / 5,
                 getTitlesWidget: (v, _) => Text(
                   fmt.format(v.toInt()),
-                  style: TextStyle(
-                      color: context.textMuted, fontSize: 10),
+                  style: TextStyle(color: context.textMuted, fontSize: 10),
                 ),
               ),
             ),
@@ -385,8 +413,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                   }
                   return Text(
                     '${day.toString().padLeft(2, '0')}/$mm',
-                    style: TextStyle(
-                        color: context.textMuted, fontSize: 10),
+                    style: TextStyle(color: context.textMuted, fontSize: 10),
                   );
                 },
               ),
@@ -437,15 +464,14 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     final decimals = currentCurrency.decimals > 0 ? 2 : 0;
     // The currency's own locale already yields the right separators;
     // forcing '.' to ',' here corrupted decimal currencies ("1,234,56").
-    final text = NumberFormat('#,##0.${'0' * decimals}',
-            currentCurrency.locale)
-        .format(value);
+    final text = NumberFormat(
+      '#,##0.${'0' * decimals}',
+      currentCurrency.locale,
+    ).format(value);
     final shown = hidden ? maskMoneyText(text) : text;
     return Column(
       children: [
-        Text(label,
-            style:
-                TextStyle(color: context.textMuted, fontSize: 14)),
+        Text(label, style: TextStyle(color: context.textMuted, fontSize: 14)),
         const SizedBox(height: 4),
         Text(
           '${currencyFieldPrefix.trim()} $shown',
@@ -455,7 +481,11 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
     );
   }
 
-  Widget _txRow(BuildContext context, TransactionWithDetails d, Color catColor) {
+  Widget _txRow(
+    BuildContext context,
+    TransactionWithDetails d,
+    Color catColor,
+  ) {
     return InkWell(
       onTap: () => Navigator.push(
         context,
@@ -484,8 +514,11 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                   color: catColor.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(iconForKey(d.category.iconKey),
-                    color: catColor, size: 22),
+                child: Icon(
+                  iconForKey(d.category.iconKey),
+                  color: catColor,
+                  size: 22,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -493,21 +526,23 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(d.transaction.note.isNotEmpty
-                      ? d.transaction.note
-                      : d.category.name),
+                  Text(
+                    d.transaction.note.isNotEmpty
+                        ? d.transaction.note
+                        : d.category.name,
+                  ),
                   Text(
                     formatDate(d.transaction.date),
-                    style: TextStyle(
-                        color: context.textMuted, fontSize: 12),
+                    style: TextStyle(color: context.textMuted, fontSize: 12),
                   ),
                 ],
               ),
             ),
             Text(
               formatSignedMoney(d.transaction.amount, isIncome: false),
-              style: AppTextStyles.amount(size: 15)
-                  .copyWith(color: AppColors.expense),
+              style: AppTextStyles.amount(
+                size: 15,
+              ).copyWith(color: AppColors.expense),
             ),
           ],
         ),
@@ -544,8 +579,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
                 Haptics.medium();
                 Navigator.pop(context, true);
               },
-              style:
-                  FilledButton.styleFrom(backgroundColor: AppColors.expense),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
               child: Text(l10n.commonDelete),
             ),
           ],

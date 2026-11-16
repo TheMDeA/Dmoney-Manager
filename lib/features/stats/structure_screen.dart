@@ -43,8 +43,7 @@ class StructureScreen extends ConsumerStatefulWidget {
   }) {
     Navigator.of(context).push(
       AppPageRoute(
-        builder: (_) =>
-            StructureScreen(month: month, initialKind: initialKind),
+        builder: (_) => StructureScreen(month: month, initialKind: initialKind),
       ),
     );
   }
@@ -54,11 +53,7 @@ class StructureScreen extends ConsumerStatefulWidget {
 }
 
 class _Slice {
-  const _Slice({
-    required this.name,
-    required this.color,
-    required this.amount,
-  });
+  const _Slice({required this.name, required this.color, required this.amount});
 
   final String name;
   final Color color;
@@ -88,9 +83,9 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   bool get _isIncome => _kind == 'income';
 
   void _shift(int delta) => setState(() {
-        _month = DateTime(_month.year, _month.month + delta);
-        _touched = -1;
-      });
+    _month = DateTime(_month.year, _month.month + delta);
+    _touched = -1;
+  });
 
   Future<void> _pickMonth() async {
     final picked = await showMonthYearPicker(context, _month);
@@ -109,8 +104,10 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     final hidden = ref.watch(balanceHiddenProvider);
     final l10n = AppLocalizations.of(context)!;
     final from = DateTime(_month.year, _month.month);
-    final to = DateTime(_month.year, _month.month + 1)
-        .subtract(const Duration(seconds: 1));
+    final to = DateTime(
+      _month.year,
+      _month.month + 1,
+    ).subtract(const Duration(seconds: 1));
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.statsStructure)),
@@ -134,8 +131,15 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
           ),
           Expanded(
             child: StreamBuilder<List<CategoryStat>>(
-              stream: db.watchCategoryKindStats(_kind, from, to,
-                  accountId: accountId),
+              // Cash basis: a paylater purchase is unpaid borrowing, so
+              // it only counts when an installment is paid. The rows
+              // listed in the drill-down are unchanged.
+              stream: db.watchCashCategoryKindStats(
+                _kind,
+                from,
+                to,
+                accountId: accountId,
+              ),
               builder: (context, statSnap) {
                 final stats = statSnap.data ?? const <CategoryStat>[];
                 return StreamBuilder<List<Category>>(
@@ -156,7 +160,12 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     );
   }
 
-  Widget _body(List<CategoryStat> stats, Map<int, Category> cats, bool hidden, AppLocalizations l10n) {
+  Widget _body(
+    List<CategoryStat> stats,
+    Map<int, Category> cats,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
     final total = stats.fold<int>(0, (s, e) => s + e.total);
     return SingleChildScrollView(
       // Replay the stagger whenever month or kind changes.
@@ -188,8 +197,14 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
             for (var i = 0; i < stats.length; i++)
               Entrance(
                 delay: Duration(milliseconds: 80 + (i * 45).clamp(0, 450)),
-                child: _categoryRow(stats[i], cats[stats[i].categoryId],
-                    total, i == stats.length - 1, hidden, l10n),
+                child: _categoryRow(
+                  stats[i],
+                  cats[stats[i].categoryId],
+                  total,
+                  i == stats.length - 1,
+                  hidden,
+                  l10n,
+                ),
               ),
         ],
       ),
@@ -197,9 +212,13 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   }
 
   Widget _donutCard(
-      List<CategoryStat> stats, Map<int, Category> cats, int total, bool hidden, AppLocalizations l10n) {
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    List<CategoryStat> stats,
+    Map<int, Category> cats,
+    int total,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     if (total == 0) {
       return const SizedBox.shrink();
     }
@@ -224,17 +243,17 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
       final midDeg = -90 + 360 * (acc + slices[i].amount / 2) / total;
       acc += slices[i].amount;
       if (share < 0.05) continue;
-      callouts.add(_Callout(
-        midRadians: midDeg * math.pi / 180,
-        outerR: _hole + (_touched == i ? _ringTouched : _ringBase),
-        color: slices[i].color,
-        label:
-            formatPercent(share * 100),
-      ));
+      callouts.add(
+        _Callout(
+          midRadians: midDeg * math.pi / 180,
+          outerR: _hole + (_touched == i ? _ringTouched : _ringBase),
+          color: slices[i].color,
+          label: formatPercent(share * 100),
+        ),
+      );
     }
 
-    final signedTotal =
-        _isIncome ? m(total) : '-${m(total)}';
+    final signedTotal = _isIncome ? m(total) : '-${m(total)}';
 
     return GlassCard(
       child: SizedBox(
@@ -254,8 +273,8 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                       setState(() {
                         if (event is FlTapUpEvent &&
                             response?.touchedSection != null) {
-                          final i = response!
-                              .touchedSection!.touchedSectionIndex;
+                          final i =
+                              response!.touchedSection!.touchedSectionIndex;
                           _touched = _touched == i ? -1 : i;
                         } else if (event is FlTapUpEvent) {
                           _touched = -1;
@@ -278,24 +297,23 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
               ),
             ),
             Positioned.fill(
-              child: CustomPaint(
-                painter: _CalloutPainter(callouts: callouts),
-              ),
+              child: CustomPaint(painter: _CalloutPainter(callouts: callouts)),
             ),
             // Center readout: total, or the tapped slice.
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  touched?.name ?? (_isIncome ? l10n.statsIncome : l10n.statsExpense),
+                  touched?.name ??
+                      (_isIncome ? l10n.statsIncome : l10n.statsExpense),
                   style: TextStyle(color: context.textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   touched != null
                       ? (_isIncome
-                          ? m(touched.amount)
-                          : '-${m(touched.amount)}')
+                            ? m(touched.amount)
+                            : '-${m(touched.amount)}')
                       : signedTotal,
                   style: AppTextStyles.amount(size: 20),
                 ),
@@ -317,11 +335,15 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
   }
 
   Widget _categoryRow(
-      CategoryStat s, Category? c, int total, bool last, bool hidden, AppLocalizations l10n) {
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
-    final color =
-        c != null ? colorFromHex(c.colorHex) : Colors.grey;
+    CategoryStat s,
+    Category? c,
+    int total,
+    bool last,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    final color = c != null ? colorFromHex(c.colorHex) : Colors.grey;
     final pct = total == 0 ? 0.0 : s.total / total * 100;
     return Column(
       children: [
@@ -334,65 +356,67 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
             child: Row(
               children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color,
+                  ),
+                  child: Icon(
+                    iconForKey(c?.iconKey ?? ''),
+                    color: onAccent(color),
+                    size: 24,
+                  ),
                 ),
-                child: Icon(
-                  iconForKey(c?.iconKey ?? ''),
-                  color: onAccent(color),
-                  size: 24,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        c?.name ?? l10n.statsUnknown,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        formatPercent(pct),
+                        style: TextStyle(
+                          color: context.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      c?.name ?? l10n.statsUnknown,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
+                      _isIncome ? m(s.total) : '-${m(s.total)}',
+                      style:
+                          AppTextStyles.amount(
+                            size: 15,
+                            weight: FontWeight.w700,
+                          ).copyWith(
+                            color: _isIncome
+                                ? AppColors.income
+                                : AppColors.expense,
+                          ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      formatPercent(pct),
-                      style: TextStyle(
-                          color: context.textMuted, fontSize: 12),
+                      l10n.statsTransactionCount(s.count),
+                      style: TextStyle(color: context.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    _isIncome
-                        ? m(s.total)
-                        : '-${m(s.total)}',
-                    style: AppTextStyles.amount(size: 15, weight: FontWeight.w700)
-                        .copyWith(
-                      color: _isIncome
-                          ? AppColors.income
-                          : AppColors.expense,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    l10n.statsTransactionCount(s.count),
-                    style: TextStyle(
-                        color: context.textMuted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         ),
         if (!last) Divider(height: 1, color: context.hairline),
       ],
@@ -404,14 +428,15 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
     final db = ref.read(databaseProvider);
     final accountId = ref.read(selectedAccountProvider);
     final from = DateTime(_month.year, _month.month);
-    final to =
-        DateTime(_month.year, _month.month + 1).subtract(const Duration(seconds: 1));
+    final to = DateTime(
+      _month.year,
+      _month.month + 1,
+    ).subtract(const Duration(seconds: 1));
     final name = c?.name ?? l10n.statsUnknown;
     // Modal sheet: capture the flag at open (the Home eye can't be
     // reached while it is up).
     final hidden = ref.read(balanceHiddenProvider);
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -466,7 +491,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
             ),
             Expanded(
               child: StreamBuilder<List<TransactionWithDetails>>(
-                stream: db.watchTransactionsForCategory(
+                stream: db.watchCashTransactionsForCategory(
                   s.categoryId,
                   from,
                   to,
@@ -485,8 +510,7 @@ class _StructureScreenState extends ConsumerState<StructureScreen> {
                     controller: controller,
                     padding: const EdgeInsets.only(bottom: 24),
                     itemCount: items.length,
-                    itemBuilder: (_, i) =>
-                        TransactionTile(details: items[i]),
+                    itemBuilder: (_, i) => TransactionTile(details: items[i]),
                   );
                 },
               ),
@@ -523,8 +547,7 @@ class _CalloutPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     for (final c in callouts) {
-      final dir =
-          Offset(math.cos(c.midRadians), math.sin(c.midRadians));
+      final dir = Offset(math.cos(c.midRadians), math.sin(c.midRadians));
       final rightSide = dir.dx >= 0;
       final edge = center + dir * (c.outerR + 2);
       final elbow = center + dir * (c.outerR + 22);

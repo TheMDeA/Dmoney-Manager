@@ -58,7 +58,10 @@ class BudgetsScreen extends ConsumerWidget {
                     now.month + 1,
                   ).subtract(const Duration(seconds: 1));
                   return StreamBuilder<List<CategoryTotal>>(
-                    stream: db.watchCategoryExpenseTotals(
+                    // Cash basis: a paylater purchase no longer blows up
+                    // its category budget on purchase day; installments
+                    // count toward it when paid.
+                    stream: db.watchCashCategoryExpenseTotals(
                       monthStart,
                       monthEnd,
                       accountId: accountId,
@@ -105,7 +108,10 @@ class BudgetsScreen extends ConsumerWidget {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        l10n.budgetsDaysProgress(now.day, daysInMonth),
+                                        l10n.budgetsDaysProgress(
+                                          now.day,
+                                          daysInMonth,
+                                        ),
                                         style: TextStyle(
                                           color: context.textMuted,
                                           fontSize: 12,
@@ -139,7 +145,16 @@ class BudgetsScreen extends ConsumerWidget {
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
-                                              l10n.budgetsOverLimit(overBudget.map((b) => cats[b.categoryId]?.name ?? l10n.budgetsFallbackName).join(', ')),
+                                              l10n.budgetsOverLimit(
+                                                overBudget
+                                                    .map(
+                                                      (b) =>
+                                                          cats[b.categoryId]
+                                                              ?.name ??
+                                                          l10n.budgetsFallbackName,
+                                                    )
+                                                    .join(', '),
+                                              ),
                                               style: const TextStyle(
                                                 fontSize: 13,
                                               ),
@@ -487,10 +502,14 @@ class BudgetsScreen extends ConsumerWidget {
                 ),
                 title: Text(d.person),
                 subtitle: Text(
-                  d.direction == 'payable' ? l10n.debtYouOwe : l10n.debtOwedToYou,
+                  d.direction == 'payable'
+                      ? l10n.debtYouOwe
+                      : l10n.debtOwedToYou,
                 ),
                 trailing: Text(
-                  hidden ? maskMoneyText(formatMoney(d.amount)) : formatMoney(d.amount),
+                  hidden
+                      ? maskMoneyText(formatMoney(d.amount))
+                      : formatMoney(d.amount),
                   style: AppTextStyles.amount(
                     size: 15,
                   ).copyWith(color: AppColors.expense),
