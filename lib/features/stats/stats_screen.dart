@@ -53,14 +53,24 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   late Stream<List<CategoryTotal>> _donutStream;
   late Stream<List<CategoryTotal>> _prevStream;
   late Stream<List<Category>> _categoriesStream;
-  // One 12-month stream serves the bars, the trend line, and net worth:
-  // all three generate their own month lists and look values up by
-  // month key, so the extra months are simply never read. Broadcast:
-  // the main chain and the net-worth card both listen to it.
+  // Cash vs accrual: displayed flow totals (donut, insights, bars,
+  // trend, overview income/expense) are cash-basis — a paylater
+  // purchase is unpaid borrowing, so it only counts when an installment
+  // is paid. Balance reconstructions (net worth, opening/ending) stay
+  // accrual: every balance movement is an income/expense transaction,
+  // and the cash rule would carry paylater debt into months before the
+  // purchase. The 12-month monthly stream is therefore split in two:
+  // _monthlyStream (accrual) feeds net worth only, _cashMonthlyStream
+  // feeds the bars and the net-savings trend. Likewise _kindStream
+  // (accrual) feeds the opening/ending balance math only, while
+  // _cashKindStream feeds the displayed overview income/expense/net.
+  // Broadcast: _monthlyStream is also listened to by the net-worth
+  // card, _walletsStream by the overview and the net-worth card.
   late Stream<List<MonthlyTotal>> _monthlyStream;
-  // Broadcast: shared by the overview and the net-worth card.
+  late Stream<List<MonthlyTotal>> _cashMonthlyStream;
   late Stream<List<Wallet>> _walletsStream;
   late Stream<List<KindTotal>> _kindStream;
+  late Stream<List<KindTotal>> _cashKindStream;
   late Stream<List<KindTotal>> _afterStream;
 
   void _bindStreams(AppDatabase db, int? accountId) {
@@ -68,28 +78,53 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     if (_streamsKey == key) return;
     _streamsKey = key;
     final monthStart = DateTime(_month.year, _month.month);
-    final monthEnd = DateTime(_month.year, _month.month + 1)
-        .subtract(const Duration(seconds: 1));
+    final monthEnd = DateTime(
+      _month.year,
+      _month.month + 1,
+    ).subtract(const Duration(seconds: 1));
     final prevStart = DateTime(_month.year, _month.month - 1);
     final prevEnd = monthStart.subtract(const Duration(seconds: 1));
     final now = DateTime.now();
     final yearStart = DateTime(now.year, now.month - 11);
-    final yearEnd = DateTime(now.year, now.month + 1)
-        .subtract(const Duration(seconds: 1));
-    _donutStream = db.watchCategoryExpenseTotals(monthStart, monthEnd,
-        accountId: accountId);
-    _prevStream = db.watchCategoryExpenseTotals(prevStart, prevEnd,
-        accountId: accountId);
+    final yearEnd = DateTime(
+      now.year,
+      now.month + 1,
+    ).subtract(const Duration(seconds: 1));
+    _donutStream = db.watchCashCategoryExpenseTotals(
+      monthStart,
+      monthEnd,
+      accountId: accountId,
+    );
+    _prevStream = db.watchCashCategoryExpenseTotals(
+      prevStart,
+      prevEnd,
+      accountId: accountId,
+    );
     _categoriesStream = db.watchCategories();
     _monthlyStream = db
         .watchMonthlyKindTotals(yearStart, yearEnd, accountId: accountId)
         .asBroadcastStream();
+    _cashMonthlyStream = db.watchCashMonthlyKindTotals(
+      yearStart,
+      yearEnd,
+      accountId: accountId,
+    );
     _walletsStream = db.watchWallets(accountId: accountId).asBroadcastStream();
-    _kindStream =
-        db.watchKindTotals(monthStart, monthEnd, accountId: accountId);
+    _kindStream = db.watchKindTotals(
+      monthStart,
+      monthEnd,
+      accountId: accountId,
+    );
+    _cashKindStream = db.watchCashKindTotals(
+      monthStart,
+      monthEnd,
+      accountId: accountId,
+    );
     _afterStream = db.watchKindTotals(
-        monthEnd.add(const Duration(seconds: 1)), now,
-        accountId: accountId);
+      monthEnd.add(const Duration(seconds: 1)),
+      now,
+      accountId: accountId,
+    );
   }
 
   @override
@@ -132,7 +167,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   }
                   final donutTotals = donutSnap.data ?? const <CategoryTotal>[];
                   return StreamBuilder<List<MonthlyTotal>>(
-                    stream: _monthlyStream,
+                    stream: _cashMonthlyStream,
                     builder: (context, monthlySnap) {
                       final monthlyTotals =
                           monthlySnap.data ?? const <MonthlyTotal>[];
@@ -173,7 +208,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                         child: Text(l10n.statsShowMore),
                                       ),
                                     ),
-                                    _donut(context, donutTotals, cats, hidden, l10n),
+                                    _donut(
+                                      context,
+                                      donutTotals,
+                                      cats,
+                                      hidden,
+                                      l10n,
+                                    ),
                                     SectionHeader(title: l10n.statsInsights),
                                     _insightsCard(
                                       context,
@@ -187,7 +228,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                                     _bars(context, monthlyTotals, hidden, l10n),
                                     SectionHeader(
                                       title: l10n.statsNetSavingsTrend,
-                                      action: _trendReadout(monthlyTotals, hidden),
+                                      action: _trendReadout(
+                                        monthlyTotals,
+                                        hidden,
+                                      ),
                                     ),
                                     _trendLine(context, monthlyTotals, hidden),
                                     SectionHeader(
@@ -250,7 +294,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   /// Opening/ending are derived from the current wallet total minus the
   /// net of later transactions (balance adjustments fold into the nearest
   /// month).
-  Widget _overviewSection(BuildContext context, bool hidden, AppLocalizations l10n) {
+  Widget _overviewSection(
+    BuildContext context,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
     return StreamBuilder<List<Wallet>>(
       stream: _walletsStream,
       builder: (context, wSnap) {
@@ -259,124 +307,133 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           (s, w) => s + w.balance,
         );
         return StreamBuilder<List<KindTotal>>(
-          stream: _kindStream,
-          builder: (context, mSnap) {
+          stream: _cashKindStream,
+          builder: (context, cashSnap) {
             final kinds = {
-              for (final k in (mSnap.data ?? const <KindTotal>[]))
+              for (final k in (cashSnap.data ?? const <KindTotal>[]))
                 k.kind: k.total,
             };
             final income = kinds['income'] ?? 0;
             final expense = kinds['expense'] ?? 0;
-            final monthNet = income - expense;
             return StreamBuilder<List<KindTotal>>(
-              stream: _afterStream,
-              builder: (context, aSnap) {
-                final afterNet = _netOf(aSnap.data);
-                final opening = current - monthNet - afterNet;
-                final ending = current - afterNet;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SectionHeader(title: l10n.statsBalance),
-                    Entrance(
-                      child: GlassCard(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _balanceCell(
-                                  context,
-                                  l10n.statsOpeningBalance,
-                                  opening,
-                                  hidden,
-                                ),
-                              ),
-                              Container(
-                                width: 1,
-                                height: 44,
-                                color: context.hairline,
-                              ),
-                              Expanded(
-                                child: _balanceCell(
-                                  context,
-                                  l10n.statsEndingBalance,
-                                  ending,
-                                  hidden,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    SectionHeader(title: l10n.statsOverview),
-                    Entrance(
-                      delay: const Duration(milliseconds: 80),
-                      child: GlassCard(
-                        child: Column(
-                          children: [
-                            _overviewRow(
-                              context,
-                              l10n.statsIncome,
-                              income,
-                              AppColors.income,
-                              hidden: hidden,
-                            ),
-                            _overviewRow(
-                              context,
-                              l10n.statsExpense,
-                              expense,
-                              AppColors.expense,
-                              format: (v) => '-${formatMoney(v)}',
-                              hidden: hidden,
-                            ),
-                            _overviewRow(
-                              context,
-                              l10n.statsTotal,
-                              income - expense,
-                              null,
-                              hidden: hidden,
-                            ),
-                            Divider(height: 1, color: context.hairline),
-                            InkWell(
-                              onTap: () {
-                                Haptics.select();
-                                Navigator.of(context).push(
-                                  AppPageRoute(
-                                    builder: (_) => TransactionsScreen(
-                                      initialMonth: _month,
+              stream: _kindStream,
+              builder: (context, mSnap) {
+                // Accrual month net — balance math only. Opening/ending
+                // are balance reconstructions, so they stay accrual (a
+                // paylater purchase moves the balance but is excluded
+                // from cash totals).
+                final monthNet = _netOf(mSnap.data);
+                return StreamBuilder<List<KindTotal>>(
+                  stream: _afterStream,
+                  builder: (context, aSnap) {
+                    final afterNet = _netOf(aSnap.data);
+                    final opening = current - monthNet - afterNet;
+                    final ending = current - afterNet;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SectionHeader(title: l10n.statsBalance),
+                        Entrance(
+                          child: GlassCard(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _balanceCell(
+                                      context,
+                                      l10n.statsOpeningBalance,
+                                      opening,
+                                      hidden,
                                     ),
                                   ),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      l10n.statsShowMore,
-                                      style: TextStyle(
-                                        color: context.textMuted,
-                                      ),
+                                  Container(
+                                    width: 1,
+                                    height: 44,
+                                    color: context.hairline,
+                                  ),
+                                  Expanded(
+                                    child: _balanceCell(
+                                      context,
+                                      l10n.statsEndingBalance,
+                                      ending,
+                                      hidden,
                                     ),
-                                    const Spacer(),
-                                    Icon(
-                                      Icons.chevron_right,
-                                      color: context.textMuted,
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
+                        SectionHeader(title: l10n.statsOverview),
+                        Entrance(
+                          delay: const Duration(milliseconds: 80),
+                          child: GlassCard(
+                            child: Column(
+                              children: [
+                                _overviewRow(
+                                  context,
+                                  l10n.statsIncome,
+                                  income,
+                                  AppColors.income,
+                                  hidden: hidden,
+                                ),
+                                _overviewRow(
+                                  context,
+                                  l10n.statsExpense,
+                                  expense,
+                                  AppColors.expense,
+                                  format: (v) => '-${formatMoney(v)}',
+                                  hidden: hidden,
+                                ),
+                                _overviewRow(
+                                  context,
+                                  l10n.statsTotal,
+                                  income - expense,
+                                  null,
+                                  hidden: hidden,
+                                ),
+                                Divider(height: 1, color: context.hairline),
+                                InkWell(
+                                  onTap: () {
+                                    Haptics.select();
+                                    Navigator.of(context).push(
+                                      AppPageRoute(
+                                        builder: (_) => TransactionsScreen(
+                                          initialMonth: _month,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          l10n.statsShowMore,
+                                          style: TextStyle(
+                                            color: context.textMuted,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Icon(
+                                          Icons.chevron_right,
+                                          color: context.textMuted,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
             );
@@ -397,16 +454,21 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   Widget _balanceCell(
-      BuildContext context, String label, int amount, bool hidden) {
+    BuildContext context,
+    String label,
+    int amount,
+    bool hidden,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(color: context.textMuted, fontSize: 12)),
         const SizedBox(height: 4),
         CountUpMoney(
-            amount: amount,
-            hidden: hidden,
-            style: AppTextStyles.amount(size: 17)),
+          amount: amount,
+          hidden: hidden,
+          style: AppTextStyles.amount(size: 17),
+        ),
       ],
     );
   }
@@ -531,8 +593,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         icon: Icons.trending_up,
         color: AppColors.expense,
         title: l10n.statsUpPct(nameOf(riserId), pct),
-        subtitle:
-l10n.statsRiserSubtitle(m(curMap[riserId]!), m(prevMap[riserId]!), prevLabel),
+        subtitle: l10n.statsRiserSubtitle(
+          m(curMap[riserId]!),
+          m(prevMap[riserId]!),
+          prevLabel,
+        ),
       ));
     } else if (newId != -1) {
       final badgeColor = badgeOf(newId).$2;
@@ -549,8 +614,10 @@ l10n.statsRiserSubtitle(m(curMap[riserId]!), m(prevMap[riserId]!), prevLabel),
         icon: Icons.trending_down,
         color: AppColors.income,
         title: l10n.statsDownPct(nameOf(fallerId), pct),
-        subtitle:
-l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
+        subtitle: l10n.statsFallerSubtitle(
+          m(prevMap[fallerId]! - curMap[fallerId]!),
+          prevLabel,
+        ),
       ));
     } else if (goneId != -1) {
       insights.add((
@@ -575,10 +642,9 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
         icon: Icons.speed_outlined,
         color: up ? AppColors.expense : AppColors.income,
         title: l10n.statsDailyPace(m(paceCur)),
-        subtitle:
-            up
-                ? l10n.statsPaceAbove(m(pacePrev), prevLabel)
-                : l10n.statsPaceBelow(m(pacePrev), prevLabel),
+        subtitle: up
+            ? l10n.statsPaceAbove(m(pacePrev), prevLabel)
+            : l10n.statsPaceBelow(m(pacePrev), prevLabel),
       ));
     }
     return insights;
@@ -768,7 +834,8 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                         child: Text(
                           hidden
                               ? maskMoneyText(
-                                  formatMoney(touched?.amount ?? total))
+                                  formatMoney(touched?.amount ?? total),
+                                )
                               : formatMoney(touched?.amount ?? total),
                           style: AppTextStyles.amount(size: 18),
                         ),
@@ -865,7 +932,12 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
   String _monthKey(DateTime m) =>
       '${m.year}-${m.month.toString().padLeft(2, '0')}';
 
-  Widget _bars(BuildContext context, List<MonthlyTotal> totals, bool hidden, AppLocalizations l10n) {
+  Widget _bars(
+    BuildContext context,
+    List<MonthlyTotal> totals,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
     final now = DateTime.now();
     final months = List.generate(
       6,
@@ -1017,8 +1089,10 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
 
   // -------------------------------- trend --------------------------------
 
-  /// Month labels + net savings per month (income minus expense; transfers
-  /// are neutral). Shared by the chart and the fixed touch readout.
+  /// Month labels + net savings per month (income minus expense, cash
+  /// basis: transfers between ordinary wallets are neutral, but a
+  /// transfer into a paylater wallet counts as spending when paid).
+  /// Shared by the chart and the fixed touch readout.
   (List<DateTime>, List<double>) _trendData(List<MonthlyTotal> totals) {
     final now = DateTime.now();
     final months = List.generate(
@@ -1029,7 +1103,8 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
     final nets = <double>[];
     for (var i = 0; i < months.length; i++) {
       final kinds = lookup[_monthKey(months[i])] ?? const {};
-      // Transfers move money between wallets — neutral for net savings.
+      // Cash basis: 'expense' here already includes installments paid
+      // that month; transfers between ordinary wallets stay neutral.
       nets.add(((kinds['income'] ?? 0) - (kinds['expense'] ?? 0)).toDouble());
     }
     return (months, nets);
@@ -1052,7 +1127,11 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
     );
   }
 
-  Widget _trendLine(BuildContext context, List<MonthlyTotal> totals, bool hidden) {
+  Widget _trendLine(
+    BuildContext context,
+    List<MonthlyTotal> totals,
+    bool hidden,
+  ) {
     final (months, nets) = _trendData(totals);
     final spots = [
       for (var i = 0; i < nets.length; i++) FlSpot(i.toDouble(), nets[i]),
@@ -1135,7 +1214,10 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Text(
-                        _compactMoney((isMin ? dataMin : dataMax).round(), hidden),
+                        _compactMoney(
+                          (isMin ? dataMin : dataMax).round(),
+                          hidden,
+                        ),
                         style: TextStyle(
                           fontSize: 10,
                           color: context.textMuted,
@@ -1244,8 +1326,14 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
   }
 
   /// Total balance over time, derived backwards from today's total using
-  /// monthly income/expense sums (transfers are neutral).
-  Widget _netWorthCard(BuildContext context, bool hidden, AppLocalizations l10n) {
+  /// monthly income/expense sums (transfers are neutral). Accrual by
+  /// design: the walk-back assumes every balance movement is an
+  /// income/expense transaction, so it must not use the cash stream.
+  Widget _netWorthCard(
+    BuildContext context,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
     return StreamBuilder<List<Wallet>>(
       stream: _walletsStream,
       builder: (context, wSnap) {
@@ -1440,8 +1528,9 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                           if (!isMin && !isMax) return const SizedBox.shrink();
                           return SideTitleWidget(
                             meta: meta,
-                            fitInside:
-                                SideTitleFitInsideData.fromTitleMeta(meta),
+                            fitInside: SideTitleFitInsideData.fromTitleMeta(
+                              meta,
+                            ),
                             child: Text(
                               _compactMoney(
                                 (isMin ? nwMin : nwMax).round(),
@@ -1468,8 +1557,7 @@ l10n.statsFallerSubtitle(m(prevMap[fallerId]! - curMap[fallerId]!), prevLabel),
                         interval: 1,
                         getTitlesWidget: (v, meta) => SideTitleWidget(
                           meta: meta,
-                          fitInside:
-                              SideTitleFitInsideData.fromTitleMeta(meta),
+                          fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
                           child: Text(
                             _shortMonth(months[v.toInt()].month),
                             style: TextStyle(

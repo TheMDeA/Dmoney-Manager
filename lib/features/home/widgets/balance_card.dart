@@ -53,7 +53,9 @@ class BalanceCard extends ConsumerWidget {
           final total = combinedBalance(wallets);
           final (from, to) = _rangeBounds(range);
           return StreamBuilder<List<KindTotal>>(
-            stream: db.watchKindTotals(from, to, accountId: accountId),
+            // Cash basis: paylater purchases don't count as expenses
+            // here; transfers into a paylater wallet do (when paid).
+            stream: db.watchCashKindTotals(from, to, accountId: accountId),
             builder: (context, txSnap) {
               final totals = {
                 for (final t in (txSnap.data ?? const <KindTotal>[]))
