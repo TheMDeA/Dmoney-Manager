@@ -85,7 +85,10 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
   }
 
   List<(String, String)> _eligibleInsights(
-      List<TransactionWithDetails> all, bool hidden, AppLocalizations l10n) {
+    List<TransactionWithDetails> all,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
     // The locale joins the cache key: insight strings are localized, so a
     // language switch must recompute them instead of reusing the old
     // language's cached set.
@@ -141,8 +144,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
           _lastShownHidden = hidden;
           final byTitle = {for (final e in eligible) e.$1: e.$2};
           _sessionInsights = [
-            for (final s in _sessionInsights)
-              (s.$1, byTitle[s.$1] ?? s.$2),
+            for (final s in _sessionInsights) (s.$1, byTitle[s.$1] ?? s.$2),
           ];
         }
         final key = eligible.map((e) => e.$1).join('|');
@@ -310,9 +312,11 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
   /// is nothing to say. Each insight appears only when its data is
   /// meaningful, so the eligible set varies with the user's history.
   List<(String, String)> _computeInsights(
-      List<TransactionWithDetails> all, bool hidden, AppLocalizations l10n) {
-    String m(int v) =>
-        hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
+    List<TransactionWithDetails> all,
+    bool hidden,
+    AppLocalizations l10n,
+  ) {
+    String m(int v) => hidden ? maskMoneyText(formatMoney(v)) : formatMoney(v);
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
     final twoWeeksAgo = now.subtract(const Duration(days: 14));
@@ -325,6 +329,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     final debtCats = <int>{};
     for (final d in all) {
       final t = d.transaction;
+      // Cash basis: borrowing on a paylater wallet is not spending,
+      // so it must not drive any insight.
+      if (d.wallet.kind == 'paylater') continue;
       if (t.kind != 'expense') continue;
       names[t.categoryId] = d.category.name;
       if (d.category.kind == 'debt') debtCats.add(t.categoryId);
@@ -411,6 +418,9 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
     Transaction? biggestTx;
     for (final d in all) {
       final t = d.transaction;
+      // Cash basis: borrowing on a paylater wallet is not spending,
+      // so it must not drive any insight.
+      if (d.wallet.kind == 'paylater') continue;
       if (t.kind == 'income') {
         if (!t.date.isBefore(monthAgo)) incomeTotal += t.amount;
         continue;
@@ -538,9 +548,7 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       final ratio = (weekendTotal / weekendDays) / (weekdayTotal / weekdayDays);
       if (ratio >= 1.5) {
         out.add((
-          l10n.homeInsightWeekendCost(
-            formatDecimal(ratio),
-          ),
+          l10n.homeInsightWeekendCost(formatDecimal(ratio)),
           l10n.homeInsightWeekendDetail(
             m((weekdayTotal / weekdayDays).round()),
             m((weekendTotal / weekendDays).round()),
@@ -566,18 +574,12 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
       if (pct >= 60) {
         out.add((
           l10n.homeInsightCashlessShare(pct.toString()),
-          l10n.homeInsightCashlessDetail(
-            m(cashTotal),
-            m(cashlessTotal),
-          ),
+          l10n.homeInsightCashlessDetail(m(cashTotal), m(cashlessTotal)),
         ));
       } else if (pct <= 40) {
         out.add((
           l10n.homeInsightCashShare((100 - pct).toString()),
-          l10n.homeInsightCashDetail(
-            m(cashTotal),
-            m(cashlessTotal),
-          ),
+          l10n.homeInsightCashDetail(m(cashTotal), m(cashlessTotal)),
         ));
       }
     }
@@ -609,8 +611,10 @@ class _AiInsightCardState extends ConsumerState<AiInsightCard> {
 
     // 12. Biggest spending weekday. Weekday names follow the app locale
     // (2020-01-06 was a Monday, so 2020-01-05 + weekday is that weekday).
-    String dowName(int weekday) =>
-        DateFormat('EEEE', appLocaleCode).format(DateTime(2020, 1, 5 + weekday));
+    String dowName(int weekday) => DateFormat(
+      'EEEE',
+      appLocaleCode,
+    ).format(DateTime(2020, 1, 5 + weekday));
     final dowCounts = List.filled(8, 0);
     for (var i = 0; i < 30; i++) {
       dowCounts[today.subtract(Duration(days: i)).weekday]++;

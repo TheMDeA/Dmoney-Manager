@@ -14,6 +14,7 @@ import '../transactions/widgets/month_selector.dart';
 import '../../core/theme/app_motion.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/app_locale.dart';
+import '../../core/utils/cash_basis.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/widgets/amount_text.dart';
@@ -27,6 +28,9 @@ class _DayTotal {
   int income = 0;
   int expense = 0;
   final items = <TransactionWithDetails>[];
+
+  /// Cash-basis day net: income minus expense under the same rule.
+  int get net => income - expense;
 }
 
 /// Month calendar: per-day income/expense/net in every cell,
@@ -98,94 +102,136 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               ),
             ),
             Expanded(
-              child: StreamBuilder<List<TransactionWithDetails>>(
-                stream: db.watchTransactionsInRange(
-                  gridStart,
-                  gridEnd,
-                  accountId: accountId,
-                ),
-                builder: (context, snap) {
-                  final items = snap.data ?? const <TransactionWithDetails>[];
-                  final totals = <DateTime, _DayTotal>{};
-                  for (final d in items) {
-                    final t = d.transaction;
-                    final key = DateTime(t.date.year, t.date.month, t.date.day);
-                    final day = totals.putIfAbsent(key, _DayTotal.new);
-                    day.items.add(d);
-                    if (t.kind == 'income') {
-                      day.income += t.amount;
-                    } else if (t.kind == 'expense') {
-                      day.expense += t.amount;
-                    }
-                  }
-                  var monthIncome = 0;
-                  var monthExpense = 0;
-                  for (final d in items) {
-                    final t = d.transaction;
-                    if (t.date.year != _month.year ||
-                        t.date.month != _month.month) {
-                      continue;
-                    }
-                    if (t.kind == 'income') {
-                      monthIncome += t.amount;
-                    } else if (t.kind == 'expense') {
-                      monthExpense += t.amount;
-                    }
-                  }
-                  return Column(
-                    children: [
-                      MonthSelector(
-                  month: _month,
-                  onShift: _shift,
-                  onPick: _pickMonth,
-                ),
-                      _summary(monthIncome, monthExpense, hidden),
-                      _weekdayHeader(),
-                      Expanded(
-                        child: AnimatedSwitcher(
-                          duration: AppMotion.normal,
-                          layoutBuilder: (currentChild, previousChildren) =>
-                              Stack(
-                                children: [...previousChildren, ?currentChild],
-                              ),
-                          transitionBuilder: (child, animation) {
-                            // Direction-aware slide: the incoming month enters
-                            // from the tapped side, the outgoing exits opposite.
-                            final monthKey =
-                                (child.key! as ValueKey<DateTime>).value;
-                            final incoming = monthKey == _month;
-                            final begin = incoming
-                                ? Offset(0.3 * _slideDir, 0)
-                                : Offset(-0.3 * _slideDir, 0);
-                            final position =
-                                Tween<Offset>(
-                                  begin: begin,
-                                  end: Offset.zero,
-                                ).animate(
-                                  CurvedAnimation(
-                                    parent: animation,
-                                    curve: incoming
-                                        ? AppMotion.enter
-                                        : AppMotion.exit,
+              child: StreamBuilder<List<Wallet>>(
+                stream: db.watchWallets(),
+                builder: (context, wSnap) {
+                  // Wallet-kind lookup for the cash-basis rule: a
+                  // transfer counts as an expense only when its
+                  // destination is a paylater wallet.
+                  final walletKinds = {
+                    for (final w in (wSnap.data ?? const <Wallet>[]))
+                      w.id: w.kind,
+                  };
+                  return StreamBuilder<List<TransactionWithDetails>>(
+                    stream: db.watchTransactionsInRange(
+                      gridStart,
+                      gridEnd,
+                      accountId: accountId,
+                    ),
+                    builder: (context, snap) {
+                      final items =
+                          snap.data ?? const <TransactionWithDetails>[];
+                      final totals = <DateTime, _DayTotal>{};
+                      for (final d in items) {
+                        final t = d.transaction;
+                        final key = DateTime(
+                          t.date.year,
+                          t.date.month,
+                          t.date.day,
+                        );
+                        final day = totals.putIfAbsent(key, _DayTotal.new);
+                        day.items.add(d);
+                        // Cash basis: paylater purchases don't count, but a
+                        // transfer into a paylater wallet counts as an expense.
+                        final destKind = t.toWalletId == null
+                            ? null
+                            : walletKinds[t.toWalletId];
+                        day.income += cashIncomeOf(
+                          kind: t.kind,
+                          sourceWalletKind: d.wallet.kind,
+                          destWalletKind: destKind,
+                          amount: t.amount,
+                        );
+                        day.expense += cashExpenseOf(
+                          kind: t.kind,
+                          sourceWalletKind: d.wallet.kind,
+                          destWalletKind: destKind,
+                          amount: t.amount,
+                        );
+                      }
+                      var monthIncome = 0;
+                      var monthExpense = 0;
+                      for (final d in items) {
+                        final t = d.transaction;
+                        if (t.date.year != _month.year ||
+                            t.date.month != _month.month) {
+                          continue;
+                        }
+                        final destKind = t.toWalletId == null
+                            ? null
+                            : walletKinds[t.toWalletId];
+                        monthIncome += cashIncomeOf(
+                          kind: t.kind,
+                          sourceWalletKind: d.wallet.kind,
+                          destWalletKind: destKind,
+                          amount: t.amount,
+                        );
+                        monthExpense += cashExpenseOf(
+                          kind: t.kind,
+                          sourceWalletKind: d.wallet.kind,
+                          destWalletKind: destKind,
+                          amount: t.amount,
+                        );
+                      }
+                      return Column(
+                        children: [
+                          MonthSelector(
+                            month: _month,
+                            onShift: _shift,
+                            onPick: _pickMonth,
+                          ),
+                          _summary(monthIncome, monthExpense, hidden),
+                          _weekdayHeader(),
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: AppMotion.normal,
+                              layoutBuilder: (currentChild, previousChildren) =>
+                                  Stack(
+                                    children: [
+                                      ...previousChildren,
+                                      ?currentChild,
+                                    ],
+                                  ),
+                              transitionBuilder: (child, animation) {
+                                // Direction-aware slide: the incoming month enters
+                                // from the tapped side, the outgoing exits opposite.
+                                final monthKey =
+                                    (child.key! as ValueKey<DateTime>).value;
+                                final incoming = monthKey == _month;
+                                final begin = incoming
+                                    ? Offset(0.3 * _slideDir, 0)
+                                    : Offset(-0.3 * _slideDir, 0);
+                                final position =
+                                    Tween<Offset>(
+                                      begin: begin,
+                                      end: Offset.zero,
+                                    ).animate(
+                                      CurvedAnimation(
+                                        parent: animation,
+                                        curve: incoming
+                                            ? AppMotion.enter
+                                            : AppMotion.exit,
+                                      ),
+                                    );
+                                return ClipRect(
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: position,
+                                      child: child,
+                                    ),
                                   ),
                                 );
-                            return ClipRect(
-                              child: FadeTransition(
-                                opacity: animation,
-                                child: SlideTransition(
-                                  position: position,
-                                  child: child,
-                                ),
+                              },
+                              child: KeyedSubtree(
+                                key: ValueKey(_month),
+                                child: _grid(gridStart, totals, todayKey),
                               ),
-                            );
-                          },
-                          child: KeyedSubtree(
-                            key: ValueKey(_month),
-                            child: _grid(gridStart, totals, todayKey),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   );
                 },
               ),
@@ -412,7 +458,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             context,
             (_) => AddTransactionSheet(
               // Prefill the picked day, keeping the current time.
-              initialDate: DateTime(d.year, d.month, d.day, now.hour, now.minute),
+              initialDate: DateTime(
+                d.year,
+                d.month,
+                d.day,
+                now.hour,
+                now.minute,
+              ),
             ),
           );
         },
@@ -456,14 +508,11 @@ class _DaySheetState extends State<_DaySheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final items = widget.totals[_key]?.items ?? const <TransactionWithDetails>[];
-    var net = 0;
-    for (final d in items) {
-      final t = d.transaction;
-      net += t.kind == 'income'
-          ? t.amount
-          : (t.kind == 'expense' ? -t.amount : 0);
-    }
+    final items =
+        widget.totals[_key]?.items ?? const <TransactionWithDetails>[];
+    // Net is precomputed by the parent under the cash-basis rule,
+    // so the sheet agrees with the grid cell for the same day.
+    final net = widget.totals[_key]?.net ?? 0;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.6,
@@ -499,8 +548,12 @@ class _DaySheetState extends State<_DaySheet> {
                             : formatMoney(0),
                         style: TextStyle(color: context.textMuted),
                       )
-                    : AmountText(net.abs(),
-                        isIncome: net > 0, size: 15, hidden: widget.hidden),
+                    : AmountText(
+                        net.abs(),
+                        isIncome: net > 0,
+                        size: 15,
+                        hidden: widget.hidden,
+                      ),
               ],
             ),
           ),
