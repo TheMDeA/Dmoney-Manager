@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
@@ -78,10 +79,12 @@ class DriveBackupService {
   static const _accountEmailKey = 'drive_account_email';
 
   /// Every Drive call must bound its wait: without a timeout a
-  /// stalled upload never resolves, and [maybeAutoBackup] — whose
-  /// only exit from the stuck state is its `finally` — keeps
+  /// stalled call never resolves, and [maybeAutoBackup] — whose only
+  /// exit from the stuck state is its `finally` — keeps
   /// `_autoRunning` true forever, silently disabling all later
-  /// auto-backups until the app restarts.
+  /// auto-backups until the app restarts. Uploads run as resumable
+  /// sessions, so the timeout bounds each chunk request (and the
+  /// session initiation), not the whole upload.
   static const _httpTimeout = Duration(seconds: 30);
 
   GoogleSignInAccount? _account;
@@ -274,68 +277,241 @@ class DriveBackupService {
     return raw == null ? null : DateTime.tryParse(raw);
   }
 
-  Future<DriveBackup> _createFile(File file, String name,
-      {bool prompt = false}) async {
-    final headers = await _headers(promptIfNecessary: prompt);
-    final bytes = await file.readAsBytes();
+  /// Chunk size for resumable uploads. Drive requires every chunk
+  /// except the last to be a multiple of 256 KB.
+  static const resumableChunkSize = 256 * 1024;
 
-    const boundary = 'dmoney_backup_boundary';
-    final metadata = jsonEncode({
-      'name': name,
-      'parents': ['appDataFolder'],
-      'mimeType': 'application/zip',
-    });
-    final body = <int>[
-      ...utf8.encode('--$boundary\r\n'
-          'Content-Type: application/json; charset=UTF-8\r\n\r\n'
-          '$metadata\r\n'
-          '--$boundary\r\n'
-          'Content-Type: application/zip\r\n\r\n'),
-      ...bytes,
-      ...utf8.encode('\r\n--$boundary--'),
-    ];
-
-    final response = await http
-        .post(
-          Uri.parse('$_uploadBase/files?uploadType=multipart'
-              '&fields=id,name,createdTime,modifiedTime,size'),
-          headers: {
-            ...headers,
-            'Content-Type': 'multipart/related; boundary=$boundary',
-          },
-          body: body,
-        )
-        .timeout(_httpTimeout);
-    if (response.statusCode != 200) {
-      throw DriveException(_errorMessage(
-          response,
-          localizedOrFallback(
-              (l) => l.backupDriveUploadFailed, 'Upload failed')));
+  /// Byte ranges ([start, end] inclusive) a file of [totalBytes] is
+  /// uploaded in, each [chunkSize] bytes except the last. Pure helper
+  /// (see test/drive_backup_service_test.dart).
+  static List<({int start, int end})> resumableChunkRanges(int totalBytes,
+      {int chunkSize = resumableChunkSize}) {
+    if (totalBytes <= 0 || chunkSize <= 0) return [];
+    final ranges = <({int start, int end})>[];
+    var start = 0;
+    while (start < totalBytes) {
+      final end = min(start + chunkSize, totalBytes) - 1;
+      ranges.add((start: start, end: end));
+      start = end + 1;
     }
-    return DriveBackup.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>);
+    return ranges;
   }
 
-  /// Replaces the contents of an existing Drive file (media upload).
+  /// The next byte the server expects, parsed from the `Range` header
+  /// of a `308 Resume Incomplete` response (`bytes=0-524287` means the
+  /// server holds bytes 0..524287, so the next byte is 524288).
+  /// Returns 0 when the header is missing or unparseable — the server
+  /// holds nothing (or says nothing), so the upload restarts from 0.
+  /// Pure helper (see test/drive_backup_service_test.dart).
+  static int resumeOffsetFromRangeHeader(String? rangeHeader) {
+    if (rangeHeader == null) return 0;
+    final match =
+        RegExp(r'^bytes=\d+-(\d+)$').firstMatch(rangeHeader.trim());
+    if (match == null) return 0;
+    return (int.tryParse(match.group(1)!) ?? -1) + 1;
+  }
+
+  /// The request that opens a resumable upload session: URI, headers
+  /// and metadata body. Pass [fileId] to replace an existing file's
+  /// contents (the name is then irrelevant); omit it to create a new
+  /// file in the appDataFolder (then [name] is required). The caller
+  /// merges its authorization headers and reads the session URI from
+  /// the `Location` header of the 200 response. Pure helper (see
+  /// test/drive_backup_service_test.dart).
+  static ({Uri uri, Map<String, String> headers, String body})
+      resumableInitRequest({
+    String? fileId,
+    String? name,
+    required int totalBytes,
+  }) {
+    assert(fileId != null || name != null,
+        'resumableInitRequest: a new file needs a name');
+    const fields = 'id,name,createdTime,modifiedTime,size';
+    final uri = fileId == null
+        ? Uri.parse('$_uploadBase/files?uploadType=resumable&fields=$fields')
+        : Uri.parse(
+            '$_uploadBase/files/$fileId?uploadType=resumable&fields=$fields');
+    final metadata = fileId == null
+        ? {
+            'name': name,
+            'parents': ['appDataFolder'],
+            'mimeType': 'application/zip',
+          }
+        : {'mimeType': 'application/zip'};
+    return (
+      uri: uri,
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': 'application/zip',
+        'X-Upload-Content-Length': '$totalBytes',
+      },
+      body: jsonEncode(metadata),
+    );
+  }
+
+  Future<DriveBackup> _createFile(File file, String name,
+      {bool prompt = false}) async {
+    return _uploadResumable(file: file, name: name, prompt: prompt);
+  }
+
+  /// Replaces the contents of an existing Drive file.
   Future<DriveBackup> _updateFile(String id, File file) async {
-    final headers = await _headers();
+    return _uploadResumable(file: file, fileId: id);
+  }
+
+  /// Uploads [file] through a resumable session: the 30 s timeout
+  /// applies to each chunk request, not to the whole upload, so a
+  /// multi-MB zip on a slow connection finishes a chunk at a time
+  /// instead of timing out. A failed chunk is retried once from the
+  /// byte offset the server reports; a second failure throws
+  /// [DriveException] with the existing localized upload-failed
+  /// message. Pass [fileId] to replace an existing file; without it a
+  /// new file called [name] is created.
+  Future<DriveBackup> _uploadResumable({
+    required File file,
+    String? fileId,
+    String? name,
+    bool prompt = false,
+  }) async {
+    final headers = await _headers(promptIfNecessary: prompt);
     final bytes = await file.readAsBytes();
-    final response = await http
-        .patch(
-          Uri.parse('$_uploadBase/files/$id?uploadType=media'
-              '&fields=id,name,createdTime,modifiedTime,size'),
-          headers: {...headers, 'Content-Type': 'application/zip'},
-          body: bytes,
+    final total = bytes.length;
+    final uploadFailed = localizedOrFallback(
+        (l) => l.backupDriveUploadFailed, 'Upload failed');
+
+    final init = resumableInitRequest(
+        fileId: fileId, name: name, totalBytes: total);
+    final initResponse = await http
+        .post(
+          init.uri,
+          headers: {...headers, ...init.headers},
+          body: init.body,
         )
         .timeout(_httpTimeout);
-    if (response.statusCode != 200) {
-      throw DriveException(_errorMessage(
-          response,
-          localizedOrFallback(
-              (l) => l.backupDriveUploadFailed, 'Upload failed')));
+    if (initResponse.statusCode != 200) {
+      throw DriveException(_errorMessage(initResponse, uploadFailed));
     }
-    return DriveBackup.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>);
+    final location = initResponse.headers['location'];
+    if (location == null || location.isEmpty) {
+      throw DriveException(uploadFailed);
+    }
+    final session = Uri.parse(location);
+
+    // A zero-byte file has no chunks: one empty PUT completes it.
+    if (total == 0) {
+      final response = await http
+          .put(
+            session,
+            headers: {
+              ...headers,
+              'Content-Range': 'bytes */0',
+              'Content-Length': '0',
+            },
+            body: <int>[],
+          )
+          .timeout(_httpTimeout);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return DriveBackup.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      throw DriveException(_errorMessage(response, uploadFailed));
+    }
+
+    var offset = 0;
+    var resumedOnce = false;
+    while (offset < total) {
+      final end = min(offset + resumableChunkSize, total) - 1;
+      http.Response response;
+      try {
+        response = await http
+            .put(
+              session,
+              headers: {
+                ...headers,
+                'Content-Range': 'bytes $offset-$end/$total',
+              },
+              body: bytes.sublist(offset, end + 1),
+            )
+            .timeout(_httpTimeout);
+      } catch (_) {
+        // The chunk may or may not have landed: ask the server what
+        // it holds, then retry from there — once.
+        if (resumedOnce) throw DriveException(uploadFailed);
+        final resumed = await _queryResumeOffset(session, headers, total);
+        if (resumed.completed != null) return resumed.completed!;
+        offset = resumed.offset;
+        resumedOnce = true;
+        continue;
+      }
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return DriveBackup.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>);
+      }
+      if (response.statusCode == 308) {
+        final serverOffset =
+            resumeOffsetFromRangeHeader(response.headers['range']);
+        offset = serverOffset > offset ? serverOffset : end + 1;
+        continue;
+      }
+      // HTTP error on this chunk: same one-shot resume as a network
+      // failure.
+      if (resumedOnce) {
+        throw DriveException(_errorMessage(response, uploadFailed));
+      }
+      final resumed = await _queryResumeOffset(session, headers, total);
+      if (resumed.completed != null) return resumed.completed!;
+      offset = resumed.offset;
+      resumedOnce = true;
+    }
+    // The final chunk answers 200/201; reaching here means the server
+    // holds every byte but never said so — confirm via a status query.
+    final resumed = await _queryResumeOffset(session, headers, total);
+    if (resumed.completed != null) return resumed.completed!;
+    throw DriveException(uploadFailed);
+  }
+
+  /// Asks the server how much of the resumable upload it holds.
+  /// Returns the next byte to send; [completed] is set when the
+  /// upload already finished server-side (the failed chunk landed but
+  /// its response was lost). Throws [DriveException] when the session
+  /// is gone or the query itself fails.
+  Future<({int offset, DriveBackup? completed})> _queryResumeOffset(
+    Uri session,
+    Map<String, String> headers,
+    int total,
+  ) async {
+    final uploadFailed = localizedOrFallback(
+        (l) => l.backupDriveUploadFailed, 'Upload failed');
+    http.Response response;
+    try {
+      response = await http
+          .put(
+            session,
+            headers: {
+              ...headers,
+              'Content-Range': 'bytes */$total',
+              'Content-Length': '0',
+            },
+            body: <int>[],
+          )
+          .timeout(_httpTimeout);
+    } catch (_) {
+      throw DriveException(uploadFailed);
+    }
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return (
+        offset: total,
+        completed: DriveBackup.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>),
+      );
+    }
+    if (response.statusCode == 308) {
+      return (
+        offset: resumeOffsetFromRangeHeader(response.headers['range']),
+        completed: null,
+      );
+    }
+    throw DriveException(_errorMessage(response, uploadFailed));
   }
 
   /// All cloud backups, newest first. Empty when Drive access has not

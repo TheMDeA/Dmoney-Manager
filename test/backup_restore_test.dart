@@ -413,4 +413,140 @@ void main() {
     expect(prefs.getBool('lockEnabled'), isFalse);
     expect(prefs.containsKey('pinHash'), isFalse);
   });
+
+  test('restore clears a stale selected account the backup does not have',
+      () async {
+    final prefs = await SharedPreferences.getInstance();
+    // The backup is made with "All accounts": no selectedAccountId
+    // key in its prefs.
+    final src = await seedSource();
+    addTearDown(src.db.close);
+    final zip = await BackupService.createBackup(src.db);
+
+    // This device has account 999 selected; the restored database
+    // has no such account.
+    await prefs.setInt('selectedAccountId', 999);
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    await BackupService.restoreBackup(target, zip);
+
+    // Keeping 999 would leave every account-scoped query empty
+    // after a "successful" restore — the app would look empty.
+    // (No bare isNull here: drift also exports isNull, so the
+    // matcher is ambiguous in this file.)
+    expect(prefs.containsKey('selectedAccountId'), isFalse);
+    // The data itself still restored.
+    final wallets = await target.select(target.wallets).get();
+    expect(wallets.map((w) => w.name), contains('SPayLater'));
+  });
+
+  test('restore keeps a selected account that exists in the backup',
+      () async {
+    final prefs = await SharedPreferences.getInstance();
+    final src = await seedSource();
+    addTearDown(src.db.close);
+    final accountId = await src.db.addAccount(
+      AccountsCompanion.insert(name: 'Personal', kind: 'personal'),
+    );
+    await prefs.setInt('selectedAccountId', accountId);
+    final zip = await BackupService.createBackup(src.db);
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    await BackupService.restoreBackup(target, zip);
+
+    expect(prefs.getInt('selectedAccountId'), accountId);
+  });
+
+  test('restore drops budget-alert flags the backup does not mention',
+      () async {
+    final prefs = await SharedPreferences.getInstance();
+    // One flag IS in the backup — it must survive the restore.
+    await prefs.setBool('budgetNotified_3_2026-11_80', true);
+    final src = await seedSource();
+    addTearDown(src.db.close);
+    final zip = await BackupService.createBackup(src.db);
+
+    // Stale flags on this device, from the pre-restore data.
+    await prefs.setBool('budgetNotified_7_2026-11_80', true);
+    await prefs.setBool('budgetNotified_7_2026-11_100', true);
+    await prefs.setString('dismissedUpdateVersion', '2.8.0');
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    await BackupService.restoreBackup(target, zip);
+
+    expect(prefs.getBool('budgetNotified_3_2026-11_80'), isTrue);
+    expect(prefs.containsKey('budgetNotified_7_2026-11_80'), isFalse);
+    expect(prefs.containsKey('budgetNotified_7_2026-11_100'), isFalse);
+    expect(prefs.containsKey('dismissedUpdateVersion'), isFalse);
+  });
+
+  test('a malformed prefs value does not block the restore', () async {
+    final src = await seedSource();
+    addTearDown(src.db.close);
+    final zip = await BackupService.createBackup(src.db);
+
+    // Re-pack with a prefs.json carrying one bad value (a list with
+    // a non-string, which used to throw inside _restorePrefs after
+    // the database was already replaced) and good values around it.
+    final decoded = ZipDecoder().decodeBytes(await zip.readAsBytes());
+    final files = <String, List<int>>{};
+    for (final f in decoded) {
+      if (!f.isFile) continue;
+      files[f.name] = f.name == 'prefs.json'
+          ? utf8.encode(
+              jsonEncode({
+                'themeMode': 1,
+                'displayName': 'Restored',
+                'dismissedDetections': ['a', 42],
+              }),
+            )
+          : (f.content as List<int>);
+    }
+    final badZip = packZip(files, 'bad-prefs.zip');
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    // The old code threw here, after the database was replaced and
+    // before the notification resync ran. The restore must now run
+    // to completion — reaching the resync, which is the last step —
+    // with the data and the good prefs restored.
+    await BackupService.restoreBackup(target, badZip);
+
+    final wallets = await target.select(target.wallets).get();
+    expect(wallets.map((w) => w.name), contains('SPayLater'));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('themeMode'), 1);
+    expect(prefs.getString('displayName'), 'Restored');
+    expect(prefs.containsKey('dismissedDetections'), isFalse);
+  });
+
+  test('a prefs file that is not a JSON object is refused, data intact',
+      () async {
+    final src = await seedSource();
+    addTearDown(src.db.close);
+    final zip = await BackupService.createBackup(src.db);
+
+    // Valid JSON, but an array — not a prefs object.
+    final decoded = ZipDecoder().decodeBytes(await zip.readAsBytes());
+    final files = <String, List<int>>{};
+    for (final f in decoded) {
+      if (!f.isFile) continue;
+      files[f.name] = f.name == 'prefs.json'
+          ? utf8.encode(jsonEncode(['not', 'an', 'object']))
+          : (f.content as List<int>);
+    }
+    final badZip = packZip(files, 'bad-prefs-shape.zip');
+
+    final target = await seedTargetWithDecoy();
+    addTearDown(target.close);
+    await expectLater(
+      BackupService.restoreBackup(target, badZip),
+      throwsA(isA<BackupException>()),
+    );
+    final wallets = await target.select(target.wallets).get();
+    expect(wallets.map((w) => w.name), contains('Decoy'));
+  });
 }

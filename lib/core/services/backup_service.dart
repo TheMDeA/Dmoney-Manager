@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:archive/archive_io.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -280,6 +281,13 @@ class BackupService {
         );
       }
 
+      // Prefs must parse before any live data is touched: a malformed
+      // prefs.json used to throw inside _restorePrefs, after the live
+      // database was already wiped and replaced, so the restore
+      // reported "failed" while the data was in fact replaced — and
+      // the notification resync below never ran.
+      final backupPrefs = await _readBackupPrefs(workDir);
+
       // Snapshot the reminder-bearing ids before the restore wipes
       // the tables — a wallet or debt the restore removes must stop
       // firing, and only a pre-restore list can name it.
@@ -293,7 +301,14 @@ class BackupService {
 
       await _restoreDatabase(db, backupDb.path);
       await _restoreReceipts(db, workDir);
-      await _restorePrefs(workDir);
+      // Prefs are cosmetic next to the ledger: a prefs failure must
+      // never fail the restore or skip the notification resync below.
+      try {
+        await _restorePrefs(backupPrefs);
+        await _pruneStaleRestorePrefs(db, backupPrefs);
+      } catch (_) {
+        debugPrint('BackupService: prefs restore failed; continuing');
+      }
       // Reminders must reflect the restored data, not the pre-restore
       // state. Best-effort only — a notification failure must never
       // fail the restore itself (and the calls no-op entirely when
@@ -628,11 +643,76 @@ class BackupService {
     }
   }
 
-  static Future<void> _restorePrefs(Directory workDir) async {
+  /// Reads and validates the backup's prefs.json. Returns null when
+  /// the backup has no prefs file (older backups). Throws
+  /// [BackupException] when the file is not a JSON object — failing
+  /// fast here, before any live data is touched.
+  ///
+  /// Individual bad values do NOT fail the file: they are dropped
+  /// here, so a backup with one malformed prefs value still restores
+  /// the data and the remaining prefs instead of refusing the whole
+  /// restore for a cosmetic key.
+  static Future<Map<String, dynamic>?> _readBackupPrefs(
+    Directory workDir,
+  ) async {
     final prefsFile = File('${workDir.path}/prefs.json');
-    if (!await prefsFile.exists()) return;
-    final map =
-        jsonDecode(await prefsFile.readAsString()) as Map<String, dynamic>;
+    if (!await prefsFile.exists()) return null;
+    final Map<String, dynamic> map;
+    try {
+      final decoded = jsonDecode(await prefsFile.readAsString());
+      if (decoded is! Map<String, dynamic>) {
+        throw BackupException(
+          localizedOrFallback(
+            (l) => l.backupNotDmoneyFile,
+            'Not a Dmoney Manager backup file.',
+          ),
+        );
+      }
+      map = decoded;
+    } on BackupException {
+      rethrow;
+    } on FormatException {
+      throw BackupException(
+        localizedOrFallback(
+          (l) => l.backupNotDmoneyFile,
+          'Not a Dmoney Manager backup file.',
+        ),
+      );
+    }
+    final invalidKeys = <String>[];
+    for (final key in map.keys.toList()) {
+      if (!_isRestorablePrefValue(map[key])) {
+        invalidKeys.add(key);
+        map.remove(key);
+      }
+    }
+    if (invalidKeys.isNotEmpty) {
+      debugPrint('BackupService: dropping unrestorable prefs: $invalidKeys');
+    }
+    return map;
+  }
+
+  /// A prefs value is restorable only in the shapes
+  /// SharedPreferences understands: bool, int, double, String, or a
+  /// list of Strings. Anything else (null, nested objects, mixed
+  /// lists) has no pref equivalent.
+  static bool _isRestorablePrefValue(Object? value) {
+    if (value is bool ||
+        value is int ||
+        value is double ||
+        value is String) {
+      return true;
+    }
+    if (value is List) return value.every((e) => e is String);
+    return false;
+  }
+
+  /// Writes the backup's preferences over the live ones. Keys in the
+  /// local-only set describe this device, not user data, and are
+  /// never restored. Best-effort per key: one bad value (or a failed
+  /// write) skips that key only, never the rest of the prefs.
+  static Future<void> _restorePrefs(Map<String, dynamic>? map) async {
+    if (map == null) return;
     final prefs = await SharedPreferences.getInstance();
     // These keys describe THIS device, not user data — restoring
     // them would resurrect a stale Drive account email and backup
@@ -652,18 +732,82 @@ class BackupService {
     for (final entry in map.entries) {
       final key = entry.key;
       if (localOnlyKeys.contains(key)) continue;
-      final value = entry.value;
-      if (value is bool) {
-        await prefs.setBool(key, value);
-      } else if (value is int) {
-        await prefs.setInt(key, value);
-      } else if (value is double) {
-        await prefs.setDouble(key, value);
-      } else if (value is String) {
-        await prefs.setString(key, value);
-      } else if (value is List) {
+      try {
+        await _writePref(prefs, key, entry.value);
+      } catch (_) {
+        debugPrint('BackupService: skipping unrestorable pref $key');
+      }
+    }
+  }
+
+  static Future<void> _writePref(
+    SharedPreferences prefs,
+    String key,
+    Object? value,
+  ) async {
+    if (value is bool) {
+      await prefs.setBool(key, value);
+    } else if (value is int) {
+      await prefs.setInt(key, value);
+    } else if (value is double) {
+      await prefs.setDouble(key, value);
+    } else if (value is String) {
+      await prefs.setString(key, value);
+    } else if (value is List) {
+      // Only an all-string list is a valid StringList pref.
+      if (value.every((e) => e is String)) {
         await prefs.setStringList(key, value.cast<String>());
       }
+    }
+    // Any other shape (null, nested object) has no pref equivalent
+    // and is skipped.
+  }
+
+  /// _restorePrefs is additive-only, so keys the backup never
+  /// mentions survive — and a few of them go stale against the
+  /// restored data. Prune exactly those, nothing else:
+  ///
+  /// - The selected account must exist in the restored accounts
+  ///   table. A backup made on "All accounts" has no
+  ///   selectedAccountId key, so the device's old selection survives
+  ///   — and if the restored database has no such account, every
+  ///   account-scoped query comes back empty after a "successful"
+  ///   restore.
+  /// - Budget-alert flags (`budgetNotified_<id>_<month>_<level>`)
+  ///   and the dismissed update version describe the old data; a
+  ///   backup that doesn't mention them must not leave them
+  ///   suppressing alerts or prompts for the restored data.
+  static Future<void> _pruneStaleRestorePrefs(
+    AppDatabase db,
+    Map<String, dynamic>? backupPrefs,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final selectedId = prefs.getInt('selectedAccountId');
+    if (selectedId != null) {
+      final account = await (db.select(db.accounts)
+            ..where((a) => a.id.equals(selectedId)))
+          .getSingleOrNull();
+      if (account == null) {
+        await prefs.remove('selectedAccountId');
+      }
+    }
+
+    if (backupPrefs == null) return;
+
+    if (!backupPrefs.containsKey('dismissedUpdateVersion')) {
+      await prefs.remove('dismissedUpdateVersion');
+    }
+    final staleFlags = prefs
+        .getKeys()
+        .where(
+          (k) =>
+              k.startsWith('budgetNotified_') &&
+              !backupPrefs.containsKey(k),
+        )
+        .toList();
+    for (final key in staleFlags) {
+      await prefs.remove(key);
     }
   }
 
