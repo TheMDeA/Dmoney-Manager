@@ -2373,6 +2373,23 @@ class AppDatabase extends _$AppDatabase {
     var generated = 0;
     for (final rule in rules) {
       try {
+        // Paylater income gate (defense in depth): an income rule on a
+        // paylater wallet must never post — the same rule as
+        // isIncomeToPaylaterBlocked, inlined here because paylater.dart
+        // imports this file. A pre-existing bad rule is left alone:
+        // it generates nothing and keeps its nextDue, so it is retried
+        // (and re-logged) next launch instead of silently dropping
+        // occurrences or blocking the batch.
+        final wallet = await getWalletById(rule.walletId);
+        if (wallet != null &&
+            rule.kind == 'income' &&
+            wallet.kind == 'paylater') {
+          debugPrint(
+            'processDueRecurringTransactions: rule ${rule.id} skipped: '
+            'income to a paylater wallet is not allowed',
+          );
+          continue;
+        }
         generated += await transaction(() async {
           var due = rule.nextDue;
           var count = 0;

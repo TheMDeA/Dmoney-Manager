@@ -1753,6 +1753,12 @@ class AppLocalizationsId extends AppLocalizations {
   String get txRecordDeleted => 'Catatan dihapus';
 
   @override
+  String get txRecordNotFound => 'Catatan tidak ditemukan';
+
+  @override
+  String get txRecordNotFoundBody => 'Catatan ini mungkin sudah dihapus.';
+
+  @override
   String get txRecordDuplicated => 'Catatan diduplikasi';
 
   @override

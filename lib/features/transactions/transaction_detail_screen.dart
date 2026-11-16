@@ -18,6 +18,7 @@ import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/utils/paylater.dart';
+import '../../core/widgets/empty_state.dart';
 import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import 'photo_viewer_screen.dart';
@@ -154,7 +155,19 @@ class _TransactionDetailScreenState
               builder: (context, snap) {
           final d = snap.data;
           if (d == null) {
-            return const Center(child: CircularProgressIndicator());
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            // The record is gone — deleted elsewhere, or a stale list
+            // pushed a dead id. Show a way back instead of spinning
+            // forever on a dead screen.
+            return EmptyState(
+              icon: Icons.receipt_long_outlined,
+              title: l10n.txRecordNotFound,
+              message: l10n.txRecordNotFoundBody,
+              actionLabel: l10n.commonClose,
+              onAction: () => Navigator.of(context).pop(),
+            );
           }
           final t = d.transaction;
           final c = d.category;

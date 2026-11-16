@@ -482,6 +482,8 @@
   "txReceiptPhotos": "Foto struk",
   "txRecord": "Catatan",
   "txRecordDeleted": "Catatan dihapus",
+  "txRecordNotFound": "Catatan tidak ditemukan",
+  "txRecordNotFoundBody": "Catatan ini mungkin sudah dihapus.",
   "txRecordDuplicated": "Catatan diduplikasi",
   "txRecordUpdated": "Catatan diperbarui",
   "txRecordsDeleted": "{count, plural, other{# catatan dihapus}}",

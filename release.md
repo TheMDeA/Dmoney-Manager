@@ -1,7 +1,6 @@
-## [2.8.4] - 2026-11-15
-
-### Changed
-- PayLater purchases no longer count as spending on the day they're made — income and expense totals now count a PayLater purchase only when an installment is actually paid, so a month with a big PayLater purchase no longer looks overspent.
+## [2.8.5] - 2026-11-16
 
 ### Fixed
-- Restoring a backup no longer turns the app lock on — the lock setting now stays as it is on this device.
+- Opening a deleted transaction no longer spins forever — it now says the record is gone and lets you go back.
+- Recurring income can no longer be set on a PayLater wallet, where it would have posted money as if nothing were owed. An existing rule like that is skipped when it comes due.
+- The calendar day view now updates right after you edit a transaction, and days outside the shown weeks no longer come up empty.

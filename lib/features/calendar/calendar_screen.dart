@@ -23,14 +23,10 @@ import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../transactions/widgets/transaction_tile.dart';
 
-/// Per-day totals for one calendar cell.
+/// Per-day cash-basis totals for one calendar cell.
 class _DayTotal {
   int income = 0;
   int expense = 0;
-  final items = <TransactionWithDetails>[];
-
-  /// Cash-basis day net: income minus expense under the same rule.
-  int get net => income - expense;
 }
 
 /// Month calendar: per-day income/expense/net in every cell,
@@ -130,7 +126,6 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                           t.date.day,
                         );
                         final day = totals.putIfAbsent(key, _DayTotal.new);
-                        day.items.add(d);
                         // Cash basis: paylater purchases don't count, but a
                         // transfer into a paylater wallet counts as an expense.
                         final destKind = t.toWalletId == null
@@ -357,17 +352,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         final day = gridStart.add(Duration(days: i));
         final key = DateTime(day.year, day.month, day.day);
         final total = totals[key];
-        return _dayCell(day, total, key == todayKey, totals);
+        return _dayCell(day, total, key == todayKey);
       },
     );
   }
 
-  Widget _dayCell(
-    DateTime day,
-    _DayTotal? total,
-    bool isToday,
-    Map<DateTime, _DayTotal> totals,
-  ) {
+  Widget _dayCell(DateTime day, _DayTotal? total, bool isToday) {
     final inMonth = day.month == _month.month;
     final isSunday = day.weekday == DateTime.sunday;
     final income = total?.income ?? 0;
@@ -381,7 +371,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final dayLabel = day.day == 1 ? '${day.month}/${day.day}' : '${day.day}';
 
     return InkWell(
-      onTap: () => _showDay(day, totals),
+      onTap: () => _showDay(day),
       child: Opacity(
         opacity: dimmed,
         child: Container(
@@ -442,14 +432,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   // -------------------------------- day sheet --------------------------------
 
-  void _showDay(DateTime day, Map<DateTime, _DayTotal> totals) {
+  void _showDay(DateTime day) {
     Haptics.select();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (_) => _DaySheet(
         initialDay: day,
-        totals: totals,
         hidden: ref.read(balanceHiddenProvider),
         onAdd: (d) {
           Navigator.of(context).pop();
@@ -475,26 +464,29 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
 /// Day detail panel: transactions for one day, < > to flip through days,
 /// and an Add button that opens the add sheet prefilled with the shown day.
-class _DaySheet extends StatefulWidget {
+///
+/// The sheet subscribes to its own day's range live instead of reading
+/// the grid's snapshot, so edits/deletes made from inside it refresh it
+/// immediately, and flipping past the 42-day grid still shows the day's
+/// real transactions instead of a false "No transactions".
+class _DaySheet extends ConsumerStatefulWidget {
   const _DaySheet({
     required this.initialDay,
-    required this.totals,
     required this.onAdd,
     required this.hidden,
   });
 
   final DateTime initialDay;
-  final Map<DateTime, _DayTotal> totals;
   final ValueChanged<DateTime> onAdd;
   // Captured at open: the sheet is modal, so the Home eye can't be
   // reached while it is up.
   final bool hidden;
 
   @override
-  State<_DaySheet> createState() => _DaySheetState();
+  ConsumerState<_DaySheet> createState() => _DaySheetState();
 }
 
-class _DaySheetState extends State<_DaySheet> {
+class _DaySheetState extends ConsumerState<_DaySheet> {
   late DateTime _day;
 
   @override
@@ -508,107 +500,158 @@ class _DaySheetState extends State<_DaySheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final items =
-        widget.totals[_key]?.items ?? const <TransactionWithDetails>[];
-    // Net is precomputed by the parent under the cash-basis rule,
-    // so the sheet agrees with the grid cell for the same day.
-    final net = widget.totals[_key]?.net ?? 0;
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      builder: (_, controller) => Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: context.hairline,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    final db = ref.watch(databaseProvider);
+    final accountId = ref.watch(selectedAccountProvider);
+    final dayStart = _key;
+    final dayEnd = _key
+        .add(const Duration(days: 1))
+        .subtract(const Duration(seconds: 1));
+    return StreamBuilder<List<Wallet>>(
+      stream: db.watchWallets(),
+      builder: (context, wSnap) {
+        // Wallet-kind lookup for the cash-basis rule, same as the
+        // grid: a transfer counts as an expense only when its
+        // destination is a paylater wallet.
+        final walletKinds = {
+          for (final w in (wSnap.data ?? const <Wallet>[])) w.id: w.kind,
+        };
+        return StreamBuilder<List<TransactionWithDetails>>(
+          stream: db.watchTransactionsInRange(
+            dayStart,
+            dayEnd,
+            accountId: accountId,
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-            child: Row(
-              children: [
-                Text(
-                  DateFormat('EEE, d MMM yyyy', appLocaleCode).format(_day),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-                const Spacer(),
-                net == 0
-                    ? Text(
-                        widget.hidden
-                            ? maskMoneyText(formatMoney(0))
-                            : formatMoney(0),
-                        style: TextStyle(color: context.textMuted),
-                      )
-                    : AmountText(
-                        net.abs(),
-                        isIncome: net > 0,
-                        size: 15,
-                        hidden: widget.hidden,
-                      ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: items.isEmpty
-                ? EmptyState(
-                    icon: Icons.receipt_long_outlined,
-                    message: l10n.calendarNoTransactions,
-                  )
-                : ListView.builder(
-                    controller: controller,
-                    padding: const EdgeInsets.only(bottom: 24),
-                    itemCount: items.length,
-                    itemBuilder: (_, i) => TransactionTile(details: items[i]),
-                  ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
-              child: Row(
+          builder: (context, snap) {
+            final items = snap.data ?? const <TransactionWithDetails>[];
+            var income = 0;
+            var expense = 0;
+            for (final d in items) {
+              final t = d.transaction;
+              final destKind = t.toWalletId == null
+                  ? null
+                  : walletKinds[t.toWalletId];
+              income += cashIncomeOf(
+                kind: t.kind,
+                sourceWalletKind: d.wallet.kind,
+                destWalletKind: destKind,
+                amount: t.amount,
+              );
+              expense += cashExpenseOf(
+                kind: t.kind,
+                sourceWalletKind: d.wallet.kind,
+                destWalletKind: destKind,
+                amount: t.amount,
+              );
+            }
+            final net = income - expense;
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.6,
+              minChildSize: 0.4,
+              maxChildSize: 0.9,
+              builder: (_, controller) => Column(
                 children: [
-                  IconButton(
-                    tooltip: l10n.calendarPreviousDay,
-                    onPressed: () {
-                      Haptics.select();
-                      setState(
-                        () => _day = _day.subtract(const Duration(days: 1)),
-                      );
-                    },
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () {
-                        Haptics.select();
-                        widget.onAdd(_day);
-                      },
-                      child: Text(l10n.commonAdd),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: context.hairline,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  IconButton(
-                    tooltip: l10n.calendarNextDay,
-                    onPressed: () {
-                      Haptics.select();
-                      setState(() => _day = _day.add(const Duration(days: 1)));
-                    },
-                    icon: const Icon(Icons.chevron_right),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          DateFormat(
+                            'EEE, d MMM yyyy',
+                            appLocaleCode,
+                          ).format(_day),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const Spacer(),
+                        net == 0
+                            ? Text(
+                                widget.hidden
+                                    ? maskMoneyText(formatMoney(0))
+                                    : formatMoney(0),
+                                style: TextStyle(color: context.textMuted),
+                              )
+                            : AmountText(
+                                net.abs(),
+                                isIncome: net > 0,
+                                size: 15,
+                                hidden: widget.hidden,
+                              ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: items.isEmpty
+                        ? EmptyState(
+                            icon: Icons.receipt_long_outlined,
+                            message: l10n.calendarNoTransactions,
+                          )
+                        : ListView.builder(
+                            controller: controller,
+                            padding: const EdgeInsets.only(bottom: 24),
+                            itemCount: items.length,
+                            itemBuilder: (_, i) =>
+                                TransactionTile(details: items[i]),
+                          ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: l10n.calendarPreviousDay,
+                            onPressed: () {
+                              Haptics.select();
+                              setState(
+                                () => _day = _day.subtract(
+                                  const Duration(days: 1),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.chevron_left),
+                          ),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () {
+                                Haptics.select();
+                                widget.onAdd(_day);
+                              },
+                              child: Text(l10n.commonAdd),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: l10n.calendarNextDay,
+                            onPressed: () {
+                              Haptics.select();
+                              setState(
+                                () => _day = _day.add(const Duration(days: 1)),
+                              );
+                            },
+                            icon: const Icon(Icons.chevron_right),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 }

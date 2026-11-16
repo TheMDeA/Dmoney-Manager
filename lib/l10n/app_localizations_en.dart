@@ -1757,6 +1757,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get txRecordDeleted => 'Record deleted';
 
   @override
+  String get txRecordNotFound => 'Record not found';
+
+  @override
+  String get txRecordNotFoundBody => 'It may have been deleted.';
+
+  @override
   String get txRecordDuplicated => 'Record duplicated';
 
   @override

@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/category_icons.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/paylater.dart';
 import '../../core/utils/wallet_resolve.dart';
 import '../../core/widgets/amount_field.dart';
 import '../../data/database/app_database.dart';
@@ -331,6 +332,29 @@ class _RecurringFormScreenState extends ConsumerState<RecurringFormScreen> {
     if (_endDate != null && _endDate!.isBefore(_firstDue)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.recurringValidationEndBefore)),
+      );
+      return;
+    }
+    // Paylater income gate: a paylater wallet can never receive income —
+    // same rule as the add sheet. Income would push its balance
+    // positive, which the dashboard reads as "nothing owed" while the
+    // provider is still owed.
+    final wallet = await db.getWalletById(_walletId!);
+    if (wallet != null &&
+        isIncomeToPaylaterBlocked(walletKind: wallet.kind, kind: _kind)) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.txIncomeNotAllowed),
+          content: Text(l10n.txIncomeNotAllowedBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.commonOk),
+            ),
+          ],
+        ),
       );
       return;
     }

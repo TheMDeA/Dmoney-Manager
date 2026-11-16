@@ -3003,6 +3003,18 @@ abstract class AppLocalizations {
   /// **'Record deleted'**
   String get txRecordDeleted;
 
+  /// No description provided for @txRecordNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Record not found'**
+  String get txRecordNotFound;
+
+  /// No description provided for @txRecordNotFoundBody.
+  ///
+  /// In en, this message translates to:
+  /// **'It may have been deleted.'**
+  String get txRecordNotFoundBody;
+
   /// No description provided for @txRecordDuplicated.
   ///
   /// In en, this message translates to:

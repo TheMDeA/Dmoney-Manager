@@ -622,6 +622,8 @@
   "txReceiptPhotos": "Receipt photos",
   "txRecord": "Record",
   "txRecordDeleted": "Record deleted",
+  "txRecordNotFound": "Record not found",
+  "txRecordNotFoundBody": "It may have been deleted.",
   "txRecordDuplicated": "Record duplicated",
   "txRecordUpdated": "Record updated",
   "txRecordsDeleted": "{count, plural, one{1 record deleted} other{# records deleted}}",
