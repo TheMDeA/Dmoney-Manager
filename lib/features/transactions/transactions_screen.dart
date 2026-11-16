@@ -10,6 +10,7 @@ import '../../core/widgets/coin_refresh_indicator.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/sliding_segmented.dart';
 import '../../core/widgets/skeleton.dart';
+import '../../core/utils/cash_basis.dart';
 import '../../core/utils/haptics.dart';
 import '../../core/theme/app_colors.dart';
 import '../categories/select_category_screen.dart';
@@ -327,89 +328,117 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                     ),
                 ],
               ),
-        body: StreamBuilder<List<TransactionWithDetails>>(
-          stream: all
-              ? db.watchTransactions(accountId: accountId)
-              : db.watchTransactionsInRange(start, end, accountId: accountId),
-          builder: (context, snap) {
-            final items = snap.data ?? const <TransactionWithDetails>[];
-            _latestItems = items;
-            var income = 0;
-            var expense = 0;
-            for (final d in items) {
-              final t = d.transaction;
-              if (t.kind == 'income') {
-                income += t.amount;
-              } else if (t.kind == 'expense') {
-                expense += t.amount;
-              }
-            }
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                  child: Center(
-                    child: SlidingSegmented<String>(
-                      values: const ['month', 'all'],
-                      labels: [l10n.txMonth, l10n.commonAll],
-                      selected: _view,
-                      onChanged: _setView,
+        body: StreamBuilder<List<Wallet>>(
+          stream: db.watchWallets(),
+          builder: (context, wSnap) {
+            // Wallet-kind lookup for the cash-basis rule: a transfer
+            // counts as an expense only when its destination is a
+            // paylater wallet.
+            final walletKinds = {
+              for (final w in (wSnap.data ?? const <Wallet>[])) w.id: w.kind,
+            };
+            return StreamBuilder<List<TransactionWithDetails>>(
+              stream: all
+                  ? db.watchTransactions(accountId: accountId)
+                  : db.watchTransactionsInRange(
+                      start,
+                      end,
+                      accountId: accountId,
                     ),
-                  ),
-                ),
-                if (!all)
-                  MonthSelector(
-                    month: _month,
-                    onShift: _shift,
-                    onPick: _pickMonth,
-                  ),
-                MonthOverview(income: income, expense: expense),
-                Expanded(
-                  child: !snap.hasData
-                      ? const SkeletonTransactionList()
-                      : items.isEmpty
-                      ? EmptyState(
-                          icon: Icons.receipt_long_outlined,
-                          title: l10n.txNoTransactions,
-                          message: all
-                              ? l10n.txNothingYet
-                              : l10n.txNothingThisMonth,
-                          actionLabel: l10n.txAddTransaction,
-                          onAction: () => showSnackSheet(
-                            context,
-                            (_) => const AddTransactionSheet(),
-                          ),
-                        )
-                      : CoinRefreshIndicator(
-                          onRefresh: () async {
-                            Haptics.light();
-                            // Local-first data: the streams are already live.
-                            // The gesture still gets its satisfying snap.
-                            await Future.delayed(
-                              const Duration(milliseconds: 450),
-                            );
-                          },
-                          child: all
-                              ? DateScrubber(
-                                  controller: _scrollController,
-                                  itemDates: [
-                                    for (final d in items) d.transaction.date,
-                                  ],
-                                  child: GroupedTransactionList(
-                                    items: items,
-                                    controller: _scrollController,
-                                    selectedIds: _selected,
-                                    onToggleSelected: _toggleSelect,
-                                  ),
-                                )
-                              : GroupedTransactionList(
-                                  items: items,
-                                  selectedIds: _selected,
-                                  onToggleSelected: _toggleSelect,
-                                ),
+              builder: (context, snap) {
+                final items = snap.data ?? const <TransactionWithDetails>[];
+                _latestItems = items;
+                var income = 0;
+                var expense = 0;
+                for (final d in items) {
+                  final t = d.transaction;
+                  // Cash basis: paylater purchases don't count, but a
+                  // transfer into a paylater wallet counts as an expense.
+                  final destKind = t.toWalletId == null
+                      ? null
+                      : walletKinds[t.toWalletId];
+                  income += cashIncomeOf(
+                    kind: t.kind,
+                    sourceWalletKind: d.wallet.kind,
+                    destWalletKind: destKind,
+                    amount: t.amount,
+                  );
+                  expense += cashExpenseOf(
+                    kind: t.kind,
+                    sourceWalletKind: d.wallet.kind,
+                    destWalletKind: destKind,
+                    amount: t.amount,
+                  );
+                }
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                      child: Center(
+                        child: SlidingSegmented<String>(
+                          values: const ['month', 'all'],
+                          labels: [l10n.txMonth, l10n.commonAll],
+                          selected: _view,
+                          onChanged: _setView,
                         ),
-                ),
-              ],
+                      ),
+                    ),
+                    if (!all)
+                      MonthSelector(
+                        month: _month,
+                        onShift: _shift,
+                        onPick: _pickMonth,
+                      ),
+                    MonthOverview(income: income, expense: expense),
+                    Expanded(
+                      child: !snap.hasData
+                          ? const SkeletonTransactionList()
+                          : items.isEmpty
+                          ? EmptyState(
+                              icon: Icons.receipt_long_outlined,
+                              title: l10n.txNoTransactions,
+                              message: all
+                                  ? l10n.txNothingYet
+                                  : l10n.txNothingThisMonth,
+                              actionLabel: l10n.txAddTransaction,
+                              onAction: () => showSnackSheet(
+                                context,
+                                (_) => const AddTransactionSheet(),
+                              ),
+                            )
+                          : CoinRefreshIndicator(
+                              onRefresh: () async {
+                                Haptics.light();
+                                // Local-first data: the streams are already live.
+                                // The gesture still gets its satisfying snap.
+                                await Future.delayed(
+                                  const Duration(milliseconds: 450),
+                                );
+                              },
+                              child: all
+                                  ? DateScrubber(
+                                      controller: _scrollController,
+                                      itemDates: [
+                                        for (final d in items)
+                                          d.transaction.date,
+                                      ],
+                                      child: GroupedTransactionList(
+                                        items: items,
+                                        controller: _scrollController,
+                                        selectedIds: _selected,
+                                        onToggleSelected: _toggleSelect,
+                                      ),
+                                    )
+                                  : GroupedTransactionList(
+                                      items: items,
+                                      selectedIds: _selected,
+                                      onToggleSelected: _toggleSelect,
+                                    ),
+                            ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),
