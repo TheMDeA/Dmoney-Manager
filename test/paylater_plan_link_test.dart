@@ -205,6 +205,8 @@ void main() {
           date: DateTime.now(),
           createdAt: DateTime.now(),
           toWalletId: paylaterId,
+          syncId: 'test-sync-1',
+          updatedAt: DateTime(2026, 1, 1),
         ),
         Transaction(
           id: 2,
@@ -217,6 +219,8 @@ void main() {
           date: DateTime.now(),
           createdAt: DateTime.now(),
           toWalletId: otherPaylaterId,
+          syncId: 'test-sync-2',
+          updatedAt: DateTime(2026, 1, 1),
         ),
         // Transfer between two non-paylater wallets: not a repayment.
         Transaction(
@@ -230,6 +234,8 @@ void main() {
           date: DateTime.now(),
           createdAt: DateTime.now(),
           toWalletId: payerId,
+          syncId: 'test-sync-3',
+          updatedAt: DateTime(2026, 1, 1),
         ),
         // A purchase on the paylater wallet is spending, not repayment.
         Transaction(
@@ -242,6 +248,8 @@ void main() {
           memo: '',
           date: DateTime.now(),
           createdAt: DateTime.now(),
+          syncId: 'test-sync-4',
+          updatedAt: DateTime(2026, 1, 1),
         ),
       ];
       expect(paylaterRepayments(txs, {paylaterId, otherPaylaterId}), 7000000);
@@ -265,6 +273,8 @@ void main() {
       totalCount: count,
       paidCount: paid,
       createdAt: DateTime.now(),
+      syncId: 'test-sync',
+      updatedAt: DateTime(2026, 1, 1),
     );
 
     test('single plan with money left → returned', () {
@@ -384,6 +394,8 @@ void main() {
       totalCount: count,
       paidCount: paid,
       createdAt: created,
+      syncId: 'test-sync',
+      updatedAt: DateTime(2026, 1, 1),
     );
 
     test('first installment due the month after creation, on due day', () {
@@ -442,6 +454,8 @@ void main() {
       sortOrder: 0,
       dueDay: dueDay,
       statementDay: statementDay,
+      syncId: 'test-sync',
+      updatedAt: DateTime(2026, 1, 1),
     );
 
     InstallmentPlan p({
@@ -459,6 +473,8 @@ void main() {
       totalCount: count,
       paidCount: paid,
       createdAt: created,
+      syncId: 'test-sync',
+      updatedAt: DateTime(2026, 1, 1),
     );
 
     test('two plans due the same day group together', () {

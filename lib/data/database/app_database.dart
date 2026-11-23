@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/utils/recurring_dates.dart';
 
@@ -14,16 +15,30 @@ part 'app_database.g.dart';
 // ---------------------------------------------------------------------------
 
 /// Personal / Work / Family — unlimited accounts separating finances.
+@TableIndex(name: 'idx_accounts_sync_id', columns: {#syncId}, unique: true)
 class Accounts extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
   TextColumn get kind => text()(); // personal | work | family
   TextColumn get colorHex =>
       text().withDefault(const Constant('#C6FF4A'))(); // v9
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Cash, bank accounts, e-wallets, credit cards.
 @TableIndex(name: 'idx_wallets_account', columns: {#accountId})
+@TableIndex(name: 'idx_wallets_sync_id', columns: {#syncId}, unique: true)
 class Wallets extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get accountId => integer().references(Accounts, #id)();
@@ -60,9 +75,23 @@ class Wallets extends Table {
   /// Savings growth for bank/ewallet wallets only; kept separate from
   /// the paylater monthly cost rate above on purpose.
   RealColumn get interestRateAnnual => real().nullable()();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Expense / income categories; parentId == null means top-level.
+@TableIndex(name: 'idx_categories_sync_id', columns: {#syncId}, unique: true)
 class Categories extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -73,6 +102,19 @@ class Categories extends Table {
 
   /// Manual ordering for the Manage Categories screen (per kind group).
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 @TableIndex(name: 'idx_transactions_date', columns: {#date})
@@ -81,6 +123,7 @@ class Categories extends Table {
 @TableIndex(name: 'idx_transactions_debt', columns: {#debtId})
 @TableIndex(name: 'idx_transactions_debt_payment', columns: {#debtPaymentId})
 @TableIndex(name: 'idx_transactions_transfer', columns: {#transferId})
+@TableIndex(name: 'idx_transactions_sync_id', columns: {#syncId}, unique: true)
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get walletId => integer().references(Wallets, #id)();
@@ -118,25 +161,81 @@ class Transactions extends Table {
   /// transactions and lets a plan show its own history.
   IntColumn get planId =>
       integer().nullable().references(InstallmentPlans, #id)();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Receipt / record photos attached to a transaction ("Save Photos").
 @TableIndex(name: 'idx_photos_transaction', columns: {#transactionId})
+@TableIndex(
+  name: 'idx_transaction_photos_sync_id',
+  columns: {#syncId},
+  unique: true,
+)
 class TransactionPhotos extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get transactionId => integer().references(Transactions, #id)();
   TextColumn get path => text()();
+
+  /// Storage object key for this photo in the `receipts` bucket
+  /// (e.g. `receipts/<owner-uid>/<tx-sync-id>/<photo-sync-id>.jpg`),
+  /// set once the bytes are uploaded (push) or the row is pulled.
+  /// [path] stays a LOCAL filesystem path — the destination the
+  /// bytes are downloaded to on demand — so the viewer, the
+  /// receipts-folder safety guard in [AppDatabase.deletePhoto] and
+  /// the backup service's basename path-rewrite all keep working
+  /// unchanged. Null until the photo has ever been synced.
+  TextColumn get remoteKey => text().nullable()();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Per-category monthly spending limits.
 @TableIndex(name: 'idx_budgets_month', columns: {#month})
+@TableIndex(name: 'idx_budgets_sync_id', columns: {#syncId}, unique: true)
 class Budgets extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get categoryId => integer().references(Categories, #id)();
   TextColumn get month => text()(); // yyyy-MM
   IntColumn get limit => integer()();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
+@TableIndex(name: 'idx_goals_sync_id', columns: {#syncId}, unique: true)
 class Goals extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -144,10 +243,24 @@ class Goals extends Table {
   IntColumn get saved => integer().withDefault(const Constant(0))();
   TextColumn get colorHex => text().withDefault(const Constant('#C6FF4A'))();
   DateTimeColumn get deadline => dateTime().nullable()();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Money you owe (payable) and money owed to you (receivable).
 @TableIndex(name: 'idx_debts_direction', columns: {#direction})
+@TableIndex(name: 'idx_debts_sync_id', columns: {#syncId}, unique: true)
 class Debts extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get person => text()();
@@ -165,10 +278,24 @@ class Debts extends Table {
   /// they show up in the transaction history.
   BoolColumn get recordAsTransaction =>
       boolean().withDefault(const Constant(true))();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Partial repayments recorded against a debt.
 @TableIndex(name: 'idx_debt_payments_debt', columns: {#debtId})
+@TableIndex(name: 'idx_debt_payments_sync_id', columns: {#syncId}, unique: true)
 class DebtPayments extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get debtId => integer().references(Debts, #id)();
@@ -176,22 +303,54 @@ class DebtPayments extends Table {
   DateTimeColumn get date => dateTime()();
   TextColumn get note => text().withDefault(const Constant(''))();
   IntColumn get walletId => integer().nullable().references(Wallets, #id)();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Deposit / withdrawal history for a savings goal.
 /// Positive amount = deposit, negative = withdrawal.
 @TableIndex(name: 'idx_goal_deposits_goal', columns: {#goalId})
+@TableIndex(name: 'idx_goal_deposits_sync_id', columns: {#syncId}, unique: true)
 class GoalDeposits extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get goalId => integer().references(Goals, #id)();
   IntColumn get amount => integer()();
   DateTimeColumn get date => dateTime()();
   TextColumn get note => text().withDefault(const Constant(''))();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Recurring income/expense rules (subscriptions, salary, rent).
 /// Due occurrences are materialized as real transactions on app start.
 @TableIndex(name: 'idx_recurring_next_due', columns: {#nextDue})
+@TableIndex(
+  name: 'idx_recurring_transactions_sync_id',
+  columns: {#syncId},
+  unique: true,
+)
 class RecurringTransactions extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get walletId => integer().references(Wallets, #id)();
@@ -203,9 +362,27 @@ class RecurringTransactions extends Table {
   DateTimeColumn get nextDue => dateTime()();
   DateTimeColumn get endDate => dateTime().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// One-tap transaction templates for the add-transaction sheet.
+@TableIndex(
+  name: 'idx_transaction_templates_sync_id',
+  columns: {#syncId},
+  unique: true,
+)
 class TransactionTemplates extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -215,11 +392,29 @@ class TransactionTemplates extends Table {
   IntColumn get amount => integer()();
   TextColumn get note => text().withDefault(const Constant(''))();
   IntColumn get useCount => integer().withDefault(const Constant(0))();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// Learned keyword → category associations backing smart category
 /// suggestions. [hits] counts how many saved transactions with [keyword]
 /// in their note used [categoryId]. All learning happens on-device.
+@TableIndex(
+  name: 'idx_category_keywords_sync_id',
+  columns: {#syncId},
+  unique: true,
+)
 class CategoryKeywords extends Table {
   TextColumn get keyword => text()();
   IntColumn get categoryId => integer().references(Categories, #id)();
@@ -227,11 +422,29 @@ class CategoryKeywords extends Table {
 
   @override
   Set<Column> get primaryKey => {keyword, categoryId};
+
+  /// Cross-device identity for Supabase sync (v18). Deterministic,
+  /// NOT a random UUID: 'kw:' || keyword || ':' || category sync id
+  /// (see [_keywordSyncId]) — two devices learning the same keyword
+  /// produce the same id. The v18 migration backfills existing rows.
+  TextColumn get syncId => text().withDefault(const Constant(''))();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
 }
 
 /// A multi-month paylater purchase: total split into [totalCount] monthly
 /// installments of [installmentAmount]. v15. Progress is tracked by
 /// [paidCount] only — installments are not auto-posted as transactions.
+@TableIndex(
+  name: 'idx_installment_plans_sync_id',
+  columns: {#syncId},
+  unique: true,
+)
 class InstallmentPlans extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get walletId => integer().references(Wallets, #id)();
@@ -241,6 +454,132 @@ class InstallmentPlans extends Table {
   IntColumn get totalCount => integer()();
   IntColumn get paidCount => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Cross-device identity for Supabase sync (v18). A random UUID,
+  /// assigned at creation; the v18 migration backfills existing rows.
+  /// Also the local side of the server's primary key.
+  TextColumn get syncId =>
+      text().withDefault(const Constant('')).clientDefault(_newSyncId)();
+
+  /// Last local modification; refreshed by every write helper.
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// Soft-delete marker for sync. Local deletes still hard-delete the
+  /// row — the outbox tombstone carries the sync id to the server.
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+}
+
+// ---------------------------------------------------------------------------
+// Sync (Supabase, schema v18)
+// ---------------------------------------------------------------------------
+
+/// Fresh cross-device identity for a synced row.
+String _newSyncId() => const Uuid().v4();
+
+/// Deterministic sync id for a learned keyword row (see
+/// `supabase/migrations/0001_init.sql`): 'kw:' || keyword || ':' ||
+/// category sync id. Two devices learning the same keyword produce
+/// the same id, so the server upsert merges instead of colliding on
+/// the unique (owner_id, keyword, category_id) key.
+String _keywordSyncId(String keyword, String categorySyncId) =>
+    'kw:$keyword:$categorySyncId';
+
+/// Outbox for Supabase sync (schema v18): one row per local mutation,
+/// drained by the P2 push and removed on server ack. Entries are
+/// written in the same transaction as the data change, so the two can
+/// never disagree. Deletes are recorded here too — the row itself is
+/// gone, but its sync id survives as a tombstone for the push.
+class SyncOutbox extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get targetTable => text()();
+  TextColumn get syncId => text()();
+
+  /// 'insert' | 'update' | 'delete'.
+  TextColumn get op => text()();
+  DateTimeColumn get queuedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Single-row sync cursor (id is always 1): where the last pull
+/// stopped and when the last sync ran. Read and written by the
+/// P2/P3 sync engine; P1 only creates the table and its row.
+class SyncState extends Table {
+  IntColumn get id => integer()();
+  TextColumn get lastPullCursor => text().nullable()();
+  DateTimeColumn get lastSyncAt => dateTime().nullable()();
+}
+
+/// Last payload pushed to Supabase per sync id (schema v18, P2).
+/// The push compares a row's current payload hash against this
+/// record and skips the server call when nothing changed — the
+/// server trigger bumps `server_updated_at` on every UPDATE, even a
+/// no-op, so a blind re-push would churn every other device's pull
+/// cursor. Deleted when the row's tombstone is pushed.
+class SyncPushed extends Table {
+  /// The row's sync id — globally unique across tables.
+  TextColumn get syncId => text()();
+  TextColumn get targetTable => text()();
+
+  /// SHA-256 hex of the canonical JSON of the last pushed payload.
+  TextColumn get hash => text()();
+  DateTimeColumn get pushedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {syncId};
+}
+
+/// Rows overwritten by a pull (conflict keeper, schema v18, P3):
+/// when last-write-wins replaces a row this device had previously
+/// pushed, the losing local content is kept here as JSON so the
+/// user can restore it from Settings. One entry per (table,
+/// sync id) — a newer overwrite replaces the older loser. The
+/// entry is deleted when the user restores or dismisses it.
+/// Local-only bookkeeping: never synced, no outbox entry.
+@TableIndex(
+  name: 'idx_sync_conflicts_row',
+  columns: {#targetTable, #syncId},
+  unique: true,
+)
+class SyncConflicts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get targetTable => text()();
+  TextColumn get syncId => text()();
+
+  /// The losing row's full content as canonical JSON of the
+  /// server-shaped payload (the shape the serialiser produces),
+  /// so Restore can re-apply it through the pull-apply path.
+  TextColumn get losingJson => text()();
+
+  /// When the pull overwrote the local row.
+  DateTimeColumn get overwrittenAt =>
+      dateTime().withDefault(currentDateAndTime)();
+
+  /// Which device's edit won. Server rows carry no device id, so
+  /// this stays null in P3 — kept for a future device tag.
+  TextColumn get winningDevice => text().nullable()();
+}
+
+/// One sync run's outcome (P6 sync log, §8/§12): written by the
+/// orchestrator after every cycle and by the first-run migration.
+/// Local-only bookkeeping: never synced, no outbox entry. Capped
+/// at the newest 50 rows ([recordSyncLog] prunes older ones) so
+/// the log can never grow without bound on a device that syncs
+/// every launch.
+class SyncLog extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  DateTimeColumn get startedAt => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get pushed => integer().withDefault(const Constant(0))();
+  IntColumn get pulled => integer().withDefault(const Constant(0))();
+  IntColumn get conflicts => integer().withDefault(const Constant(0))();
+  IntColumn get failed => integer().withDefault(const Constant(0))();
+
+  /// Named failure mode of the run, if it failed — the failure
+  /// mode name ('offline', 'authExpired', 'serverPaused',
+  /// 'unknown'). Null on a clean run.
+  TextColumn get failureMode => text().nullable()();
+
+  /// The raw error message, if any (truncated at write time).
+  /// Kept for debugging; the UI shows the named mode.
+  TextColumn get error => text().nullable()();
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +622,15 @@ typedef _CashBasis = ({
   CustomExpression<int> category,
 });
 
+/// What [reconcileDerivedState] changed: counts of rows whose
+/// stored derived value differed from the recomputed one.
+typedef DerivedReconcileResult = ({
+  int walletsChanged,
+  int plansChanged,
+  int goalsChanged,
+  int debtsChanged,
+});
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -303,6 +651,11 @@ typedef _CashBasis = ({
     TransactionTemplates,
     CategoryKeywords,
     InstallmentPlans,
+    SyncOutbox,
+    SyncState,
+    SyncPushed,
+    SyncConflicts,
+    SyncLog,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -312,13 +665,16 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 17;
+  int get schemaVersion => 18;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
       await _seed();
+      await into(
+        syncState,
+      ).insert(SyncStateCompanion.insert(id: 1));
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -425,11 +781,460 @@ class AppDatabase extends _$AppDatabase {
       if (from < 17) {
         await m.addColumn(transactions, transactions.planId);
       }
+      if (from < 18) {
+        // Sync foundation (v3.0.0): cross-device identity + change
+        // tracking for Supabase sync. New tables first, then the
+        // three columns on every data table, then a backfill so no
+        // row is left without an identity, and only then the unique
+        // indexes — the columns land with the '' default, so the
+        // indexes cannot exist before the backfill runs.
+        await m.createTable(syncOutbox);
+        await m.createTable(syncState);
+        await m.createTable(syncPushed);
+        // Conflict keeper (P3): folded into the unreleased v18
+        // step — no shipped build has v18 yet, so no v19 is
+        // needed. The unique index is created explicitly:
+        // createTable only issues CREATE TABLE, not the indices.
+        await m.createTable(syncConflicts);
+        await m.createIndex(idxSyncConflictsRow);
+        // Sync log (P6): folded into the unreleased v18 step —
+        // no shipped build has v18 yet, so no v19 is needed.
+        await m.createTable(syncLog);
+        await into(
+          syncState,
+        ).insert(SyncStateCompanion.insert(id: 1));
+        await m.addColumn(accounts, accounts.syncId);
+        await m.addColumn(accounts, accounts.updatedAt);
+        await m.addColumn(accounts, accounts.deletedAt);
+        await m.addColumn(wallets, wallets.syncId);
+        await m.addColumn(wallets, wallets.updatedAt);
+        await m.addColumn(wallets, wallets.deletedAt);
+        await m.addColumn(categories, categories.syncId);
+        await m.addColumn(categories, categories.updatedAt);
+        await m.addColumn(categories, categories.deletedAt);
+        await m.addColumn(transactions, transactions.syncId);
+        await m.addColumn(transactions, transactions.updatedAt);
+        await m.addColumn(transactions, transactions.deletedAt);
+        await m.addColumn(transactionPhotos, transactionPhotos.syncId);
+        await m.addColumn(transactionPhotos, transactionPhotos.updatedAt);
+        await m.addColumn(transactionPhotos, transactionPhotos.deletedAt);
+        // P4 (photos): the Storage object key, folded into the
+        // unreleased v18 step — no shipped build has v18 yet.
+        await m.addColumn(transactionPhotos, transactionPhotos.remoteKey);
+        await m.addColumn(budgets, budgets.syncId);
+        await m.addColumn(budgets, budgets.updatedAt);
+        await m.addColumn(budgets, budgets.deletedAt);
+        await m.addColumn(goals, goals.syncId);
+        await m.addColumn(goals, goals.updatedAt);
+        await m.addColumn(goals, goals.deletedAt);
+        await m.addColumn(debts, debts.syncId);
+        await m.addColumn(debts, debts.updatedAt);
+        await m.addColumn(debts, debts.deletedAt);
+        await m.addColumn(debtPayments, debtPayments.syncId);
+        await m.addColumn(debtPayments, debtPayments.updatedAt);
+        await m.addColumn(debtPayments, debtPayments.deletedAt);
+        await m.addColumn(goalDeposits, goalDeposits.syncId);
+        await m.addColumn(goalDeposits, goalDeposits.updatedAt);
+        await m.addColumn(goalDeposits, goalDeposits.deletedAt);
+        await m.addColumn(recurringTransactions, recurringTransactions.syncId);
+        await m.addColumn(
+          recurringTransactions,
+          recurringTransactions.updatedAt,
+        );
+        await m.addColumn(
+          recurringTransactions,
+          recurringTransactions.deletedAt,
+        );
+        await m.addColumn(transactionTemplates, transactionTemplates.syncId);
+        await m.addColumn(transactionTemplates, transactionTemplates.updatedAt);
+        await m.addColumn(transactionTemplates, transactionTemplates.deletedAt);
+        await m.addColumn(categoryKeywords, categoryKeywords.syncId);
+        await m.addColumn(categoryKeywords, categoryKeywords.updatedAt);
+        await m.addColumn(categoryKeywords, categoryKeywords.deletedAt);
+        await m.addColumn(installmentPlans, installmentPlans.syncId);
+        await m.addColumn(installmentPlans, installmentPlans.updatedAt);
+        await m.addColumn(installmentPlans, installmentPlans.deletedAt);
+        await backfillMissingSyncIds();
+        await m.createIndex(idxAccountsSyncId);
+        await m.createIndex(idxWalletsSyncId);
+        await m.createIndex(idxCategoriesSyncId);
+        await m.createIndex(idxTransactionsSyncId);
+        await m.createIndex(idxTransactionPhotosSyncId);
+        await m.createIndex(idxBudgetsSyncId);
+        await m.createIndex(idxGoalsSyncId);
+        await m.createIndex(idxDebtsSyncId);
+        await m.createIndex(idxDebtPaymentsSyncId);
+        await m.createIndex(idxGoalDepositsSyncId);
+        await m.createIndex(idxRecurringTransactionsSyncId);
+        await m.createIndex(idxTransactionTemplatesSyncId);
+        await m.createIndex(idxCategoryKeywordsSyncId);
+        await m.createIndex(idxInstallmentPlansSyncId);
+      }
     },
   );
 
+  // ------------------------------- sync --------------------------------
+
+  /// Records one local mutation for the P2 push. Must be called in the
+  /// same transaction as the data change — every write helper below
+  /// does exactly that, so an outbox entry and its row can never
+  /// disagree. [op] is 'insert', 'update' or 'delete'.
+  Future<void> _enqueueOutbox(String tableName, String syncId, String op) {
+    return into(syncOutbox).insert(
+      SyncOutboxCompanion.insert(targetTable: tableName, syncId: syncId, op: op),
+    );
+  }
+
+  /// Public form of [_enqueueOutbox] for the conflict keeper's
+  /// Restore: the restored row is a new local edit, so it gets an
+  /// outbox entry and the next push sends it as the newest change.
+  Future<void> enqueueOutbox(String tableName, String syncId, String op) =>
+      _enqueueOutbox(tableName, syncId, op);
+
+  /// Sync id to store for a companion-built insert: keep the caller's
+  /// when present, else a fresh UUID. (Restores re-insert with the
+  /// original id; everything else lets the helper generate one.)
+  String _companionSyncId(Value<String> present) =>
+      present.present ? present.value : _newSyncId();
+
+  /// Assigns a sync id (and a fresh [updatedAt]) to every synced row
+  /// that does not have one yet. Used by the v17→v18 migration — the
+  /// new column lands with the '' default on every existing row —
+  /// and by backup restore, which copies rows from pre-v18 backups
+  /// that have no sync ids at all. Categories are backfilled before
+  /// keywords: a keyword's sync id is derived from its category's.
+  /// Rows that already have a sync id are untouched.
+  Future<void> backfillMissingSyncIds() async {
+    const idTables = [
+      'accounts',
+      'categories',
+      'wallets',
+      'goals',
+      'installment_plans',
+      'debts',
+      'debt_payments',
+      'goal_deposits',
+      'recurring_transactions',
+      'transaction_templates',
+      'transactions',
+      'transaction_photos',
+      'budgets',
+    ];
+    final now = DateTime.now();
+    for (final table in idTables) {
+      final rows = await customSelect(
+        'SELECT id FROM "$table" WHERE sync_id = \'\'',
+        readsFrom: {},
+      ).get();
+      for (final row in rows) {
+        await customUpdate(
+          'UPDATE "$table" SET sync_id = ?, updated_at = ? WHERE id = ?',
+          variables: [
+            Variable.withString(_newSyncId()),
+            Variable.withDateTime(now),
+            Variable.withInt(row.read<int>('id')),
+          ],
+          updates: {},
+        );
+      }
+    }
+    // Keywords carry no integer id: their sync id is deterministic —
+    // 'kw:' || keyword || ':' || category sync id — so two devices
+    // learning the same keyword produce the same id (see
+    // 0001_init.sql). An orphaned keyword (its category is gone)
+    // falls back to a random id so the row is still syncable.
+    final keywords = await customSelect(
+      'SELECT keyword, category_id FROM category_keywords '
+      "WHERE sync_id = ''",
+      readsFrom: {},
+    ).get();
+    for (final row in keywords) {
+      final keyword = row.read<String>('keyword');
+      final categoryId = row.read<int>('category_id');
+      final category = await (select(
+        categories,
+      )..where((c) => c.id.equals(categoryId))).getSingleOrNull();
+      final syncId = category == null
+          ? _newSyncId()
+          : _keywordSyncId(keyword, category.syncId);
+      await customUpdate(
+        'UPDATE category_keywords SET sync_id = ?, updated_at = ? '
+        'WHERE keyword = ? AND category_id = ?',
+        variables: [
+          Variable.withString(syncId),
+          Variable.withDateTime(now),
+          Variable.withString(keyword),
+          Variable.withInt(categoryId),
+        ],
+        updates: {},
+      );
+    }
+  }
+
+  /// Resets sync state after a backup restore (P2 decision — see the
+  /// concept doc §5). The restored database replaces every row, so
+  /// pre-restore outbox entries describe row states that no longer
+  /// exist, the pushed-hash records describe payloads that may no
+  /// longer match, and the pull cursor points at a server state the
+  /// local data no longer matches. So: clear the outbox and the hash
+  /// records, re-enqueue every restored row as an insert (the server
+  /// upsert is idempotent, so the restored state becomes the seed),
+  /// and reset the pull cursor so P3 pulls from the beginning.
+  /// Must be called inside the restore transaction.
+  Future<void> resetSyncAfterRestore() async {
+    const tables = [
+      'accounts',
+      'wallets',
+      'categories',
+      'category_keywords',
+      'recurring_transactions',
+      'transaction_templates',
+      'installment_plans',
+      'transactions',
+      'transaction_photos',
+      'budgets',
+      'goals',
+      'goal_deposits',
+      'debts',
+      'debt_payments',
+    ];
+    await customStatement('DELETE FROM sync_outbox');
+    await customStatement('DELETE FROM sync_pushed');
+    for (final table in tables) {
+      await customStatement(
+        "INSERT INTO sync_outbox (target_table, sync_id, op) "
+        "SELECT '$table', sync_id, 'insert' FROM \"$table\" "
+        "WHERE sync_id <> ''",
+      );
+    }
+    await customUpdate(
+      'UPDATE sync_state SET last_pull_cursor = NULL, '
+      'last_sync_at = NULL WHERE id = 1',
+      variables: const [],
+      updates: {syncState},
+    );
+  }
+
+  /// Watches the sync_state row (P5 status UI): last pull cursor +
+  /// last sync time. Null before the first sync (the row is
+  /// created in onCreate, so in practice it exists with nulls).
+  Stream<SyncStateData?> watchSyncState() =>
+      (select(syncState)..where((s) => s.id.equals(1))).watchSingleOrNull();
+
+  /// Watches the number of pending outbox entries (P5 status UI +
+  /// the save trigger). The outbox is small, so counting the
+  /// watched rows is cheaper than a selectOnly count query.
+  Stream<int> watchOutboxCount() =>
+      select(syncOutbox).watch().map((rows) => rows.length);
+
+  /// Wipes every synced table for a first-run migration (P5, §11):
+  /// children first, then the outbox, the pushed-hash log and the
+  /// conflict keeper, and the pull cursor reset so the next pull
+  /// starts from the beginning. One transaction — a failure leaves
+  /// the local data untouched. The seed categories go with the
+  /// wipe; the pull re-creates the server's categories.
+  /// `sync_state` is UPDATED, not deleted: the pull reads the row
+  /// with getSingle(), so the row must survive the wipe.
+  Future<void> wipeLocalDataForSync() async {
+    const tables = [
+      'transaction_photos',
+      'transactions',
+      'debt_payments',
+      'goal_deposits',
+      'budgets',
+      'transaction_templates',
+      'recurring_transactions',
+      'category_keywords',
+      'installment_plans',
+      'debts',
+      'goals',
+      'categories',
+      'wallets',
+      'accounts',
+    ];
+    await transaction(() async {
+      for (final table in tables) {
+        await customStatement('DELETE FROM "$table"');
+      }
+      await customStatement('DELETE FROM sync_outbox');
+      await customStatement('DELETE FROM sync_pushed');
+      await customStatement('DELETE FROM sync_conflicts');
+      await customUpdate(
+        'UPDATE sync_state SET last_pull_cursor = NULL, '
+        'last_sync_at = NULL WHERE id = 1',
+        variables: const [],
+        updates: {syncState},
+      );
+    });
+  }
+
+  /// Live list of conflict-keeper entries, newest overwrite first.
+  Stream<List<SyncConflict>> watchSyncConflicts() =>
+      (select(syncConflicts)
+            ..orderBy([(c) => OrderingTerm.desc(c.overwrittenAt)]))
+          .watch();
+
+  /// Records a conflict-keeper entry (P3): the local row that a
+  /// pull overwrote, kept as JSON so the user can restore it.
+  /// One entry per (table, sync id) — a newer overwrite replaces
+  /// the older loser. Must be called inside the pull's apply
+  /// transaction, so the record and the overwrite land together.
+  Future<void> recordSyncConflict({
+    required String targetTable,
+    required String syncId,
+    required String losingJson,
+    String? winningDevice,
+  }) async {
+    final existing =
+        await (select(syncConflicts)
+              ..where((c) => c.targetTable.equals(targetTable))
+              ..where((c) => c.syncId.equals(syncId)))
+            .getSingleOrNull();
+    final now = DateTime.now();
+    if (existing == null) {
+      await into(syncConflicts).insert(
+        SyncConflictsCompanion.insert(
+          targetTable: targetTable,
+          syncId: syncId,
+          losingJson: losingJson,
+          overwrittenAt: Value(now),
+          winningDevice: Value(winningDevice),
+        ),
+      );
+    } else {
+      await (update(
+        syncConflicts,
+      )..where((c) => c.id.equals(existing.id))).write(
+        SyncConflictsCompanion(
+          losingJson: Value(losingJson),
+          overwrittenAt: Value(now),
+          winningDevice: Value(winningDevice),
+        ),
+      );
+    }
+  }
+
+  /// Deletes one conflict-keeper entry (user dismissed it, or it
+  /// was restored). Local bookkeeping only — no outbox entry.
+  Future<void> deleteSyncConflict(int id) =>
+      (delete(syncConflicts)..where((c) => c.id.equals(id))).go();
+
+  /// Drops the last-push hash record for [syncId]. The hash means
+  /// "the server already holds this exact content" — a conflict
+  /// Restore re-applies content the server is known NOT to hold
+  /// (the winner overwrote it), so the stale hash must go or the
+  /// push's unchanged-skip would swallow the restored edit.
+  /// Called by [SyncConflictService.restoreConflict]; local
+  /// bookkeeping only — no outbox entry.
+  Future<void> clearPushedHash(String syncId) =>
+      (delete(syncPushed)..where((p) => p.syncId.equals(syncId))).go();
+
+  /// One-shot pending-outbox count (P6 chunked push: the
+  /// orchestrator decides the push mode from it). Cheaper than
+  /// reading the rows — a COUNT(*) over the outbox.
+  Future<int> outboxCount() async {
+    final row = await customSelect(
+      'SELECT COUNT(*) AS c FROM sync_outbox',
+      readsFrom: {syncOutbox},
+    ).getSingle();
+    return row.read<int>('c');
+  }
+
+  /// Enqueues every local row as an 'insert' for the initial push
+  /// (P6, §11). Rows that predate sync — the seed categories and
+  /// every row the v18 backfill gave a sync id — have no outbox
+  /// entry, so a plain drain would push nothing and the first sync
+  /// would silently upload an empty library. Rows that already
+  /// have an outbox entry are left alone (the NOT EXISTS guard),
+  /// so calling this twice — or after new edits — never
+  /// duplicates an entry. One transaction: a failure enqueues
+  /// nothing. The server upsert is idempotent, so a row the
+  /// server already holds is acked as unchanged by the hash
+  /// check, never re-sent. Returns how many entries were added.
+  Future<int> enqueueAllRowsForInitialPush() async {
+    const tables = [
+      'accounts',
+      'categories',
+      'wallets',
+      'goals',
+      'installment_plans',
+      'debts',
+      'debt_payments',
+      'goal_deposits',
+      'recurring_transactions',
+      'transaction_templates',
+      'budgets',
+      'transactions',
+      'category_keywords',
+      'transaction_photos',
+    ];
+    var added = 0;
+    await transaction(() async {
+      for (final table in tables) {
+        added += await customUpdate(
+          'INSERT INTO sync_outbox (target_table, sync_id, op) '
+          'SELECT ?, sync_id, ? FROM "$table" '
+          'WHERE sync_id != ? '
+          'AND NOT EXISTS (SELECT 1 FROM sync_outbox o '
+          'WHERE o.target_table = ? AND o.sync_id = "$table".sync_id)',
+          variables: [
+            Variable.withString(table),
+            Variable.withString('insert'),
+            Variable.withString(''),
+            Variable.withString(table),
+          ],
+          updates: {syncOutbox},
+        );
+      }
+    });
+    return added;
+  }
+
+  /// Records one sync run in the local log (P6, §8/§12) and
+  /// prunes older rows, keeping the newest 50. Local-only —
+  /// never synced, no outbox entry. The caller guards this call:
+  /// logging must never fail a cycle.
+  Future<void> recordSyncLog({
+    required int pushed,
+    required int pulled,
+    required int conflicts,
+    required int failed,
+    String? failureMode,
+    String? error,
+  }) async {
+    final trimmed = error == null
+        ? null
+        : (error.length > 500 ? error.substring(0, 500) : error);
+    await transaction(() async {
+      await into(syncLog).insert(
+        SyncLogCompanion.insert(
+          pushed: Value(pushed),
+          pulled: Value(pulled),
+          conflicts: Value(conflicts),
+          failed: Value(failed),
+          failureMode: Value(failureMode),
+          error: Value(trimmed),
+        ),
+      );
+      await customStatement(
+        'DELETE FROM sync_log WHERE id NOT IN '
+        '(SELECT id FROM sync_log ORDER BY id DESC LIMIT 50)',
+      );
+    });
+  }
+
+  /// The newest sync-log rows, newest first, for the Settings
+  /// "Recent syncs" list (P6).
+  Stream<List<SyncLogData>> watchRecentSyncLog({int limit = 5}) =>
+      (select(syncLog)
+            ..orderBy([(l) => OrderingTerm.desc(l.id)])
+            ..limit(limit))
+          .watch();
+
   /// Inserts the hidden "Transfer" category if it doesn't exist yet
   /// (used by the v1→v2 migration; the fresh seed inserts it directly).
+  /// Runs during migration, before the sync columns exist — no outbox
+  /// entry; the v18 backfill covers the row.
   Future<void> _ensureTransferCategory() async {
     final existing = await (select(
       categories,
@@ -459,14 +1264,25 @@ class AppDatabase extends _$AppDatabase {
             ))
             .get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(
-      CategoriesCompanion.insert(
-        name: 'Transfer fee',
-        iconKey: const Value('receipt'),
-        colorHex: const Value('#9CA3AF'),
-        kind: 'expense',
-      ),
-    );
+    // Lazily created outside any transaction (e.g. a screen reads
+    // the id directly), so the insert + outbox entry are wrapped
+    // in their own transaction here; nested inside a caller's
+    // transaction this joins it via a savepoint.
+    return transaction(() async {
+      final syncId = _newSyncId();
+      final id = await into(categories).insert(
+        CategoriesCompanion.insert(
+          name: 'Transfer fee',
+          iconKey: const Value('receipt'),
+          colorHex: const Value('#9CA3AF'),
+          kind: 'expense',
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('categories', syncId, 'insert');
+      return id;
+    });
   }
 
   /// The income category interest credits are booked under. Created on
@@ -479,14 +1295,25 @@ class AppDatabase extends _$AppDatabase {
       categories,
     )..where((c) => c.kind.equals('income') & c.name.equals('Interest'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(
-      CategoriesCompanion.insert(
-        name: 'Interest',
-        iconKey: const Value('account_balance'),
-        colorHex: const Value('#4ADE80'),
-        kind: 'income',
-      ),
-    );
+    // Lazily created outside any transaction (e.g. a screen reads
+    // the id directly), so the insert + outbox entry are wrapped
+    // in their own transaction here; nested inside a caller's
+    // transaction this joins it via a savepoint.
+    return transaction(() async {
+      final syncId = _newSyncId();
+      final id = await into(categories).insert(
+        CategoriesCompanion.insert(
+          name: 'Interest',
+          iconKey: const Value('account_balance'),
+          colorHex: const Value('#4ADE80'),
+          kind: 'income',
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('categories', syncId, 'insert');
+      return id;
+    });
   }
 
   Future<List<Transaction>> transferFeeRows(int transferId) => (select(
@@ -505,14 +1332,25 @@ class AppDatabase extends _$AppDatabase {
       categories,
     )..where((c) => c.kind.equals('uncategorized'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(
-      CategoriesCompanion.insert(
-        name: 'Uncategorized',
-        iconKey: const Value('other'),
-        colorHex: const Value('#9CA3AF'),
-        kind: 'uncategorized',
-      ),
-    );
+    // Lazily created outside any transaction (e.g. a screen reads
+    // the id directly), so the insert + outbox entry are wrapped
+    // in their own transaction here; nested inside a caller's
+    // transaction this joins it via a savepoint.
+    return transaction(() async {
+      final syncId = _newSyncId();
+      final id = await into(categories).insert(
+        CategoriesCompanion.insert(
+          name: 'Uncategorized',
+          iconKey: const Value('other'),
+          colorHex: const Value('#9CA3AF'),
+          kind: 'uncategorized',
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('categories', syncId, 'insert');
+      return id;
+    });
   }
 
   /// Signed wallet delta for a debt's creation movement:
@@ -549,14 +1387,25 @@ class AppDatabase extends _$AppDatabase {
       categories,
     )..where((c) => c.kind.equals('debt'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(
-      CategoriesCompanion.insert(
-        name: 'Debt',
-        iconKey: const Value('handshake'),
-        colorHex: const Value('#F472B6'),
-        kind: 'debt',
-      ),
-    );
+    // Lazily created outside any transaction (e.g. a screen reads
+    // the id directly), so the insert + outbox entry are wrapped
+    // in their own transaction here; nested inside a caller's
+    // transaction this joins it via a savepoint.
+    return transaction(() async {
+      final syncId = _newSyncId();
+      final id = await into(categories).insert(
+        CategoriesCompanion.insert(
+          name: 'Debt',
+          iconKey: const Value('handshake'),
+          colorHex: const Value('#F472B6'),
+          kind: 'debt',
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('categories', syncId, 'insert');
+      return id;
+    });
   }
 
   Future<void> _ensureDebtCategory() async {
@@ -573,14 +1422,25 @@ class AppDatabase extends _$AppDatabase {
       categories,
     )..where((c) => c.kind.equals('adjustment'))).get();
     if (existing.isNotEmpty) return existing.first.id;
-    return into(categories).insert(
-      CategoriesCompanion.insert(
-        name: 'Adjustment',
-        iconKey: const Value('tune'),
-        colorHex: const Value('#9CA3AF'),
-        kind: 'adjustment',
-      ),
-    );
+    // Lazily created outside any transaction (e.g. a screen reads
+    // the id directly), so the insert + outbox entry are wrapped
+    // in their own transaction here; nested inside a caller's
+    // transaction this joins it via a savepoint.
+    return transaction(() async {
+      final syncId = _newSyncId();
+      final id = await into(categories).insert(
+        CategoriesCompanion.insert(
+          name: 'Adjustment',
+          iconKey: const Value('tune'),
+          colorHex: const Value('#9CA3AF'),
+          kind: 'adjustment',
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('categories', syncId, 'insert');
+      return id;
+    });
   }
 
   /// Adjusts a wallet's balance by recording an income/expense transaction
@@ -622,8 +1482,10 @@ class AppDatabase extends _$AppDatabase {
         WalletsCompanion(
           balance: Value(newBalance),
           initialAmount: Value(w.initialAmount + diff),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('wallets', w.syncId, 'update');
     });
   }
 
@@ -1159,6 +2021,11 @@ class AppDatabase extends _$AppDatabase {
   // -------------------------------- writes -------------------------------
 
   /// Adjusts a wallet balance atomically (delta may be negative).
+  ///
+  /// No outbox entry: the balance is derived state, recomputed from
+  /// the transaction ledger after a pull (see concept doc section 7).
+  /// The transaction rows that cause the change carry their own
+  /// entries, so the receiving device re-derives the same balance.
   Future<void> adjustWalletBalance(int walletId, int delta) {
     return customUpdate(
       'UPDATE wallets SET balance = balance + ? WHERE id = ?',
@@ -1170,7 +2037,11 @@ class AppDatabase extends _$AppDatabase {
   /// Records an income/expense and keeps the wallet balance in sync.
   Future<int> addTransaction(TransactionsCompanion entry) {
     return transaction(() async {
-      final id = await into(transactions).insert(entry);
+      final syncId = _newSyncId();
+      final id = await into(transactions).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('transactions', syncId, 'insert');
       final kind = entry.kind.value;
       final amount = entry.amount.value;
       if (kind == 'income') {
@@ -1230,6 +2101,7 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       final catId = await transferCategoryId;
       final when = date ?? DateTime.now();
+      final transferSyncId = _newSyncId();
       final id = await into(transactions).insert(
         TransactionsCompanion.insert(
           walletId: fromWalletId,
@@ -1240,11 +2112,15 @@ class AppDatabase extends _$AppDatabase {
           date: when,
           toWalletId: Value(toWalletId),
           planId: Value(planId),
+          syncId: Value(transferSyncId),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('transactions', transferSyncId, 'insert');
       await adjustWalletBalance(fromWalletId, -amount);
       await adjustWalletBalance(toWalletId, amount);
       if (fee > 0) {
+        final feeSyncId = _newSyncId();
         await into(transactions).insert(
           TransactionsCompanion.insert(
             walletId: fromWalletId,
@@ -1254,8 +2130,11 @@ class AppDatabase extends _$AppDatabase {
             note: const Value('Transfer fee'),
             date: when,
             transferId: Value(id),
+            syncId: Value(feeSyncId),
+            updatedAt: Value(DateTime.now()),
           ),
         );
+        await _enqueueOutbox('transactions', feeSyncId, 'insert');
         await adjustWalletBalance(fromWalletId, -fee);
       }
       return id;
@@ -1306,6 +2185,7 @@ class AppDatabase extends _$AppDatabase {
           await (delete(
             installmentPlans,
           )..where((p) => p.id.equals(plan.id))).go();
+          await _enqueueOutbox('installment_plans', plan.syncId, 'delete');
           deletedPlan = plan;
         }
       }
@@ -1314,19 +2194,31 @@ class AppDatabase extends _$AppDatabase {
       if (t.kind == 'transfer') {
         for (final feeRow in await transferFeeRows(id)) {
           await _reverseBalanceEffect(feeRow);
+          for (final photo in await (select(
+            transactionPhotos,
+          )..where((p) => p.transactionId.equals(feeRow.id))).get()) {
+            await _enqueueOutbox('transaction_photos', photo.syncId, 'delete');
+          }
           await (delete(
             transactionPhotos,
           )..where((p) => p.transactionId.equals(feeRow.id))).go();
           await (delete(
             transactions,
           )..where((e) => e.id.equals(feeRow.id))).go();
+          await _enqueueOutbox('transactions', feeRow.syncId, 'delete');
         }
       }
       await _reverseBalanceEffect(t);
+      for (final photo in await (select(
+        transactionPhotos,
+      )..where((p) => p.transactionId.equals(id))).get()) {
+        await _enqueueOutbox('transaction_photos', photo.syncId, 'delete');
+      }
       await (delete(
         transactionPhotos,
       )..where((p) => p.transactionId.equals(id))).go();
       await (delete(transactions)..where((e) => e.id.equals(id))).go();
+      await _enqueueOutbox('transactions', t.syncId, 'delete');
       if (t.planId != null && t.kind == 'transfer') {
         await _resyncPlanPaidCount(t.planId!);
       }
@@ -1338,8 +2230,14 @@ class AppDatabase extends _$AppDatabase {
   /// [deleteTransaction]). Backs the "Undo" action after deleting a
   /// plan purchase. The caller restores the plan before its purchase
   /// so the linked rows never point at a missing plan.
-  Future<void> restoreInstallmentPlan(InstallmentPlan plan) =>
-      into(installmentPlans).insert(plan.toCompanion(false));
+  Future<void> restoreInstallmentPlan(InstallmentPlan plan) {
+    return transaction(() async {
+      await into(installmentPlans).insert(
+        plan.toCompanion(false).copyWith(updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('installment_plans', plan.syncId, 'insert');
+    });
+  }
 
   /// Re-inserts a previously deleted transaction with its original id,
   /// re-applying its wallet balance effect and photo attachments.
@@ -1351,7 +2249,11 @@ class AppDatabase extends _$AppDatabase {
     List<TransactionPhoto> photos,
   ) {
     return transaction(() async {
-      await into(transactions).insert(t.toCompanion(false));
+      final now = DateTime.now();
+      await into(
+        transactions,
+      ).insert(t.toCompanion(false).copyWith(updatedAt: Value(now)));
+      await _enqueueOutbox('transactions', t.syncId, 'insert');
       switch (t.kind) {
         case 'income':
           await adjustWalletBalance(t.walletId, t.amount);
@@ -1364,9 +2266,18 @@ class AppDatabase extends _$AppDatabase {
           }
       }
       for (final p in photos) {
+        // Fresh rows (new ids): the original photo rows were deleted
+        // with the transaction, so the restore re-creates them.
+        final photoSyncId = _newSyncId();
         await into(transactionPhotos).insert(
-          TransactionPhotosCompanion.insert(transactionId: t.id, path: p.path),
+          TransactionPhotosCompanion.insert(
+            transactionId: t.id,
+            path: p.path,
+            syncId: Value(photoSyncId),
+            updatedAt: Value(now),
+          ),
         );
+        await _enqueueOutbox('transaction_photos', photoSyncId, 'insert');
       }
       if (t.planId != null && t.kind == 'transfer') {
         await _resyncPlanPaidCount(t.planId!);
@@ -1400,8 +2311,10 @@ class AppDatabase extends _$AppDatabase {
           note: Value(note),
           memo: Value(memo),
           date: Value(date),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('transactions', old.syncId, 'update');
       if (kind == 'income') {
         await adjustWalletBalance(walletId, amount);
       } else if (kind == 'expense') {
@@ -1415,21 +2328,43 @@ class AppDatabase extends _$AppDatabase {
     required String name,
     required String iconKey,
     required String colorHex,
-  }) => (update(categories)..where((c) => c.id.equals(id))).write(
-    CategoriesCompanion(
-      name: Value(name),
-      iconKey: Value(iconKey),
-      colorHex: Value(colorHex),
-    ),
-  );
+  }) {
+    return transaction(() async {
+      final row = await (select(
+        categories,
+      )..where((c) => c.id.equals(id))).getSingleOrNull();
+      if (row == null) return;
+      await (update(categories)..where((c) => c.id.equals(id))).write(
+        CategoriesCompanion(
+          name: Value(name),
+          iconKey: Value(iconKey),
+          colorHex: Value(colorHex),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('categories', row.syncId, 'update');
+    });
+  }
 
   /// Persists a manual drag-reorder: [orderedIds] is the new top-to-bottom
   /// order of one (kind, top-level) group.
   Future<void> reorderCategories(List<int> orderedIds) {
     return transaction(() async {
+      final now = DateTime.now();
+      final rows = await (select(
+        categories,
+      )..where((c) => c.id.isIn(orderedIds))).get();
+      final syncIds = {for (final r in rows) r.id: r.syncId};
       for (var i = 0; i < orderedIds.length; i++) {
-        await (update(categories)..where((c) => c.id.equals(orderedIds[i])))
-            .write(CategoriesCompanion(sortOrder: Value(i)));
+        await (update(
+          categories,
+        )..where((c) => c.id.equals(orderedIds[i]))).write(
+          CategoriesCompanion(sortOrder: Value(i), updatedAt: Value(now)),
+        );
+        final syncId = syncIds[orderedIds[i]];
+        if (syncId != null) {
+          await _enqueueOutbox('categories', syncId, 'update');
+        }
       }
     });
   }
@@ -1437,10 +2372,19 @@ class AppDatabase extends _$AppDatabase {
   /// Persists a manual wallet order (Arrange Wallets screen).
   Future<void> reorderWallets(List<int> orderedIds) {
     return transaction(() async {
+      final now = DateTime.now();
+      final rows = await (select(
+        wallets,
+      )..where((w) => w.id.isIn(orderedIds))).get();
+      final syncIds = {for (final r in rows) r.id: r.syncId};
       for (var i = 0; i < orderedIds.length; i++) {
         await (update(wallets)..where((w) => w.id.equals(orderedIds[i]))).write(
-          WalletsCompanion(sortOrder: Value(i)),
+          WalletsCompanion(sortOrder: Value(i), updatedAt: Value(now)),
         );
+        final syncId = syncIds[orderedIds[i]];
+        if (syncId != null) {
+          await _enqueueOutbox('wallets', syncId, 'update');
+        }
       }
     });
   }
@@ -1463,12 +2407,18 @@ class AppDatabase extends _$AppDatabase {
     final dest =
         '${receipts.path}/${DateTime.now().millisecondsSinceEpoch}_$transactionId.$ext';
     final stored = await File(sourcePath).copy(dest);
-    await into(transactionPhotos).insert(
-      TransactionPhotosCompanion.insert(
-        transactionId: transactionId,
-        path: stored.path,
-      ),
-    );
+    final syncId = _newSyncId();
+    await transaction(() async {
+      await into(transactionPhotos).insert(
+        TransactionPhotosCompanion.insert(
+          transactionId: transactionId,
+          path: stored.path,
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('transaction_photos', syncId, 'insert');
+    });
     return stored.path;
   }
 
@@ -1478,8 +2428,18 @@ class AppDatabase extends _$AppDatabase {
     final row = await (select(
       transactionPhotos,
     )..where((p) => p.id.equals(photoId))).getSingleOrNull();
-    await (delete(transactionPhotos)..where((p) => p.id.equals(photoId))).go();
-    if (row == null) return;
+    if (row == null) {
+      await (delete(
+        transactionPhotos,
+      )..where((p) => p.id.equals(photoId))).go();
+      return;
+    }
+    await transaction(() async {
+      await (delete(
+        transactionPhotos,
+      )..where((p) => p.id.equals(photoId))).go();
+      await _enqueueOutbox('transaction_photos', row.syncId, 'delete');
+    });
     try {
       final docs = await getApplicationDocumentsDirectory();
       final file = File(row.path);
@@ -1493,7 +2453,32 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  Future<int> addWallet(WalletsCompanion entry) => into(wallets).insert(entry);
+  /// Records the Storage object key of a photo after its bytes are
+  /// uploaded (P4 push) — a bookkeeping write, not a user edit: no
+  /// outbox entry (the pending insert/update entry already covers
+  /// the row; this only fills in the key it uploads under) and no
+  /// [updatedAt] change (the row's content did not change, so a
+  /// pull must not see it as a newer local edit). Same rule as the
+  /// other derived-only writers (adjustWalletBalance,
+  /// markInstallmentPaid, updateGoalSaved, setDebtPaid).
+  Future<void> setPhotoRemoteKey(int photoId, String key) async {
+    await (update(
+      transactionPhotos,
+    )..where((p) => p.id.equals(photoId))).write(
+      TransactionPhotosCompanion(remoteKey: Value(key)),
+    );
+  }
+
+  Future<int> addWallet(WalletsCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(wallets).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('wallets', syncId, 'insert');
+      return id;
+    });
+  }
 
   /// Creates a wallet with its opening balance recorded as the initial amount.
   /// New wallets append at the end of the manual order.
@@ -1516,23 +2501,30 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(wallets)..addColumns([wallets.sortOrder.max()]))
             .map((r) => r.read(wallets.sortOrder.max()))
             .getSingleOrNull();
-    return into(wallets).insert(
-      WalletsCompanion.insert(
-        accountId: accountId,
-        name: name,
-        kind: kind,
-        balance: Value(initialAmount),
-        initialAmount: Value(initialAmount),
-        colorHex: Value(colorHex),
-        logoTemplate: Value(logoTemplate),
-        sortOrder: Value((maxOrder ?? -1) + 1),
-        creditLimit: Value(creditLimit),
-        statementDay: Value(statementDay),
-        dueDay: Value(dueDay),
-        interestRateMonthly: Value(interestRateMonthly),
-        interestRateAnnual: Value(interestRateAnnual),
-      ),
-    );
+    final syncId = _newSyncId();
+    return transaction(() async {
+      final id = await into(wallets).insert(
+        WalletsCompanion.insert(
+          accountId: accountId,
+          name: name,
+          kind: kind,
+          balance: Value(initialAmount),
+          initialAmount: Value(initialAmount),
+          colorHex: Value(colorHex),
+          logoTemplate: Value(logoTemplate),
+          sortOrder: Value((maxOrder ?? -1) + 1),
+          creditLimit: Value(creditLimit),
+          statementDay: Value(statementDay),
+          dueDay: Value(dueDay),
+          interestRateMonthly: Value(interestRateMonthly),
+          interestRateAnnual: Value(interestRateAnnual),
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('wallets', syncId, 'insert');
+      return id;
+    });
   }
 
   Future<void> updateWallet({
@@ -1548,21 +2540,31 @@ class AppDatabase extends _$AppDatabase {
     Value<int?> dueDay = const Value.absent(),
     Value<double?> interestRateMonthly = const Value.absent(),
     Value<double?> interestRateAnnual = const Value.absent(),
-  }) => (update(wallets)..where((w) => w.id.equals(id))).write(
-    WalletsCompanion(
-      name: Value(name),
-      kind: Value(kind),
-      colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
-      // The form sheet always knows the current template, so a null
-      // here genuinely means "no template" and is written as such.
-      logoTemplate: Value(logoTemplate),
-      creditLimit: creditLimit,
-      statementDay: statementDay,
-      dueDay: dueDay,
-      interestRateMonthly: interestRateMonthly,
-      interestRateAnnual: interestRateAnnual,
-    ),
-  );
+  }) {
+    return transaction(() async {
+      final row = await (select(
+        wallets,
+      )..where((w) => w.id.equals(id))).getSingleOrNull();
+      if (row == null) return;
+      await (update(wallets)..where((w) => w.id.equals(id))).write(
+        WalletsCompanion(
+          name: Value(name),
+          kind: Value(kind),
+          colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
+          // The form sheet always knows the current template, so a null
+          // here genuinely means "no template" and is written as such.
+          logoTemplate: Value(logoTemplate),
+          creditLimit: creditLimit,
+          statementDay: statementDay,
+          dueDay: dueDay,
+          interestRateMonthly: interestRateMonthly,
+          interestRateAnnual: interestRateAnnual,
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('wallets', row.syncId, 'update');
+    });
+  }
 
   // ------------------------- installment plans -------------------------
 
@@ -1573,16 +2575,27 @@ class AppDatabase extends _$AppDatabase {
     required int installmentAmount,
     required int totalCount,
     DateTime? createdAt,
-  }) => into(installmentPlans).insert(
-    InstallmentPlansCompanion.insert(
-      walletId: walletId,
-      name: name,
-      totalAmount: totalAmount,
-      installmentAmount: installmentAmount,
-      totalCount: totalCount,
-      createdAt: createdAt == null ? const Value.absent() : Value(createdAt),
-    ),
-  );
+  }) {
+    return transaction(() async {
+      final syncId = _newSyncId();
+      final id = await into(installmentPlans).insert(
+        InstallmentPlansCompanion.insert(
+          walletId: walletId,
+          name: name,
+          totalAmount: totalAmount,
+          installmentAmount: installmentAmount,
+          totalCount: totalCount,
+          createdAt: createdAt == null
+              ? const Value.absent()
+              : Value(createdAt),
+          syncId: Value(syncId),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('installment_plans', syncId, 'insert');
+      return id;
+    });
+  }
 
   /// Single plan by id, or null. Used by the delete/edit guards, which
   /// need the plan's counters before deciding whether a linked
@@ -1591,11 +2604,162 @@ class AppDatabase extends _$AppDatabase {
     installmentPlans,
   )..where((p) => p.id.equals(id))).getSingleOrNull();
 
+/// Recomputes every derived value from the ledger (concept §7),
+/// run after every pull and by the P5 first-run flow. The
+/// recompute mirrors the incremental maintainers exactly — see
+/// the notes inline — so a pulled ledger always lands on the
+/// same balances the local helpers would have maintained.
+///
+/// Like the other derived writers ([updateGoalSaved],
+/// [markInstallmentPaid], [setDebtPaid], [adjustWalletBalance])
+/// this writes only the derived columns: no `updatedAt`, no
+/// outbox entry — derived state never syncs as a value.
+///
+/// One deliberate correction over the maintainers: deleting a
+/// debt payment whose linked transaction was already deleted
+/// directly reverses the wallet effect twice (see
+/// [deleteDebtPayment]); the recompute is final-state based, so
+/// it lands on the correct balance and heals that drift.
+Future<DerivedReconcileResult> reconcileDerivedState() {
+  return transaction(() async {
+    final allWallets = await select(wallets).get();
+    final allTxs = await select(transactions).get();
+    final allDebts = await select(debts).get();
+    final allPayments = await select(debtPayments).get();
+    final allGoals = await select(goals).get();
+    final allDeposits = await select(goalDeposits).get();
+    final allPlans = await select(installmentPlans).get();
+
+    // --- wallets.balance ---
+    // The ledger fold mirrors the incremental maintainers:
+    // addTransaction / addTransfer / deleteTransaction (+ undo)
+    // and processDueRecurringTransactions move the balance by
+    // the same signed amounts. A transfer only moves money when
+    // it has a destination (see _reverseBalanceEffect) — a
+    // transfer row with a null toWalletId has no balance effect.
+    final delta = <int, int>{};
+    void addDelta(int? walletId, int amount) {
+      if (walletId == null) return;
+      delta[walletId] = (delta[walletId] ?? 0) + amount;
+    }
+
+    for (final t in allTxs) {
+      switch (t.kind) {
+        case 'income':
+          addDelta(t.walletId, t.amount);
+        case 'expense':
+          addDelta(t.walletId, -t.amount);
+        case 'transfer':
+          if (t.toWalletId != null) {
+            addDelta(t.walletId, -t.amount);
+            addDelta(t.toWalletId, t.amount);
+          }
+      }
+    }
+    // Debts and repayments with no history entry still move the
+    // wallet: createDebt / recordDebtPayment adjust the balance
+    // directly when recordAsTransaction is false. With a history
+    // entry the transaction row above already carries the effect,
+    // so those rows are skipped here — counting both would double
+    // the movement.
+    final debtById = {for (final d in allDebts) d.id: d};
+    for (final d in allDebts) {
+      if (d.walletId != null && !d.recordAsTransaction) {
+        addDelta(d.walletId, _debtWalletEffect(d.direction, d.amount));
+      }
+    }
+    for (final p in allPayments) {
+      final d = debtById[p.debtId];
+      if (p.walletId != null && d != null && !d.recordAsTransaction) {
+        addDelta(p.walletId, _debtPaymentEffect(d.direction, p.amount));
+      }
+    }
+    var walletsChanged = 0;
+    for (final w in allWallets) {
+      final computed = w.initialAmount + (delta[w.id] ?? 0);
+      if (computed != w.balance) {
+        await (update(wallets)..where((x) => x.id.equals(w.id))).write(
+          WalletsCompanion(balance: Value(computed)),
+        );
+        walletsChanged++;
+      }
+    }
+
+    // --- installment_plans.paidCount ---
+    // Same re-derivation as [_resyncPlanPaidCount]: the recorded
+    // installment-payment transfers, capped at totalCount.
+    final paymentCounts = <int, int>{};
+    for (final t in allTxs) {
+      if (t.planId != null && t.kind == 'transfer') {
+        paymentCounts[t.planId!] = (paymentCounts[t.planId!] ?? 0) + 1;
+      }
+    }
+    var plansChanged = 0;
+    for (final p in allPlans) {
+      final computed = (paymentCounts[p.id] ?? 0).clamp(0, p.totalCount);
+      if (computed != p.paidCount) {
+        await (update(
+          installmentPlans,
+        )..where((x) => x.id.equals(p.id))).write(
+          InstallmentPlansCompanion(paidCount: Value(computed)),
+        );
+        plansChanged++;
+      }
+    }
+
+    // --- goals.saved ---
+    // Sum of the goal_deposits rows (withdrawals are negative),
+    // the same total updateGoalSaved maintains incrementally.
+    final savedByGoal = <int, int>{};
+    for (final d in allDeposits) {
+      savedByGoal[d.goalId] = (savedByGoal[d.goalId] ?? 0) + d.amount;
+    }
+    var goalsChanged = 0;
+    for (final g in allGoals) {
+      final computed = savedByGoal[g.id] ?? 0;
+      if (computed != g.saved) {
+        await (update(goals)..where((x) => x.id.equals(g.id))).write(
+          GoalsCompanion(saved: Value(computed)),
+        );
+        goalsChanged++;
+      }
+    }
+
+    // --- debts.isPaid ---
+    // Paid in full when the payments cover the amount — the same
+    // rule recordDebtPayment / updateDebt / deleteDebtPayment use.
+    final paidByDebt = <int, int>{};
+    for (final p in allPayments) {
+      paidByDebt[p.debtId] = (paidByDebt[p.debtId] ?? 0) + p.amount;
+    }
+    var debtsChanged = 0;
+    for (final d in allDebts) {
+      final computed = (paidByDebt[d.id] ?? 0) >= d.amount;
+      if (computed != d.isPaid) {
+        await (update(debts)..where((x) => x.id.equals(d.id))).write(
+          DebtsCompanion(isPaid: Value(computed)),
+        );
+        debtsChanged++;
+      }
+    }
+
+    return (
+      walletsChanged: walletsChanged,
+      plansChanged: plansChanged,
+      goalsChanged: goalsChanged,
+      debtsChanged: debtsChanged,
+    );
+  });
+}
+
   /// Re-derives a plan's paid counter from its recorded installment
   /// payments (plan-linked transfers), capped at [totalCount]. The
   /// counter is the count of payments, so deleting or restoring a
   /// payment must move it — a blind +/-1 would drift when undos
   /// interleave with other deletes.
+  /// No outbox entry: paidCount is derived state, re-derived from
+  /// the recorded installment-payment transfers after a pull (see
+  /// concept doc section 7). The payment rows carry their own entries.
   Future<void> _resyncPlanPaidCount(int planId) async {
     final plan = await getInstallmentPlan(planId);
     if (plan == null) return;
@@ -1614,6 +2778,10 @@ class AppDatabase extends _$AppDatabase {
 
   /// Advances a plan by one paid installment, capped at [totalCount].
   /// No-op for unknown or already-complete plans.
+  ///
+  /// No outbox entry: paidCount is derived (see [_resyncPlanPaidCount]).
+  /// The installment-payment transfer that triggers this call carries
+  /// the change; the receiving device re-derives the counter.
   Future<void> markInstallmentPaid(int id) async {
     final plan = await (select(
       installmentPlans,
@@ -1639,6 +2807,8 @@ class AppDatabase extends _$AppDatabase {
     required int categoryId,
   }) {
     return transaction(() async {
+      final now = DateTime.now();
+      final planSyncId = _newSyncId();
       final planId = await into(installmentPlans).insert(
         InstallmentPlansCompanion.insert(
           walletId: walletId,
@@ -1646,8 +2816,12 @@ class AppDatabase extends _$AppDatabase {
           totalAmount: totalAmount,
           installmentAmount: installmentAmount,
           totalCount: totalCount,
+          syncId: Value(planSyncId),
+          updatedAt: Value(now),
         ),
       );
+      await _enqueueOutbox('installment_plans', planSyncId, 'insert');
+      final txSyncId = _newSyncId();
       await into(transactions).insert(
         TransactionsCompanion.insert(
           walletId: walletId,
@@ -1655,10 +2829,13 @@ class AppDatabase extends _$AppDatabase {
           kind: 'expense',
           amount: totalAmount,
           note: Value(name),
-          date: DateTime.now(),
+          date: now,
           planId: Value(planId),
+          syncId: Value(txSyncId),
+          updatedAt: Value(now),
         ),
       );
+      await _enqueueOutbox('transactions', txSyncId, 'insert');
       await adjustWalletBalance(walletId, -totalAmount);
       return planId;
     });
@@ -1666,10 +2843,23 @@ class AppDatabase extends _$AppDatabase {
 
   /// Links an already-saved transaction (an auto-plan's expense) to its
   /// plan. Bare update so it joins the caller's transaction.
-  Future<void> setTransactionPlan(int transactionId, int planId) =>
-      (update(transactions)..where((t) => t.id.equals(transactionId))).write(
-        TransactionsCompanion(planId: Value(planId)),
+  Future<void> setTransactionPlan(int transactionId, int planId) {
+    return transaction(() async {
+      final row = await (select(
+        transactions,
+      )..where((t) => t.id.equals(transactionId))).getSingleOrNull();
+      if (row == null) return;
+      await (update(
+        transactions,
+      )..where((t) => t.id.equals(transactionId))).write(
+        TransactionsCompanion(
+          planId: Value(planId),
+          updatedAt: Value(DateTime.now()),
+        ),
       );
+      await _enqueueOutbox('transactions', row.syncId, 'update');
+    });
+  }
 
   /// Every transaction belonging to a plan: its purchase expense plus
   /// its installment payments, newest first.
@@ -1715,10 +2905,13 @@ class AppDatabase extends _$AppDatabase {
   /// returns to its pre-plan state.
   Future<void> deleteInstallmentPlan(int id) {
     return transaction(() async {
+      final plan = await getInstallmentPlan(id);
+      if (plan == null) return;
       final linked = await planTransactions(id);
       // The plan row goes first: deleting its purchase through the
       // normal path would otherwise refuse while payments exist.
       await (delete(installmentPlans)..where((p) => p.id.equals(id))).go();
+      await _enqueueOutbox('installment_plans', plan.syncId, 'delete');
       for (final t in linked) {
         await deleteTransaction(t.id);
       }
@@ -1810,8 +3003,10 @@ class AppDatabase extends _$AppDatabase {
               ? const Value.absent()
               : Value(paidCount),
           walletId: walletId == null ? const Value.absent() : Value(walletId),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('installment_plans', plan.syncId, 'update');
     });
   }
 
@@ -1832,6 +3027,7 @@ class AppDatabase extends _$AppDatabase {
   /// those would strand them: a recurring rule would keep posting
   /// transactions that no wallet list can show.
   Future<bool> deleteWallet(int id) async {
+    final wallet = await getWalletById(id);
     final txCount =
         await (select(transactions)..where(
               (t) => t.walletId.equals(id) | t.toWalletId.equalsNullable(id),
@@ -1854,40 +3050,108 @@ class AppDatabase extends _$AppDatabase {
       debts,
     )..where((d) => d.walletId.equals(id))).get();
     if (linkedDebts.isNotEmpty) return false;
-    await (delete(wallets)..where((w) => w.id.equals(id))).go();
+    await transaction(() async {
+      await (delete(wallets)..where((w) => w.id.equals(id))).go();
+      if (wallet != null) {
+        await _enqueueOutbox('wallets', wallet.syncId, 'delete');
+      }
+    });
     return true;
   }
 
-  Future<int> addAccount(AccountsCompanion entry) =>
-      into(accounts).insert(entry);
-
-  Future<void> renameAccount(int id, String name) => (update(
-    accounts,
-  )..where((a) => a.id.equals(id))).write(AccountsCompanion(name: Value(name)));
-
-  Future<void> setAccountColor(int id, String colorHex) =>
-      (update(accounts)..where((a) => a.id.equals(id))).write(
-        AccountsCompanion(colorHex: Value(colorHex)),
+  Future<int> addAccount(AccountsCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(accounts).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
       );
+      await _enqueueOutbox('accounts', syncId, 'insert');
+      return id;
+    });
+  }
+
+  Future<void> renameAccount(int id, String name) {
+    return transaction(() async {
+      final row = await (select(
+        accounts,
+      )..where((a) => a.id.equals(id))).getSingleOrNull();
+      if (row == null) return;
+      await (update(accounts)..where((a) => a.id.equals(id))).write(
+        AccountsCompanion(name: Value(name), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('accounts', row.syncId, 'update');
+    });
+  }
+
+  Future<void> setAccountColor(int id, String colorHex) {
+    return transaction(() async {
+      final row = await (select(
+        accounts,
+      )..where((a) => a.id.equals(id))).getSingleOrNull();
+      if (row == null) return;
+      await (update(accounts)..where((a) => a.id.equals(id))).write(
+        AccountsCompanion(
+          colorHex: Value(colorHex),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('accounts', row.syncId, 'update');
+    });
+  }
 
   /// Moves [walletIds] into [accountId].
-  Future<void> moveWalletsToAccount(List<int> walletIds, int accountId) =>
-      (update(wallets)..where((w) => w.id.isIn(walletIds))).write(
-        WalletsCompanion(accountId: Value(accountId)),
+  Future<void> moveWalletsToAccount(List<int> walletIds, int accountId) {
+    return transaction(() async {
+      final moving = await (select(
+        wallets,
+      )..where((w) => w.id.isIn(walletIds))).get();
+      await (update(wallets)..where((w) => w.id.isIn(walletIds))).write(
+        WalletsCompanion(
+          accountId: Value(accountId),
+          updatedAt: Value(DateTime.now()),
+        ),
       );
+      for (final w in moving) {
+        await _enqueueOutbox('wallets', w.syncId, 'update');
+      }
+    });
+  }
 
   /// Deletes an account after reassigning its wallets to [moveWalletsToId].
   /// Wallets are never orphaned; callers must refuse the last account.
   Future<void> deleteAccount(int id, int moveWalletsToId) =>
       transaction(() async {
+        final account = await (select(
+          accounts,
+        )..where((a) => a.id.equals(id))).getSingleOrNull();
+        final moving = await (select(
+          wallets,
+        )..where((w) => w.accountId.equals(id))).get();
         await (update(wallets)..where((w) => w.accountId.equals(id))).write(
-          WalletsCompanion(accountId: Value(moveWalletsToId)),
+          WalletsCompanion(
+            accountId: Value(moveWalletsToId),
+            updatedAt: Value(DateTime.now()),
+          ),
         );
+        for (final w in moving) {
+          await _enqueueOutbox('wallets', w.syncId, 'update');
+        }
         await (delete(accounts)..where((a) => a.id.equals(id))).go();
+        if (account != null) {
+          await _enqueueOutbox('accounts', account.syncId, 'delete');
+        }
       });
 
-  Future<int> addCategory(CategoriesCompanion entry) =>
-      into(categories).insert(entry);
+  Future<int> addCategory(CategoriesCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(categories).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('categories', syncId, 'insert');
+      return id;
+    });
+  }
 
   /// Deletes a category and its subcategories. Every row that pointed
   /// at them — transactions, budgets, recurring rules, templates — is
@@ -1907,39 +3171,129 @@ class AppDatabase extends _$AppDatabase {
         categories,
       )..where((c) => c.parentId.equals(id))).map((c) => c.id).get();
       final deadIds = [id, ...subIds];
-      await (update(transactions)..where((t) => t.categoryId.isIn(deadIds)))
-          .write(TransactionsCompanion(categoryId: Value(fallbackId)));
-      await (update(budgets)..where((b) => b.categoryId.isIn(deadIds))).write(
-        BudgetsCompanion(categoryId: Value(fallbackId)),
+      // Sync: the reassignments below change these rows, and the
+      // deletions remove them — capture their sync ids first so the
+      // outbox can describe every change in this transaction.
+      final deadCategories = await (select(
+        categories,
+      )..where((c) => c.id.isIn(deadIds))).get();
+      final reassignedTx = await (select(
+        transactions,
+      )..where((t) => t.categoryId.isIn(deadIds))).get();
+      final reassignedBudgets = await (select(
+        budgets,
+      )..where((b) => b.categoryId.isIn(deadIds))).get();
+      final reassignedRules = await (select(
+        recurringTransactions,
+      )..where((r) => r.categoryId.isIn(deadIds))).get();
+      final reassignedTemplates = await (select(
+        transactionTemplates,
+      )..where((t) => t.categoryId.isIn(deadIds))).get();
+      final deadKeywords = await (select(
+        categoryKeywords,
+      )..where((k) => k.categoryId.isIn(deadIds))).get();
+      final now = DateTime.now();
+      await (update(
+        transactions,
+      )..where((t) => t.categoryId.isIn(deadIds))).write(
+        TransactionsCompanion(
+          categoryId: Value(fallbackId),
+          updatedAt: Value(now),
+        ),
       );
-      await (update(recurringTransactions)
-            ..where((r) => r.categoryId.isIn(deadIds)))
-          .write(RecurringTransactionsCompanion(categoryId: Value(fallbackId)));
-      await (update(transactionTemplates)
-            ..where((t) => t.categoryId.isIn(deadIds)))
-          .write(TransactionTemplatesCompanion(categoryId: Value(fallbackId)));
+      await (update(budgets)..where((b) => b.categoryId.isIn(deadIds))).write(
+        BudgetsCompanion(categoryId: Value(fallbackId), updatedAt: Value(now)),
+      );
+      await (update(
+        recurringTransactions,
+      )..where((r) => r.categoryId.isIn(deadIds))).write(
+        RecurringTransactionsCompanion(
+          categoryId: Value(fallbackId),
+          updatedAt: Value(now),
+        ),
+      );
+      await (update(
+        transactionTemplates,
+      )..where((t) => t.categoryId.isIn(deadIds))).write(
+        TransactionTemplatesCompanion(
+          categoryId: Value(fallbackId),
+          updatedAt: Value(now),
+        ),
+      );
       await (delete(
         categoryKeywords,
       )..where((k) => k.categoryId.isIn(deadIds))).go();
       await (delete(categories)..where((c) => c.parentId.equals(id))).go();
       await (delete(categories)..where((c) => c.id.equals(id))).go();
+      for (final t in reassignedTx) {
+        await _enqueueOutbox('transactions', t.syncId, 'update');
+      }
+      for (final b in reassignedBudgets) {
+        await _enqueueOutbox('budgets', b.syncId, 'update');
+      }
+      for (final r in reassignedRules) {
+        await _enqueueOutbox('recurring_transactions', r.syncId, 'update');
+      }
+      for (final t in reassignedTemplates) {
+        await _enqueueOutbox('transaction_templates', t.syncId, 'update');
+      }
+      for (final k in deadKeywords) {
+        await _enqueueOutbox('category_keywords', k.syncId, 'delete');
+      }
+      for (final c in deadCategories) {
+        await _enqueueOutbox('categories', c.syncId, 'delete');
+      }
     });
   }
 
-  Future<int> addBudget(BudgetsCompanion entry) => into(budgets).insert(entry);
-
-  Future<void> updateBudgetLimit(int budgetId, int limit) =>
-      (update(budgets)..where((b) => b.id.equals(budgetId))).write(
-        BudgetsCompanion(limit: Value(limit)),
+  Future<int> addBudget(BudgetsCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(budgets).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
       );
+      await _enqueueOutbox('budgets', syncId, 'insert');
+      return id;
+    });
+  }
 
-  Future<void> deleteBudget(int budgetId) =>
-      (delete(budgets)..where((b) => b.id.equals(budgetId))).go();
+  Future<void> updateBudgetLimit(int budgetId, int limit) {
+    return transaction(() async {
+      final row = await (select(
+        budgets,
+      )..where((b) => b.id.equals(budgetId))).getSingleOrNull();
+      if (row == null) return;
+      await (update(budgets)..where((b) => b.id.equals(budgetId))).write(
+        BudgetsCompanion(limit: Value(limit), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('budgets', row.syncId, 'update');
+    });
+  }
+
+  Future<void> deleteBudget(int budgetId) async {
+    final row = await (select(
+      budgets,
+    )..where((b) => b.id.equals(budgetId))).getSingleOrNull();
+    if (row == null) return;
+    await transaction(() async {
+      await (delete(budgets)..where((b) => b.id.equals(budgetId))).go();
+      await _enqueueOutbox('budgets', row.syncId, 'delete');
+    });
+  }
 
   Future<Budget?> getBudgetById(int id) =>
       (select(budgets)..where((b) => b.id.equals(id))).getSingleOrNull();
 
-  Future<int> addGoal(GoalsCompanion entry) => into(goals).insert(entry);
+  Future<int> addGoal(GoalsCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(goals).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('goals', syncId, 'insert');
+      return id;
+    });
+  }
 
   Future<Goal?> getGoalById(int id) =>
       (select(goals)..where((g) => g.id.equals(id))).getSingleOrNull();
@@ -1950,19 +3304,39 @@ class AppDatabase extends _$AppDatabase {
     required int target,
     DateTime? deadline,
     String? colorHex,
-  }) => (update(goals)..where((g) => g.id.equals(id))).write(
-    GoalsCompanion(
-      name: Value(name),
-      target: Value(target),
-      deadline: Value(deadline),
-      colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
-    ),
-  );
+  }) {
+    return transaction(() async {
+      final row = await (select(
+        goals,
+      )..where((g) => g.id.equals(id))).getSingleOrNull();
+      if (row == null) return;
+      await (update(goals)..where((g) => g.id.equals(id))).write(
+        GoalsCompanion(
+          name: Value(name),
+          target: Value(target),
+          deadline: Value(deadline),
+          colorHex: colorHex == null ? const Value.absent() : Value(colorHex),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('goals', row.syncId, 'update');
+    });
+  }
 
   Future<void> deleteGoal(int id) {
     return transaction(() async {
+      final goal = await getGoalById(id);
+      final deposits = await (select(
+        goalDeposits,
+      )..where((d) => d.goalId.equals(id))).get();
       await (delete(goalDeposits)..where((d) => d.goalId.equals(id))).go();
+      for (final d in deposits) {
+        await _enqueueOutbox('goal_deposits', d.syncId, 'delete');
+      }
       await (delete(goals)..where((g) => g.id.equals(id))).go();
+      if (goal != null) {
+        await _enqueueOutbox('goals', goal.syncId, 'delete');
+      }
     });
   }
 
@@ -1983,14 +3357,18 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       final goal = await getGoalById(goalId);
       if (goal == null) return;
+      final depositSyncId = _newSyncId();
       await into(goalDeposits).insert(
         GoalDepositsCompanion.insert(
           goalId: goalId,
           amount: amount,
           date: date,
           note: Value(note),
+          syncId: Value(depositSyncId),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('goal_deposits', depositSyncId, 'insert');
       await updateGoalSaved(goalId, goal.saved + amount);
     });
   }
@@ -2000,17 +3378,29 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       final goal = await getGoalById(deposit.goalId);
       await (delete(goalDeposits)..where((d) => d.id.equals(deposit.id))).go();
+      await _enqueueOutbox('goal_deposits', deposit.syncId, 'delete');
       if (goal != null) {
         await updateGoalSaved(deposit.goalId, goal.saved - deposit.amount);
       }
     });
   }
 
+  /// No outbox entry: `saved` is derived from the goal_deposits rows
+  /// (see concept doc section 7). The deposit rows carry the change.
   Future<void> updateGoalSaved(int id, int saved) => (update(
     goals,
   )..where((g) => g.id.equals(id))).write(GoalsCompanion(saved: Value(saved)));
 
-  Future<int> addDebt(DebtsCompanion entry) => into(debts).insert(entry);
+  Future<int> addDebt(DebtsCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(debts).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('debts', syncId, 'insert');
+      return id;
+    });
+  }
 
   /// Creates a debt and moves the linked wallet balance:
   /// lending takes money out, borrowing brings money in.
@@ -2027,6 +3417,7 @@ class AppDatabase extends _$AppDatabase {
   }) {
     return transaction(() async {
       final now = createdAt ?? DateTime.now();
+      final debtSyncId = _newSyncId();
       final id = await into(debts).insert(
         DebtsCompanion.insert(
           person: person,
@@ -2038,11 +3429,15 @@ class AppDatabase extends _$AppDatabase {
           colorHex: Value(colorHex),
           recordAsTransaction: Value(recordAsTransaction),
           createdAt: Value(now),
+          syncId: Value(debtSyncId),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('debts', debtSyncId, 'insert');
       if (walletId != null) {
         if (recordAsTransaction) {
           final catId = await debtCategoryId;
+          final txSyncId = _newSyncId();
           await into(transactions).insert(
             TransactionsCompanion.insert(
               walletId: walletId,
@@ -2052,8 +3447,11 @@ class AppDatabase extends _$AppDatabase {
               note: Value(_debtTxNote(direction, person, note, payment: false)),
               date: now,
               debtId: Value(id),
+              syncId: Value(txSyncId),
+              updatedAt: Value(DateTime.now()),
             ),
           );
+          await _enqueueOutbox('transactions', txSyncId, 'insert');
         }
         await adjustWalletBalance(
           walletId,
@@ -2089,8 +3487,10 @@ class AppDatabase extends _$AppDatabase {
           dueDate: Value(dueDate),
           walletId: Value(walletId),
           recordAsTransaction: Value(recordAsTransaction),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('debts', old.syncId, 'update');
 
       // The creation entry is the debt-linked transaction without a
       // payment link; payment entries carry debtPaymentId.
@@ -2125,9 +3525,12 @@ class AppDatabase extends _$AppDatabase {
               amount: Value(amount),
               note: Value(txNote),
               date: Value(linkedTx.date),
+              updatedAt: Value(DateTime.now()),
             ),
           );
+          await _enqueueOutbox('transactions', linkedTx.syncId, 'update');
         } else {
+          final txSyncId = _newSyncId();
           await into(transactions).insert(
             TransactionsCompanion.insert(
               walletId: walletId,
@@ -2137,8 +3540,11 @@ class AppDatabase extends _$AppDatabase {
               note: Value(txNote),
               date: old.createdAt,
               debtId: Value(id),
+              syncId: Value(txSyncId),
+              updatedAt: Value(DateTime.now()),
             ),
           );
+          await _enqueueOutbox('transactions', txSyncId, 'insert');
         }
         await adjustWalletBalance(
           walletId,
@@ -2150,6 +3556,7 @@ class AppDatabase extends _$AppDatabase {
           await (delete(
             transactions,
           )..where((t) => t.id.equals(linkedTx.id))).go();
+          await _enqueueOutbox('transactions', linkedTx.syncId, 'delete');
         }
         if (walletId != null) {
           await adjustWalletBalance(
@@ -2179,6 +3586,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (linked.isNotEmpty) {
         await (delete(transactions)..where((t) => t.debtId.equals(id))).go();
+        for (final t in linked) {
+          await _enqueueOutbox('transactions', t.syncId, 'delete');
+        }
       }
       // Legacy/manual path: reverse effects that have no history entry.
       final hasCreationTx = linked.any((t) => t.debtPaymentId == null);
@@ -2200,8 +3610,15 @@ class AppDatabase extends _$AppDatabase {
           );
         }
       }
+      // Note: the linked transactions' photo rows are NOT deleted here
+      // (pre-existing behaviour — they stay orphaned in the table),
+      // so no photo outbox entries either; their rows still exist.
       await (delete(debtPayments)..where((p) => p.debtId.equals(id))).go();
+      for (final p in payments) {
+        await _enqueueOutbox('debt_payments', p.syncId, 'delete');
+      }
       await (delete(debts)..where((d) => d.id.equals(id))).go();
+      await _enqueueOutbox('debts', debt.syncId, 'delete');
     });
   }
 
@@ -2230,6 +3647,7 @@ class AppDatabase extends _$AppDatabase {
     int? walletId,
   }) {
     return transaction(() async {
+      final paymentSyncId = _newSyncId();
       final paymentId = await into(debtPayments).insert(
         DebtPaymentsCompanion.insert(
           debtId: debt.id,
@@ -2237,11 +3655,15 @@ class AppDatabase extends _$AppDatabase {
           date: date,
           note: Value(note),
           walletId: Value(walletId),
+          syncId: Value(paymentSyncId),
+          updatedAt: Value(DateTime.now()),
         ),
       );
+      await _enqueueOutbox('debt_payments', paymentSyncId, 'insert');
       if (walletId != null) {
         if (debt.recordAsTransaction) {
           final catId = await debtCategoryId;
+          final txSyncId = _newSyncId();
           await into(transactions).insert(
             TransactionsCompanion.insert(
               walletId: walletId,
@@ -2254,8 +3676,11 @@ class AppDatabase extends _$AppDatabase {
               date: date,
               debtId: Value(debt.id),
               debtPaymentId: Value(paymentId),
+              syncId: Value(txSyncId),
+              updatedAt: Value(DateTime.now()),
             ),
           );
+          await _enqueueOutbox('transactions', txSyncId, 'insert');
         }
         await adjustWalletBalance(
           walletId,
@@ -2280,6 +3705,7 @@ class AppDatabase extends _$AppDatabase {
         await (delete(
           transactions,
         )..where((t) => t.id.equals(linkedTx.id))).go();
+        await _enqueueOutbox('transactions', linkedTx.syncId, 'delete');
       } else if (payment.walletId != null) {
         await adjustWalletBalance(
           payment.walletId!,
@@ -2287,6 +3713,7 @@ class AppDatabase extends _$AppDatabase {
         );
       }
       await (delete(debtPayments)..where((p) => p.id.equals(payment.id))).go();
+      await _enqueueOutbox('debt_payments', payment.syncId, 'delete');
       final paidTotal = await debtPaidTotal(debt.id);
       if (paidTotal < debt.amount && debt.isPaid) {
         await setDebtPaid(debt.id, false);
@@ -2294,6 +3721,8 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
+  /// No outbox entry: `isPaid` is derived from the debt_payments
+  /// rows (paid total >= amount). The payment rows carry the change.
   Future<void> setDebtPaid(int id, bool paid) => (update(
     debts,
   )..where((d) => d.id.equals(id))).write(DebtsCompanion(isPaid: Value(paid)));
@@ -2335,23 +3764,60 @@ class AppDatabase extends _$AppDatabase {
     recurringTransactions,
   )..orderBy([(r) => OrderingTerm.asc(r.nextDue)])).watch();
 
-  Future<int> addRecurringTransaction(RecurringTransactionsCompanion entry) =>
-      into(recurringTransactions).insert(entry);
+  Future<int> addRecurringTransaction(RecurringTransactionsCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(recurringTransactions).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('recurring_transactions', syncId, 'insert');
+      return id;
+    });
+  }
 
   Future<void> updateRecurringTransaction(
     int id,
     RecurringTransactionsCompanion entry,
-  ) => (update(
-    recurringTransactions,
-  )..where((r) => r.id.equals(id))).write(entry);
+  ) {
+    return transaction(() async {
+      final row = await (select(
+        recurringTransactions,
+      )..where((r) => r.id.equals(id))).getSingleOrNull();
+      if (row == null) return;
+      await (update(recurringTransactions)..where((r) => r.id.equals(id)))
+          .write(entry.copyWith(updatedAt: Value(DateTime.now())));
+      await _enqueueOutbox('recurring_transactions', row.syncId, 'update');
+    });
+  }
 
-  Future<void> deleteRecurringTransaction(int id) =>
-      (delete(recurringTransactions)..where((r) => r.id.equals(id))).go();
+  Future<void> deleteRecurringTransaction(int id) async {
+    final row = await (select(
+      recurringTransactions,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    if (row == null) return;
+    await transaction(() async {
+      await (delete(recurringTransactions)..where((r) => r.id.equals(id))).go();
+      await _enqueueOutbox('recurring_transactions', row.syncId, 'delete');
+    });
+  }
 
-  Future<void> setRecurringActive(int id, bool active) =>
-      (update(recurringTransactions)..where((r) => r.id.equals(id))).write(
-        RecurringTransactionsCompanion(active: Value(active)),
+  Future<void> setRecurringActive(int id, bool active) {
+    return transaction(() async {
+      final row = await (select(
+        recurringTransactions,
+      )..where((r) => r.id.equals(id))).getSingleOrNull();
+      if (row == null) return;
+      await (update(
+        recurringTransactions,
+      )..where((r) => r.id.equals(id))).write(
+        RecurringTransactionsCompanion(
+          active: Value(active),
+          updatedAt: Value(DateTime.now()),
+        ),
       );
+      await _enqueueOutbox('recurring_transactions', row.syncId, 'update');
+    });
+  }
 
   /// Materializes every due occurrence of active recurring rules as real
   /// transactions (linked via transactions.recurringId) and advances each
@@ -2398,6 +3864,7 @@ class AppDatabase extends _$AppDatabase {
           while (!due.isAfter(now) &&
               (rule.endDate == null || !due.isAfter(rule.endDate!)) &&
               guard < 36) {
+            final txSyncId = _newSyncId();
             await into(transactions).insert(
               TransactionsCompanion.insert(
                 walletId: rule.walletId,
@@ -2407,8 +3874,11 @@ class AppDatabase extends _$AppDatabase {
                 note: Value(rule.note),
                 date: due,
                 recurringId: Value(rule.id),
+                syncId: Value(txSyncId),
+                updatedAt: Value(DateTime.now()),
               ),
             );
+            await _enqueueOutbox('transactions', txSyncId, 'insert');
             await adjustWalletBalance(
               rule.walletId,
               rule.kind == 'income' ? rule.amount : -rule.amount,
@@ -2417,9 +3887,19 @@ class AppDatabase extends _$AppDatabase {
             due = _advanceRecurring(due, rule.frequency);
             guard++;
           }
-          await (update(recurringTransactions)
-                ..where((r) => r.id.equals(rule.id)))
-              .write(RecurringTransactionsCompanion(nextDue: Value(due)));
+          await (update(
+            recurringTransactions,
+          )..where((r) => r.id.equals(rule.id))).write(
+            RecurringTransactionsCompanion(
+              nextDue: Value(due),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
+          // next_due syncs as a value (last-write-wins, see
+          // 0001_init.sql) — never recomputed, or a stale device
+          // would double-post an occurrence. P5 must pull before
+          // generation runs on launch.
+          await _enqueueOutbox('recurring_transactions', rule.syncId, 'update');
           return count;
         });
       } catch (e, st) {
@@ -2443,19 +3923,45 @@ class AppDatabase extends _$AppDatabase {
           ]))
           .watch();
 
-  Future<int> addTransactionTemplate(TransactionTemplatesCompanion entry) =>
-      into(transactionTemplates).insert(entry);
+  Future<int> addTransactionTemplate(TransactionTemplatesCompanion entry) {
+    return transaction(() async {
+      final syncId = _companionSyncId(entry.syncId);
+      final id = await into(transactionTemplates).insert(
+        entry.copyWith(syncId: Value(syncId), updatedAt: Value(DateTime.now())),
+      );
+      await _enqueueOutbox('transaction_templates', syncId, 'insert');
+      return id;
+    });
+  }
 
-  Future<void> deleteTransactionTemplate(int id) =>
-      (delete(transactionTemplates)..where((t) => t.id.equals(id))).go();
+  Future<void> deleteTransactionTemplate(int id) async {
+    final row = await (select(
+      transactionTemplates,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+    if (row == null) return;
+    await transaction(() async {
+      await (delete(transactionTemplates)..where((t) => t.id.equals(id))).go();
+      await _enqueueOutbox('transaction_templates', row.syncId, 'delete');
+    });
+  }
 
+  /// The server stores use_count and syncs it last-write-wins (see
+  /// 0001_init.sql) — it may undercount slightly when two devices use
+  /// the same template between syncs. Cosmetic only, but it is a real
+  /// column change, so it gets an outbox entry like any other update.
   Future<void> bumpTemplateUse(int id) async {
     final row = await (select(
       transactionTemplates,
     )..where((t) => t.id.equals(id))).getSingle();
-    await (update(transactionTemplates)..where((t) => t.id.equals(id))).write(
-      TransactionTemplatesCompanion(useCount: Value(row.useCount + 1)),
-    );
+    await transaction(() async {
+      await (update(transactionTemplates)..where((t) => t.id.equals(id))).write(
+        TransactionTemplatesCompanion(
+          useCount: Value(row.useCount + 1),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+      await _enqueueOutbox('transaction_templates', row.syncId, 'update');
+    });
   }
 
   // ------------------------- keyword learning -------------------------
@@ -2491,30 +3997,51 @@ class AppDatabase extends _$AppDatabase {
     });
   }
 
-  /// Single UPDATE-or-INSERT; callers own the transaction.
+  /// Single UPDATE-or-INSERT; callers own the transaction. The row's
+  /// deterministic sync id (see [_keywordSyncId]) is computed from
+  /// its category, so two devices learning the same keyword agree.
   Future<void> _bumpKeywordRaw(String token, int categoryId, int by) async {
-    final changed = await customUpdate(
-      by >= 0
-          ? 'UPDATE category_keywords SET hits = hits + ? '
-                'WHERE keyword = ? AND category_id = ?'
-          : 'UPDATE category_keywords SET hits = MAX(hits + ?, 0) '
-                'WHERE keyword = ? AND category_id = ?',
-      variables: [
-        Variable.withInt(by),
-        Variable.withString(token),
-        Variable.withInt(categoryId),
-      ],
-      updates: {categoryKeywords},
-    );
-    if (changed == 0 && by > 0) {
-      await into(categoryKeywords).insert(
-        CategoryKeywordsCompanion.insert(
-          keyword: token,
-          categoryId: categoryId,
-          hits: Value(by),
-        ),
+    final now = DateTime.now();
+    final existing =
+        await (select(categoryKeywords)
+              ..where((k) => k.keyword.equals(token))
+              ..where((k) => k.categoryId.equals(categoryId)))
+            .getSingleOrNull();
+    if (existing != null) {
+      await customUpdate(
+        by >= 0
+            ? 'UPDATE category_keywords SET hits = hits + ?, '
+                  'updated_at = ? WHERE keyword = ? AND category_id = ?'
+            : 'UPDATE category_keywords SET hits = MAX(hits + ?, 0), '
+                  'updated_at = ? WHERE keyword = ? AND category_id = ?',
+        variables: [
+          Variable.withInt(by),
+          Variable.withDateTime(now),
+          Variable.withString(token),
+          Variable.withInt(categoryId),
+        ],
+        updates: {categoryKeywords},
       );
+      await _enqueueOutbox('category_keywords', existing.syncId, 'update');
+      return;
     }
+    if (by <= 0) return;
+    final category = await (select(
+      categories,
+    )..where((c) => c.id.equals(categoryId))).getSingleOrNull();
+    final syncId = category == null
+        ? _newSyncId()
+        : _keywordSyncId(token, category.syncId);
+    await into(categoryKeywords).insert(
+      CategoryKeywordsCompanion.insert(
+        keyword: token,
+        categoryId: categoryId,
+        hits: Value(by),
+        syncId: Value(syncId),
+        updatedAt: Value(now),
+      ),
+    );
+    await _enqueueOutbox('category_keywords', syncId, 'insert');
   }
 
   /// keyword → {categoryId → hits} for the given tokens.

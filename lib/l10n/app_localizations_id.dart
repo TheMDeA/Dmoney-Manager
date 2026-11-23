@@ -861,6 +861,241 @@ class AppLocalizationsId extends AppLocalizations {
   String get shellWallets => 'Dompet';
 
   @override
+  String get syncConflictsDismiss => 'Abaikan';
+
+  @override
+  String get syncConflictsEmpty =>
+      'Tidak ada konflik. Saat perangkat lain menimpa perubahan dari perangkat ini, versi yang tertimpa disimpan di sini agar bisa dipulihkan.';
+
+  @override
+  String syncConflictsOverwritten(Object date) {
+    return 'Ditimpa $date';
+  }
+
+  @override
+  String get syncConflictsRestore => 'Pulihkan';
+
+  @override
+  String get syncConflictsRestoreFailed =>
+      'Tidak bisa dipulihkan — catatan aslinya sudah tidak ada.';
+
+  @override
+  String get syncConflictsRestored =>
+      'Dipulihkan — akan disinkronkan ke perangkat lain sebagai perubahan terbaru.';
+
+  @override
+  String get syncConflictsSubtitle => 'Perubahan yang ditimpa perangkat lain';
+
+  @override
+  String get syncConflictsTitle => 'Konflik sinkronisasi';
+
+  @override
+  String syncConflictsToReview(Object count) {
+    return '$count untuk ditinjau';
+  }
+
+  @override
+  String get syncFailureAuthExpired => 'Sesi masuk kedaluwarsa — masuk lagi';
+
+  @override
+  String get syncFailureOffline => 'Tidak ada koneksi — akan dicoba lagi';
+
+  @override
+  String get syncFailureServerPaused =>
+      'Server dijeda — buka dashboard Supabase untuk melanjutkan';
+
+  @override
+  String get syncFailureUnknown => 'Sinkronisasi gagal — coba lagi';
+
+  @override
+  String syncFirstRunDone(Object count) {
+    return 'Berhasil mengunduh $count baris dari server';
+  }
+
+  @override
+  String syncFirstRunFailed(Object error) {
+    return 'Tidak dapat mengunduh data Anda: $error';
+  }
+
+  @override
+  String get syncFirstRunRunning => 'Mengunduh data Anda…';
+
+  @override
+  String syncLogConflictsPart(Object count) {
+    return '$count konflik disimpan';
+  }
+
+  @override
+  String get syncLogEmpty => 'Belum ada sinkronisasi';
+
+  @override
+  String syncLogFailedPart(Object failed) {
+    return '$failed gagal';
+  }
+
+  @override
+  String syncLogSummary(Object pulled, Object pushed) {
+    return '$pushed terkirim · $pulled diterima';
+  }
+
+  @override
+  String get syncLogTitle => 'Sinkronisasi terakhir';
+
+  @override
+  String get syncPhotosDownloadAll => 'Unduh semua foto struk';
+
+  @override
+  String get syncPhotosDownloadAllSubtitle =>
+      'Ambil foto struk dari perangkat lain ke perangkat ini';
+
+  @override
+  String get syncPhotosDownloadFailed =>
+      'Sebagian foto struk gagal diunduh — periksa koneksi lalu coba lagi.';
+
+  @override
+  String get syncPhotosDownloadNone =>
+      'Semua foto struk sudah ada di perangkat ini';
+
+  @override
+  String syncPhotosDownloaded(Object count) {
+    return 'Berhasil mengunduh $count foto struk';
+  }
+
+  @override
+  String get syncPhotosSignInRequired =>
+      'Masuk untuk sinkronisasi agar bisa mengunduh foto struk';
+
+  @override
+  String get syncPreviewBackupNote =>
+      'Cadangan lokal dibuat terlebih dahulu, agar perangkat ini bisa dipulihkan bila terjadi kesalahan.';
+
+  @override
+  String get syncPreviewBody =>
+      'Ini akan mengganti semua data di perangkat ini dengan salinan server.';
+
+  @override
+  String get syncPreviewConfirm => 'Ganti dengan salinan server';
+
+  @override
+  String get syncPreviewEmpty => 'Server belum memiliki data.';
+
+  @override
+  String get syncPreviewFirstRunBody =>
+      'Perangkat lain Anda memiliki data di server. Unduh ke perangkat ini?';
+
+  @override
+  String get syncPreviewLoading => 'Memeriksa server…';
+
+  @override
+  String get syncPreviewTitle => 'Data Anda di server';
+
+  @override
+  String get syncSettingsAccountsSubtitle =>
+      'Pilih akun mana yang disinkronkan ke perangkat lain. Baris dari akun yang tidak dipilih tetap di perangkat ini sampai Anda mengaktifkannya kembali.';
+
+  @override
+  String get syncSettingsAccountsTitle => 'Akun yang disinkronkan';
+
+  @override
+  String get syncSettingsDevicesEmpty => 'Belum ada perangkat yang tersinkron';
+
+  @override
+  String get syncSettingsDevicesFailed => 'Daftar perangkat gagal dimuat';
+
+  @override
+  String get syncSettingsDevicesSubtitle =>
+      'Perangkat yang pernah tersinkron dengan akun ini. Perangkat yang lama tidak dipakai akan menampilkan tanggal lama.';
+
+  @override
+  String get syncSettingsDevicesTitle => 'Perangkat';
+
+  @override
+  String syncSettingsInitialUpload(Object pushed, Object total) {
+    return 'Unggahan awal: $pushed dari $total baris';
+  }
+
+  @override
+  String get syncSettingsLanguageDeferred =>
+      'Perubahan bahasa berlaku saat aplikasi dibuka berikutnya.';
+
+  @override
+  String syncSettingsLastError(Object error) {
+    return 'Kesalahan terakhir: $error';
+  }
+
+  @override
+  String syncSettingsLastSync(Object time) {
+    return 'Sinkronisasi terakhir: $time';
+  }
+
+  @override
+  String get syncSettingsNeverSynced => 'Belum pernah disinkronkan';
+
+  @override
+  String get syncSettingsNoPending => 'Tidak ada perubahan tertunda';
+
+  @override
+  String get syncSettingsNotSignedIn => 'Belum masuk';
+
+  @override
+  String syncSettingsPendingCount(Object count) {
+    return '$count perubahan tertunda';
+  }
+
+  @override
+  String get syncSettingsRefreshDevices => 'Muat ulang';
+
+  @override
+  String get syncSettingsReplaceSubtitle =>
+      'Unduh salinan server dan ganti semua data di perangkat ini. Cadangan lokal dibuat terlebih dahulu.';
+
+  @override
+  String get syncSettingsReplaceTitle => 'Ganti data perangkat ini';
+
+  @override
+  String get syncSettingsSignIn => 'Masuk dengan Google';
+
+  @override
+  String get syncSettingsSignInFailed => 'Gagal masuk — coba lagi.';
+
+  @override
+  String get syncSettingsSignOut => 'Keluar';
+
+  @override
+  String get syncSettingsSignOutConfirm =>
+      'Keluar dari sinkronisasi? Data Anda tetap ada di perangkat ini.';
+
+  @override
+  String syncSettingsSignedInAs(Object email) {
+    return 'Masuk sebagai $email';
+  }
+
+  @override
+  String get syncSettingsStatusTitle => 'Status';
+
+  @override
+  String syncSettingsSyncFailed(Object error) {
+    return 'Sinkronisasi gagal: $error';
+  }
+
+  @override
+  String get syncSettingsSyncNow => 'Sinkronkan sekarang';
+
+  @override
+  String syncSettingsSynced(Object pulled, Object pushed) {
+    return 'Tersinkron: $pushed terkirim, $pulled diterima';
+  }
+
+  @override
+  String get syncSettingsSyncing => 'Menyinkronkan…';
+
+  @override
+  String get syncSettingsThisDevice => 'Perangkat ini';
+
+  @override
+  String get syncSettingsTitle => 'Sinkronisasi online';
+
+  @override
   String get tourGetStarted => 'Mulai';
 
   @override

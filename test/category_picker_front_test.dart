@@ -13,6 +13,8 @@ void main() {
         iconKey: 'other',
         colorHex: '#A78BFA',
         sortOrder: 0,
+        syncId: 'test-sync',
+        updatedAt: DateTime(2026, 1, 1),
       );
 
   List<Category> cats() =>

@@ -23,6 +23,8 @@ Transaction _tx({
     debtId: null,
     debtPaymentId: null,
     recurringId: recurringId,
+    syncId: 'test-sync',
+    updatedAt: date,
   );
 }
 

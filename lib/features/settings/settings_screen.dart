@@ -5,12 +5,16 @@ import '../../core/widgets/app_page_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
+import '../../core/services/supabase_auth_service.dart';
+import '../../core/services/sync_photos.dart';
+import '../../core/services/sync_remote.dart';
 import '../../core/services/update_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ambient_glow.dart';
 import '../../core/widgets/screen_header.dart';
 import '../../core/theme/app_accents.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/database/app_database.dart';
 import '../../state/providers.dart';
 import '../categories/categories_screen.dart';
 import '../backup/backup_screen.dart';
@@ -20,6 +24,8 @@ import '../recurring/recurring_screen.dart';
 import '../tour/feature_tour_screen.dart';
 import 'currency_screen.dart';
 import 'notifications_screen.dart';
+import 'sync_conflicts_screen.dart';
+import 'sync_settings_screen.dart';
 import 'update_sheet.dart';
 
 /// "Settings" tab: settings, tools, and app info.
@@ -186,6 +192,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       context,
                     ).push(AppPageRoute(builder: (_) => BackupScreen())),
                   ),
+                  _syncSettingsTile(context),
+                  _syncConflictsTile(context),
+                  _syncPhotosTile(context),
                   _sectionHeader(context, l10n.settingsSectionSecurity),
                   SwitchListTile(
                     secondary: const Icon(Icons.lock_outline),
@@ -475,6 +484,99 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   : null),
       ),
     );
+  }
+
+  /// Sync conflicts entry (idea #1): the subtitle shows how many
+  /// overwritten changes are waiting for review, so the user
+  /// notices them without opening the screen.
+  /// "Online sync" (P5): status, Sync now, per-account toggles,
+  /// devices and the first-run flow live on their own screen; the
+  /// tile here shows the signed-in account (or "Not signed in").
+  Widget _syncSettingsTile(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final email = SupabaseAuthService.currentUserEmail;
+    return _tile(
+      context,
+      icon: Icons.sync_outlined,
+      title: l10n.syncSettingsTitle,
+      subtitle: email ?? l10n.syncSettingsNotSignedIn,
+      onTap: () => Navigator.of(context).push(
+        AppPageRoute(builder: (_) => const SyncSettingsScreen()),
+      ),
+    );
+  }
+
+  Widget _syncConflictsTile(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final db = ref.watch(databaseProvider);
+    return StreamBuilder(
+      stream: db.watchSyncConflicts(),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.length ?? 0;
+        return _tile(
+          context,
+          icon: Icons.history_outlined,
+          title: l10n.syncConflictsTitle,
+          subtitle: count > 0
+              ? l10n.syncConflictsToReview(count)
+              : l10n.syncConflictsSubtitle,
+          onTap: () => Navigator.of(context).push(
+            AppPageRoute(builder: (_) => const SyncConflictsScreen()),
+          ),
+        );
+      },
+    );
+  }
+
+  /// "Download all receipt photos" (§9): fetches the bytes of
+  /// every synced photo that is missing on this device — the
+  /// one-tap catch-up for a new device, instead of opening each
+  /// photo to trigger its lazy download. Downloads are not
+  /// Wi-Fi-gated: tapping the tile is an explicit request.
+  Widget _syncPhotosTile(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final db = ref.watch(databaseProvider);
+    return _tile(
+      context,
+      icon: Icons.cloud_download_outlined,
+      title: l10n.syncPhotosDownloadAll,
+      subtitle: l10n.syncPhotosDownloadAllSubtitle,
+      onTap: () => _downloadAllPhotos(context, db),
+    );
+  }
+
+  Future<void> _downloadAllPhotos(BuildContext context, AppDatabase db) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      if (!SupabaseAuthService.isSignedIn) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.syncPhotosSignInRequired)),
+        );
+        return;
+      }
+      final service = SyncPhotoService(
+        db: db,
+        remote: SupabaseSyncRemote(),
+      );
+      final result = await service.downloadMissingPhotos();
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.failed > 0
+                ? l10n.syncPhotosDownloadFailed
+                : result.downloaded == 0
+                    ? l10n.syncPhotosDownloadNone
+                    : l10n.syncPhotosDownloaded(result.downloaded),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.syncPhotosDownloadFailed)),
+      );
+    }
   }
 
   Widget _tile(

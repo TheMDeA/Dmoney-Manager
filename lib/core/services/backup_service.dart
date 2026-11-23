@@ -448,6 +448,17 @@ class BackupService {
         } catch (_) {
           // Backup has no autoincrement counters — nothing to sync.
         }
+        // Pre-v18 backups have no sync ids: their rows land with the
+        // '' default, which would break the unique sync_id indexes
+        // and leave the rows unsyncable. Backfill them now, inside
+        // this transaction, before anything else reads the data.
+        await db.backfillMissingSyncIds();
+        // Sync state after a restore (P2 decision — concept doc §5):
+        // the restored rows replace everything, so the pre-restore
+        // outbox describes states that no longer exist. Clear it,
+        // re-enqueue every restored row as the new seed, and reset
+        // the pull cursor, all inside this transaction.
+        await db.resetSyncAfterRestore();
         // Backups from before schema 17 have no plan_id column, so
         // every restored transaction lands unlinked — reconnect each
         // plan to its purchase (and payments) from their fingerprints

@@ -25,6 +25,8 @@ void main() {
         totalCount: count,
         paidCount: paid,
         createdAt: created,
+        syncId: 'test-sync',
+        updatedAt: DateTime(2026, 1, 1),
       );
 
   Wallet wallet({int? statementDay, int? dueDay, int balance = -500000}) =>
@@ -39,6 +41,8 @@ void main() {
         sortOrder: 0,
         statementDay: statementDay,
         dueDay: dueDay,
+        syncId: 'test-sync',
+        updatedAt: DateTime(2026, 1, 1),
       );
 
   group('statementDateFor', () {

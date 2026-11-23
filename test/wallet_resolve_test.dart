@@ -16,6 +16,8 @@ void main() {
         colorHex: '#A78BFA',
         logoTemplate: null,
         sortOrder: 0,
+        syncId: 'test-sync',
+        updatedAt: DateTime(2026, 1, 1),
       );
 
   test('keeps the preselected id while the list is still loading', () {

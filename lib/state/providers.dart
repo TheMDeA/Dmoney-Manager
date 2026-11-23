@@ -3,11 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/services/app_prefs.dart';
 import '../core/services/drive_backup_service.dart';
+import '../core/services/sync_orchestrator.dart';
 import '../data/database/app_database.dart';
 
 /// The database is created in main() and injected here.
 final databaseProvider = Provider<AppDatabase>(
   (ref) => throw UnimplementedError('databaseProvider must be overridden in main()'),
+);
+
+/// The shared sync orchestrator (P5) — one instance for the launch
+/// sync, the triggers and the Settings screen, so single-flight and
+/// status are shared. Created in main() and injected here, like
+/// [databaseProvider].
+final syncOrchestratorProvider = Provider<SyncOrchestrator>(
+  (ref) =>
+      throw UnimplementedError('syncOrchestratorProvider must be overridden in main()'),
 );
 
 /// Google Drive backup (sign-in state lives inside the service).

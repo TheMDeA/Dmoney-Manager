@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:dmoney_manager/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/services/sync_photos.dart';
+import '../../core/services/sync_remote.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptics.dart';
 import '../../data/database/app_database.dart';
@@ -113,22 +115,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
               minScale: 1,
               maxScale: 4,
               child: Center(
-                child: Image.file(
-                  File(photos[i].path),
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) => Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image_outlined,
-                          color: context.textMuted, size: 64),
-                      SizedBox(height: 12),
-                      Text(
-                        l10n.txPhotoUnavailable,
-                        style: TextStyle(color: context.textMuted),
-                      ),
-                    ],
-                  ),
-                ),
+                child: _PhotoImage(photo: photos[i], db: db),
               ),
             ),
           );
@@ -170,4 +157,88 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
       await db.deletePhoto(photo.id);
     }
   }
+}
+
+/// One page of the viewer. A photo whose bytes are on this device
+/// shows immediately; a synced photo whose file is missing (lazy
+/// download, §9) fetches its bytes from Storage on first view and
+/// caches them at its local path, then shows the image. A photo
+/// with no remote key and no local file stays "unavailable" —
+/// exactly the pre-sync behaviour. The download is never
+/// Wi-Fi-gated: opening a photo is an explicit request for it.
+class _PhotoImage extends StatefulWidget {
+  const _PhotoImage({required this.photo, required this.db});
+
+  final TransactionPhoto photo;
+  final AppDatabase db;
+
+  @override
+  State<_PhotoImage> createState() => _PhotoImageState();
+}
+
+class _PhotoImageState extends State<_PhotoImage> {
+  late final Future<bool> _ready;
+
+  @override
+  void initState() {
+    super.initState();
+    _ready = _load();
+  }
+
+  Future<bool> _load() async {
+    if (await File(widget.photo.path).exists()) return true;
+    // No local file: only a synced photo can be fetched.
+    // ensureLocalFile never throws, but constructing the real
+    // remote needs an initialised Supabase client — anything
+    // failing here just leaves the photo unavailable.
+    if (widget.photo.remoteKey == null) return false;
+    try {
+      final service = SyncPhotoService(
+        db: widget.db,
+        remote: SupabaseSyncRemote(),
+      );
+      return await service.ensureLocalFile(widget.photo);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _ready,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.data == true) {
+          return Image.file(
+            File(widget.photo.path),
+            fit: BoxFit.contain,
+            errorBuilder: (_, _, _) => _unavailable(context),
+          );
+        }
+        return _unavailable(context);
+      },
+    );
+  }
+}
+
+Widget _unavailable(BuildContext context) {
+  final l10n = AppLocalizations.of(context)!;
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(
+        Icons.broken_image_outlined,
+        color: context.textMuted,
+        size: 64,
+      ),
+      const SizedBox(height: 12),
+      Text(
+        l10n.txPhotoUnavailable,
+        style: TextStyle(color: context.textMuted),
+      ),
+    ],
+  );
 }

@@ -1473,6 +1473,384 @@ abstract class AppLocalizations {
   /// **'Wallets'**
   String get shellWallets;
 
+  /// No description provided for @syncConflictsDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get syncConflictsDismiss;
+
+  /// No description provided for @syncConflictsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No conflicts. When another device overwrites a change made on this device, the overwritten version is kept here so you can restore it.'**
+  String get syncConflictsEmpty;
+
+  /// No description provided for @syncConflictsOverwritten.
+  ///
+  /// In en, this message translates to:
+  /// **'Overwritten {date}'**
+  String syncConflictsOverwritten(Object date);
+
+  /// No description provided for @syncConflictsRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get syncConflictsRestore;
+
+  /// No description provided for @syncConflictsRestoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t restore — the original record is gone.'**
+  String get syncConflictsRestoreFailed;
+
+  /// No description provided for @syncConflictsRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored — it will sync to your other devices as the newest change.'**
+  String get syncConflictsRestored;
+
+  /// No description provided for @syncConflictsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes overwritten by another device'**
+  String get syncConflictsSubtitle;
+
+  /// No description provided for @syncConflictsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync conflicts'**
+  String get syncConflictsTitle;
+
+  /// No description provided for @syncConflictsToReview.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} to review'**
+  String syncConflictsToReview(Object count);
+
+  /// No description provided for @syncFailureAuthExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in expired — sign in again'**
+  String get syncFailureAuthExpired;
+
+  /// No description provided for @syncFailureOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'No connection — will retry'**
+  String get syncFailureOffline;
+
+  /// No description provided for @syncFailureServerPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Server paused — open the Supabase dashboard to resume'**
+  String get syncFailureServerPaused;
+
+  /// No description provided for @syncFailureUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync failed — try again'**
+  String get syncFailureUnknown;
+
+  /// No description provided for @syncFirstRunDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded {count} rows from the server'**
+  String syncFirstRunDone(Object count);
+
+  /// No description provided for @syncFirstRunFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download your data: {error}'**
+  String syncFirstRunFailed(Object error);
+
+  /// No description provided for @syncFirstRunRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading your data…'**
+  String get syncFirstRunRunning;
+
+  /// No description provided for @syncLogConflictsPart.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} conflicts kept'**
+  String syncLogConflictsPart(Object count);
+
+  /// No description provided for @syncLogEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No syncs yet'**
+  String get syncLogEmpty;
+
+  /// No description provided for @syncLogFailedPart.
+  ///
+  /// In en, this message translates to:
+  /// **'{failed} failed'**
+  String syncLogFailedPart(Object failed);
+
+  /// No description provided for @syncLogSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{pushed} pushed · {pulled} pulled'**
+  String syncLogSummary(Object pulled, Object pushed);
+
+  /// No description provided for @syncLogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent syncs'**
+  String get syncLogTitle;
+
+  /// No description provided for @syncPhotosDownloadAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Download all receipt photos'**
+  String get syncPhotosDownloadAll;
+
+  /// No description provided for @syncPhotosDownloadAllSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetch receipt photos from your other devices onto this one'**
+  String get syncPhotosDownloadAllSubtitle;
+
+  /// No description provided for @syncPhotosDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t download some receipt photos — check your connection and try again.'**
+  String get syncPhotosDownloadFailed;
+
+  /// No description provided for @syncPhotosDownloadNone.
+  ///
+  /// In en, this message translates to:
+  /// **'All receipt photos are already on this device'**
+  String get syncPhotosDownloadNone;
+
+  /// No description provided for @syncPhotosDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded {count} receipt photos'**
+  String syncPhotosDownloaded(Object count);
+
+  /// No description provided for @syncPhotosSignInRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to sync to download receipt photos'**
+  String get syncPhotosSignInRequired;
+
+  /// No description provided for @syncPreviewBackupNote.
+  ///
+  /// In en, this message translates to:
+  /// **'A local backup is made first, so you can restore this device if anything goes wrong.'**
+  String get syncPreviewBackupNote;
+
+  /// No description provided for @syncPreviewBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This replaces everything on this device with the server copy.'**
+  String get syncPreviewBody;
+
+  /// No description provided for @syncPreviewConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace with server copy'**
+  String get syncPreviewConfirm;
+
+  /// No description provided for @syncPreviewEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The server has no data yet.'**
+  String get syncPreviewEmpty;
+
+  /// No description provided for @syncPreviewFirstRunBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your other device has data on the server. Download it onto this device?'**
+  String get syncPreviewFirstRunBody;
+
+  /// No description provided for @syncPreviewLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking the server…'**
+  String get syncPreviewLoading;
+
+  /// No description provided for @syncPreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your data on the server'**
+  String get syncPreviewTitle;
+
+  /// No description provided for @syncSettingsAccountsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which accounts sync to your other devices. Rows of an unselected account stay on this device until you turn it back on.'**
+  String get syncSettingsAccountsSubtitle;
+
+  /// No description provided for @syncSettingsAccountsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts to sync'**
+  String get syncSettingsAccountsTitle;
+
+  /// No description provided for @syncSettingsDevicesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No devices have synced yet'**
+  String get syncSettingsDevicesEmpty;
+
+  /// No description provided for @syncSettingsDevicesFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load the device list'**
+  String get syncSettingsDevicesFailed;
+
+  /// No description provided for @syncSettingsDevicesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices that have synced with this account. A device you haven\'t used in a while shows an old date.'**
+  String get syncSettingsDevicesSubtitle;
+
+  /// No description provided for @syncSettingsDevicesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices'**
+  String get syncSettingsDevicesTitle;
+
+  /// No description provided for @syncSettingsInitialUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Initial upload: {pushed} of {total} rows'**
+  String syncSettingsInitialUpload(Object pushed, Object total);
+
+  /// No description provided for @syncSettingsLanguageDeferred.
+  ///
+  /// In en, this message translates to:
+  /// **'The language change applies on next launch.'**
+  String get syncSettingsLanguageDeferred;
+
+  /// No description provided for @syncSettingsLastError.
+  ///
+  /// In en, this message translates to:
+  /// **'Last error: {error}'**
+  String syncSettingsLastError(Object error);
+
+  /// No description provided for @syncSettingsLastSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Last sync: {time}'**
+  String syncSettingsLastSync(Object time);
+
+  /// No description provided for @syncSettingsNeverSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Never synced'**
+  String get syncSettingsNeverSynced;
+
+  /// No description provided for @syncSettingsNoPending.
+  ///
+  /// In en, this message translates to:
+  /// **'No pending changes'**
+  String get syncSettingsNoPending;
+
+  /// No description provided for @syncSettingsNotSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Not signed in'**
+  String get syncSettingsNotSignedIn;
+
+  /// No description provided for @syncSettingsPendingCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} pending changes'**
+  String syncSettingsPendingCount(Object count);
+
+  /// No description provided for @syncSettingsRefreshDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get syncSettingsRefreshDevices;
+
+  /// No description provided for @syncSettingsReplaceSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download the server copy and replace everything on this device. A local backup is made first.'**
+  String get syncSettingsReplaceSubtitle;
+
+  /// No description provided for @syncSettingsReplaceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace this device\'s data'**
+  String get syncSettingsReplaceTitle;
+
+  /// No description provided for @syncSettingsSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Google'**
+  String get syncSettingsSignIn;
+
+  /// No description provided for @syncSettingsSignInFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in failed — try again.'**
+  String get syncSettingsSignInFailed;
+
+  /// No description provided for @syncSettingsSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get syncSettingsSignOut;
+
+  /// No description provided for @syncSettingsSignOutConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out of sync? Your data stays on this device.'**
+  String get syncSettingsSignOutConfirm;
+
+  /// No description provided for @syncSettingsSignedInAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in as {email}'**
+  String syncSettingsSignedInAs(Object email);
+
+  /// No description provided for @syncSettingsStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get syncSettingsStatusTitle;
+
+  /// No description provided for @syncSettingsSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync failed: {error}'**
+  String syncSettingsSyncFailed(Object error);
+
+  /// No description provided for @syncSettingsSyncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get syncSettingsSyncNow;
+
+  /// No description provided for @syncSettingsSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced: {pushed} pushed, {pulled} pulled'**
+  String syncSettingsSynced(Object pulled, Object pushed);
+
+  /// No description provided for @syncSettingsSyncing.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing…'**
+  String get syncSettingsSyncing;
+
+  /// No description provided for @syncSettingsThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get syncSettingsThisDevice;
+
+  /// No description provided for @syncSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Online sync'**
+  String get syncSettingsTitle;
+
   /// No description provided for @tourGetStarted.
   ///
   /// In en, this message translates to:

@@ -861,6 +861,241 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shellWallets => 'Wallets';
 
   @override
+  String get syncConflictsDismiss => 'Dismiss';
+
+  @override
+  String get syncConflictsEmpty =>
+      'No conflicts. When another device overwrites a change made on this device, the overwritten version is kept here so you can restore it.';
+
+  @override
+  String syncConflictsOverwritten(Object date) {
+    return 'Overwritten $date';
+  }
+
+  @override
+  String get syncConflictsRestore => 'Restore';
+
+  @override
+  String get syncConflictsRestoreFailed =>
+      'Couldn\'t restore — the original record is gone.';
+
+  @override
+  String get syncConflictsRestored =>
+      'Restored — it will sync to your other devices as the newest change.';
+
+  @override
+  String get syncConflictsSubtitle => 'Changes overwritten by another device';
+
+  @override
+  String get syncConflictsTitle => 'Sync conflicts';
+
+  @override
+  String syncConflictsToReview(Object count) {
+    return '$count to review';
+  }
+
+  @override
+  String get syncFailureAuthExpired => 'Sign-in expired — sign in again';
+
+  @override
+  String get syncFailureOffline => 'No connection — will retry';
+
+  @override
+  String get syncFailureServerPaused =>
+      'Server paused — open the Supabase dashboard to resume';
+
+  @override
+  String get syncFailureUnknown => 'Sync failed — try again';
+
+  @override
+  String syncFirstRunDone(Object count) {
+    return 'Downloaded $count rows from the server';
+  }
+
+  @override
+  String syncFirstRunFailed(Object error) {
+    return 'Couldn\'t download your data: $error';
+  }
+
+  @override
+  String get syncFirstRunRunning => 'Downloading your data…';
+
+  @override
+  String syncLogConflictsPart(Object count) {
+    return '$count conflicts kept';
+  }
+
+  @override
+  String get syncLogEmpty => 'No syncs yet';
+
+  @override
+  String syncLogFailedPart(Object failed) {
+    return '$failed failed';
+  }
+
+  @override
+  String syncLogSummary(Object pulled, Object pushed) {
+    return '$pushed pushed · $pulled pulled';
+  }
+
+  @override
+  String get syncLogTitle => 'Recent syncs';
+
+  @override
+  String get syncPhotosDownloadAll => 'Download all receipt photos';
+
+  @override
+  String get syncPhotosDownloadAllSubtitle =>
+      'Fetch receipt photos from your other devices onto this one';
+
+  @override
+  String get syncPhotosDownloadFailed =>
+      'Couldn\'t download some receipt photos — check your connection and try again.';
+
+  @override
+  String get syncPhotosDownloadNone =>
+      'All receipt photos are already on this device';
+
+  @override
+  String syncPhotosDownloaded(Object count) {
+    return 'Downloaded $count receipt photos';
+  }
+
+  @override
+  String get syncPhotosSignInRequired =>
+      'Sign in to sync to download receipt photos';
+
+  @override
+  String get syncPreviewBackupNote =>
+      'A local backup is made first, so you can restore this device if anything goes wrong.';
+
+  @override
+  String get syncPreviewBody =>
+      'This replaces everything on this device with the server copy.';
+
+  @override
+  String get syncPreviewConfirm => 'Replace with server copy';
+
+  @override
+  String get syncPreviewEmpty => 'The server has no data yet.';
+
+  @override
+  String get syncPreviewFirstRunBody =>
+      'Your other device has data on the server. Download it onto this device?';
+
+  @override
+  String get syncPreviewLoading => 'Checking the server…';
+
+  @override
+  String get syncPreviewTitle => 'Your data on the server';
+
+  @override
+  String get syncSettingsAccountsSubtitle =>
+      'Choose which accounts sync to your other devices. Rows of an unselected account stay on this device until you turn it back on.';
+
+  @override
+  String get syncSettingsAccountsTitle => 'Accounts to sync';
+
+  @override
+  String get syncSettingsDevicesEmpty => 'No devices have synced yet';
+
+  @override
+  String get syncSettingsDevicesFailed => 'Couldn\'t load the device list';
+
+  @override
+  String get syncSettingsDevicesSubtitle =>
+      'Devices that have synced with this account. A device you haven\'t used in a while shows an old date.';
+
+  @override
+  String get syncSettingsDevicesTitle => 'Devices';
+
+  @override
+  String syncSettingsInitialUpload(Object pushed, Object total) {
+    return 'Initial upload: $pushed of $total rows';
+  }
+
+  @override
+  String get syncSettingsLanguageDeferred =>
+      'The language change applies on next launch.';
+
+  @override
+  String syncSettingsLastError(Object error) {
+    return 'Last error: $error';
+  }
+
+  @override
+  String syncSettingsLastSync(Object time) {
+    return 'Last sync: $time';
+  }
+
+  @override
+  String get syncSettingsNeverSynced => 'Never synced';
+
+  @override
+  String get syncSettingsNoPending => 'No pending changes';
+
+  @override
+  String get syncSettingsNotSignedIn => 'Not signed in';
+
+  @override
+  String syncSettingsPendingCount(Object count) {
+    return '$count pending changes';
+  }
+
+  @override
+  String get syncSettingsRefreshDevices => 'Refresh';
+
+  @override
+  String get syncSettingsReplaceSubtitle =>
+      'Download the server copy and replace everything on this device. A local backup is made first.';
+
+  @override
+  String get syncSettingsReplaceTitle => 'Replace this device\'s data';
+
+  @override
+  String get syncSettingsSignIn => 'Sign in with Google';
+
+  @override
+  String get syncSettingsSignInFailed => 'Sign-in failed — try again.';
+
+  @override
+  String get syncSettingsSignOut => 'Sign out';
+
+  @override
+  String get syncSettingsSignOutConfirm =>
+      'Sign out of sync? Your data stays on this device.';
+
+  @override
+  String syncSettingsSignedInAs(Object email) {
+    return 'Signed in as $email';
+  }
+
+  @override
+  String get syncSettingsStatusTitle => 'Status';
+
+  @override
+  String syncSettingsSyncFailed(Object error) {
+    return 'Sync failed: $error';
+  }
+
+  @override
+  String get syncSettingsSyncNow => 'Sync now';
+
+  @override
+  String syncSettingsSynced(Object pulled, Object pushed) {
+    return 'Synced: $pushed pushed, $pulled pulled';
+  }
+
+  @override
+  String get syncSettingsSyncing => 'Syncing…';
+
+  @override
+  String get syncSettingsThisDevice => 'This device';
+
+  @override
+  String get syncSettingsTitle => 'Online sync';
+
+  @override
   String get tourGetStarted => 'Get started';
 
   @override
