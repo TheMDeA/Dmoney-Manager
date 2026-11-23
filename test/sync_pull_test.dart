@@ -1195,6 +1195,7 @@ class FakePullRemote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) async {}
 
   @override
@@ -1286,6 +1287,7 @@ class _RecordingRemote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) async {}
 
   @override

@@ -49,6 +49,7 @@ class _NoopRemote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) async {}
 
   @override

@@ -14,10 +14,16 @@ abstract class SyncRemote {
 
   /// Marks the server rows with these sync ids as deleted
   /// (`deleted_at` set) — sync never hard-deletes server rows.
+  /// The payload carries [ownerId] too: every server table
+  /// requires `owner_id` NOT NULL, so a tombstone for a row the
+  /// server has never seen must be a self-contained insert
+  /// (audit #27) — without it the insert violates NOT NULL and
+  /// the entry stays queued forever.
   Future<void> tombstone(
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   );
 
   /// Fetches one page of rows from [table] with
@@ -130,6 +136,7 @@ class SupabaseSyncRemote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) {
     if (syncIds.isEmpty) return Future.value();
     final stamp = deletedAt.toUtc().toIso8601String();
@@ -137,7 +144,7 @@ class SupabaseSyncRemote implements SyncRemote {
       () => _client.from(table).upsert(
         [
           for (final id in syncIds)
-            {'sync_id': id, 'deleted_at': stamp},
+            {'sync_id': id, 'deleted_at': stamp, 'owner_id': ownerId},
         ],
         onConflict: 'sync_id',
       ),

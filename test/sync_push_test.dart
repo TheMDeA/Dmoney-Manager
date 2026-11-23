@@ -600,7 +600,7 @@ void main() {
 /// set (the per-row fallback then succeeds).
 class FakeSyncRemote implements SyncRemote {
   final upserts = <({String table, List<Map<String, dynamic>> rows})>[];
-  final tombstones = <({String table, List<String> syncIds})>[];
+  final tombstones = <({String table, List<String> syncIds, String ownerId})>[];
   // P4: in-memory Storage objects (key → bytes) and server rows
   // (sync id → last upserted payload), so photo upload, download,
   // delete and fetchRow can be observed.
@@ -636,13 +636,14 @@ class FakeSyncRemote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) async {
     if (fatalNextCount > 0) {
       fatalNextCount--;
       throw SyncFatalException('fatal (test)');
     }
     if (failAll) throw Exception('tombstone failed');
-    tombstones.add((table: table, syncIds: syncIds));
+    tombstones.add((table: table, syncIds: syncIds, ownerId: ownerId));
   }
 
   @override

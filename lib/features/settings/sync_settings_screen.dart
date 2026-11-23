@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/app_prefs.dart';
 import '../../core/services/supabase_auth_service.dart';
+import '../../core/services/sync_dead_letters_service.dart';
 import '../../core/services/sync_devices.dart';
 import '../../core/services/sync_failure_mode.dart';
 import '../../core/services/sync_first_run.dart';
@@ -97,9 +98,19 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
           ? l10n.syncSettingsNotSignedIn
           : result.hasFailures
           ? l10n.syncSettingsSyncFailed(
+              // Never an empty string (audit #15): the old
+              // fallback rendered literally "Sync failed: " when
+              // a per-row failure left both the mode and the
+              // error null. The partial mode now covers that
+              // case; the counts are the last-resort fallback.
               _lastFailureMode != null
                   ? _failureModeText(l10n, _lastFailureMode!)
-                  : result.error?.toString() ?? '',
+                  : result.error?.toString() ??
+                      (result.push.failed + result.pull.failed > 0
+                          ? l10n.syncLogFailedPart(
+                              result.push.failed + result.pull.failed,
+                            )
+                          : l10n.syncFailureUnknown),
             )
           // gen-l10n orders parameters alphabetically: (pulled, pushed).
           : l10n.syncSettingsSynced(result.pulled, result.pushed);
@@ -487,14 +498,46 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
                 children: [
                   for (final run in runs)
                     ListTile(
+                      // Error icon whenever the run failed — a run
+                      // with per-row failures but no fatal error
+                      // used to get a check icon despite its
+                      // "· N failed" suffix (audit #25).
                       leading: Icon(
-                        parseSyncFailureMode(run.failureMode) != null
+                        parseSyncFailureMode(run.failureMode) != null ||
+                                run.failed > 0
                             ? Icons.error_outline
                             : Icons.check_circle_outline,
                       ),
                       title: Text(_logSummary(l10n, run)),
-                      subtitle: Text(formatDateTime(run.startedAt)),
+                      subtitle: Text(
+                        run.error == null
+                            ? formatDateTime(run.startedAt)
+                            : '${formatDateTime(run.startedAt)}\n${run.error}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => _showLogDetails(context, run),
                     ),
+                ],
+              );
+            },
+          ),
+          StreamBuilder<List<SyncDeadLetter>>(
+            stream: db.watchDeadLetters(),
+            builder: (context, snapshot) {
+              final letters = snapshot.data ?? const [];
+              if (letters.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionHeader(l10n.syncDeadLettersTitle),
+                  Text(
+                    l10n.syncDeadLettersSubtitle,
+                    style: TextStyle(color: context.textMuted, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  for (final letter in letters)
+                    _DeadLetterTile(letter: letter),
                 ],
               );
             },
@@ -599,19 +642,68 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
     );
   }
 
-  /// One log row's summary line (P6): a failed run shows its
-  /// named failure mode; a clean run shows the counts, with the
-  /// failed/conflict counts appended when non-zero.
+  /// One log row's summary line (P6): the counts always render —
+  /// a failed run used to show only its named failure mode, which
+  /// discarded the counts (audit #25). The mode text is appended
+  /// when present, so a failed run reads e.g. "0 pushed ·
+  /// 0 pulled · 1 failed · Some changes couldn't sync…".
   String _logSummary(AppLocalizations l10n, SyncLogData run) {
-    final mode = parseSyncFailureMode(run.failureMode);
-    if (mode != null) return _failureModeText(l10n, mode);
     // gen-l10n orders parameters alphabetically: (pulled, pushed).
     var text = l10n.syncLogSummary(run.pulled, run.pushed);
     if (run.failed > 0) text += ' · ${l10n.syncLogFailedPart(run.failed)}';
     if (run.conflicts > 0) {
       text += ' · ${l10n.syncLogConflictsPart(run.conflicts)}';
     }
+    final mode = parseSyncFailureMode(run.failureMode);
+    if (mode != null) text += ' · ${_failureModeText(l10n, mode)}';
     return text;
+  }
+
+  /// One log row's detail view (audit #25): the diagnostic
+  /// columns the summary line cannot carry — duration, phase,
+  /// skipped count, the first failing row, and the full error.
+  /// Labels stay English: this is a diagnostics view, like the
+  /// technical table names in [_tableLabel].
+  Future<void> _showLogDetails(BuildContext context, SyncLogData run) {
+    final duration = run.durationMs == null
+        ? '—'
+        : run.durationMs! < 1000
+            ? '${run.durationMs} ms'
+            : '${(run.durationMs! / 1000).toStringAsFixed(1)} s';
+    final firstFailed = run.firstFailedTable == null
+        ? '—'
+        : '${_tableLabel(run.firstFailedTable!)}'
+            '${run.firstFailedSyncId == null ? '' : ' • ${run.firstFailedSyncId}'}';
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(formatDateTime(run.startedAt)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_logSummary(AppLocalizations.of(context)!, run)),
+              const SizedBox(height: 12),
+              Text('Duration: $duration'),
+              Text('Phase: ${run.phase ?? '—'}'),
+              Text('Skipped: ${run.skipped ?? '—'}'),
+              Text('First failed row: $firstFailed'),
+              if (run.error != null) ...[
+                const SizedBox(height: 12),
+                SelectableText(run.error!),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _sectionHeader(String title) => Padding(
@@ -631,6 +723,7 @@ String _failureModeText(AppLocalizations l10n, SyncFailureMode mode) =>
       SyncFailureMode.authExpired => l10n.syncFailureAuthExpired,
       SyncFailureMode.serverPaused => l10n.syncFailureServerPaused,
       SyncFailureMode.unknown => l10n.syncFailureUnknown,
+      SyncFailureMode.partial => l10n.syncFailurePartial,
     };
 
 /// Human label for a sync table name. The names are technical
@@ -653,3 +746,90 @@ String _tableLabel(String table) => switch (table) {
   'installment_plans' => 'Installment plan',
   _ => table,
 };
+
+/// One parked sync entry (audit #18): a receipt photo whose file
+/// is missing on this device. Retry re-queues it (when the file
+/// is back); Delete photo removes the photo row itself.
+class _DeadLetterTile extends ConsumerStatefulWidget {
+  const _DeadLetterTile({required this.letter});
+
+  final SyncDeadLetter letter;
+
+  @override
+  ConsumerState<_DeadLetterTile> createState() => _DeadLetterTileState();
+}
+
+class _DeadLetterTileState extends ConsumerState<_DeadLetterTile> {
+  bool _busy = false;
+
+  Future<void> _retry() async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _busy = true);
+    final outcome = await SyncDeadLetterService(
+      ref.read(databaseProvider),
+    ).retryDeadLetter(widget.letter);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          switch (outcome) {
+            SyncDeadLetterService.retryQueued => l10n.syncDeadLetterRetried,
+            SyncDeadLetterService.retryStillMissing =>
+              l10n.syncDeadLetterStillMissing,
+            _ => l10n.syncDeadLetterGone,
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _delete() async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _busy = true);
+    await SyncDeadLetterService(
+      ref.read(databaseProvider),
+    ).deleteDeadLetterPhoto(widget.letter);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.syncDeadLetterDeleted)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return ListTile(
+      leading: const Icon(Icons.broken_image_outlined),
+      title: Text(
+        widget.letter.reason == 'photo_file_missing'
+            ? l10n.syncDeadLetterPhotoMissing
+            : _tableLabel(widget.letter.targetTable),
+      ),
+      subtitle: Text(
+        formatDateTime(widget.letter.parkedAt),
+        style: TextStyle(color: context.textMuted, fontSize: 12),
+      ),
+      trailing: _busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: _retry,
+                  child: Text(l10n.syncDeadLetterRetry),
+                ),
+                TextButton(
+                  onPressed: _delete,
+                  child: Text(l10n.syncDeadLetterDelete),
+                ),
+              ],
+            ),
+    );
+  }
+}

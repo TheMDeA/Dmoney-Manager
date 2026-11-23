@@ -895,10 +895,44 @@ class AppLocalizationsId extends AppLocalizations {
   }
 
   @override
+  String get syncDeadLetterDelete => 'Hapus foto';
+
+  @override
+  String get syncDeadLetterDeleted => 'Foto dihapus';
+
+  @override
+  String get syncDeadLetterGone =>
+      'Foto itu sudah tidak ada — dihapus dari daftar';
+
+  @override
+  String get syncDeadLetterPhotoMissing => 'Foto struk — berkas tidak ada';
+
+  @override
+  String get syncDeadLetterRetried => 'Foto diantrekan untuk sinkronisasi lagi';
+
+  @override
+  String get syncDeadLetterRetry => 'Coba lagi';
+
+  @override
+  String get syncDeadLetterStillMissing =>
+      'Berkas foto masih tidak ada di perangkat ini';
+
+  @override
+  String get syncDeadLettersSubtitle =>
+      'Berkas foto struk tidak ada di perangkat ini sehingga tidak bisa diunggah. Lampirkan lagi berkasnya lalu coba lagi, atau hapus fotonya.';
+
+  @override
+  String get syncDeadLettersTitle => 'Foto yang gagal disinkronkan';
+
+  @override
   String get syncFailureAuthExpired => 'Sesi masuk kedaluwarsa — masuk lagi';
 
   @override
   String get syncFailureOffline => 'Tidak ada koneksi — akan dicoba lagi';
+
+  @override
+  String get syncFailurePartial =>
+      'Sebagian perubahan gagal disinkronkan — lihat Sinkronisasi terakhir';
 
   @override
   String get syncFailureServerPaused =>

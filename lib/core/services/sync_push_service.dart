@@ -8,6 +8,7 @@ import '../utils/sync_payload.dart';
 import 'app_prefs.dart';
 import 'sync_photos.dart';
 import 'sync_remote.dart';
+import 'sync_row_failure.dart';
 import 'sync_serialiser.dart';
 
 /// What one push run did. Entries that were skipped on purpose
@@ -22,10 +23,12 @@ class SyncPushResult {
     this.skippedUnresolved = 0,
     this.skippedStale = 0,
     this.droppedNeverPushed = 0,
+    this.skippedMissingFiles = 0,
     this.failed = 0,
     this.remaining = 0,
     this.notSignedIn = false,
     this.error,
+    this.firstFailure,
   });
 
   /// Rows upserted or tombstoned on the server.
@@ -55,6 +58,12 @@ class SyncPushResult {
   /// deleted before their first push) — dropped, no tombstone sent.
   final int droppedNeverPushed;
 
+  /// `transaction_photos` rows whose local file is gone — parked
+  /// as dead letters (audit #18) instead of failing every cycle.
+  /// The photo row stays local, so the entry can be retried or
+  /// deleted from Settings. Not failures.
+  final int skippedMissingFiles;
+
   /// Entries left queued by an error (per-row failures, or never
   /// attempted because a fatal error aborted the run).
   final int failed;
@@ -72,7 +81,20 @@ class SyncPushResult {
   /// The fatal error that aborted the run, if any (auth or transport).
   final Object? error;
 
+  /// The first row that failed this run, when any did — the
+  /// identity the log and the status UI name (audit #15/#25).
+  /// Null on a clean run.
+  final SyncRowFailure? firstFailure;
+
   bool get hasFailures => failed > 0 || error != null;
+
+  /// Entries deliberately left queued this run (not failures):
+  /// the reason a pending count may not drain.
+  int get skipped =>
+      skippedAccountOff +
+      skippedPhotos +
+      skippedUnresolved +
+      skippedMissingFiles;
 }
 
 typedef _PendingUpsert = ({
@@ -89,6 +111,11 @@ class _Counters {
   int skippedUnresolved = 0;
   int skippedStale = 0;
   int droppedNeverPushed = 0;
+  int skippedMissingFiles = 0;
+
+  /// The first row that failed this run (audit #15/#25) — kept
+  /// for the result so the log and the status UI can name it.
+  SyncRowFailure? firstFailure;
 
   /// Entries that reached a terminal decision this run — acked, or
   /// deliberately left queued. `failed` is derived from this: every
@@ -333,9 +360,11 @@ class SyncPushService {
       skippedUnresolved: c.skippedUnresolved,
       skippedStale: c.skippedStale,
       droppedNeverPushed: c.droppedNeverPushed,
+      skippedMissingFiles: c.skippedMissingFiles,
       failed: entries.length - c.settled,
       remaining: await db.outboxCount(),
       error: fatalError,
+      firstFailure: c.firstFailure,
     );
   }
 
@@ -344,12 +373,17 @@ class SyncPushService {
   /// key. Returns true when the row is ready to serialise (its
   /// [TransactionPhoto.remoteKey] is set). Returns false when the
   /// entry must stay queued: off Wi-Fi (counted as `skippedPhotos`,
-  /// deliberately settled — a deferral, not a failure), the local
-  /// file missing, its transaction gone, or a Storage error (all
-  /// NOT settled — counted as failed and retried next run, in case
-  /// the file reappears, e.g. after a backup restore). A row that
-  /// is gone is acked as stale. Throws [SyncFatalException] for
-  /// auth/transport failures during the upload.
+  /// deliberately settled — a deferral, not a failure), its
+  /// transaction gone, or a Storage error (both NOT settled —
+  /// counted as failed and retried next run). A row that is gone
+  /// is acked as stale. A missing local file is parked as a dead
+  /// letter instead (audit #18): the entry is acked and counted
+  /// as `skippedMissingFiles`, so one lost file can no longer
+  /// wedge the queue, block the heartbeat, or pin the
+  /// initial-push marker — the photo row stays local, and the
+  /// dead letter is retried or deleted from Settings. Throws
+  /// [SyncFatalException] for auth/transport failures during the
+  /// upload.
   Future<bool> _ensurePhotoUploaded(SyncOutboxData entry, _Counters c) async {
     final photo = await (db.select(
       db.transactionPhotos,
@@ -376,20 +410,48 @@ class SyncPushService {
       return false;
     }
     final file = File(photo.path);
-    if (!await file.exists()) return false;
+    if (!await file.exists()) {
+      // Parked, not failed: the bytes are gone, so no retry can
+      // ever succeed until the file reappears — and the queue
+      // must not fail on it every cycle meanwhile.
+      await db.recordDeadLetter(
+        targetTable: 'transaction_photos',
+        syncId: entry.syncId,
+        reason: 'photo_file_missing',
+      );
+      await _ack([entry.id]);
+      c.skippedMissingFiles++;
+      c.settled++;
+      return false;
+    }
     // The owning transaction's sync id is part of the object key.
     final tx = await (db.select(
       db.transactions,
     )..where((t) => t.id.equals(photo.transactionId))).getSingleOrNull();
-    if (tx == null) return false;
+    if (tx == null) {
+      // Orphaned photo row (its transaction is gone): a real
+      // inconsistency, not a transient failure — keep it visible
+      // as a failure with its identity, instead of hiding it.
+      c.firstFailure ??= SyncRowFailure(
+        table: 'transaction_photos',
+        syncId: entry.syncId,
+        message: 'owning transaction is gone',
+      );
+      return false;
+    }
     final key = photoObjectKey(ownerId!, tx.syncId, photo.syncId);
     try {
       await remote.uploadPhoto(key, file);
     } on SyncFatalException {
       rethrow;
-    } catch (_) {
+    } catch (e) {
       // A Storage error (not auth/transport): leave the entry
       // queued and unsettled — counted as failed, retried next run.
+      c.firstFailure ??= SyncRowFailure(
+        table: 'transaction_photos',
+        syncId: entry.syncId,
+        message: e.toString(),
+      );
       return false;
     }
     await db.setPhotoRemoteKey(photo.id, key);
@@ -441,8 +503,16 @@ class SyncPushService {
           c.settled++;
         } on SyncFatalException {
           rethrow;
-        } catch (_) {
+        } catch (e) {
           // Stays queued and unsettled — counted as failed.
+          // Keep the first failure's identity for the log and
+          // the status UI (audit #15/#25): a poison row must be
+          // nameable, not just counted.
+          c.firstFailure ??= SyncRowFailure(
+            table: table,
+            syncId: p.entry.syncId,
+            message: e.toString(),
+          );
         }
       }
       return;
@@ -477,13 +547,14 @@ class SyncPushService {
         table,
         [for (final e in group) e.syncId],
         stamp,
+        ownerId!,
       );
     } on SyncFatalException {
       rethrow;
     } catch (_) {
       for (final e in group) {
         try {
-          await remote.tombstone(table, [e.syncId], stamp);
+          await remote.tombstone(table, [e.syncId], stamp, ownerId!);
           if (table == 'transaction_photos') {
             await _deletePhotoObjectBestEffort(e.syncId);
           }
@@ -492,8 +563,15 @@ class SyncPushService {
           c.settled++;
         } on SyncFatalException {
           rethrow;
-        } catch (_) {
+        } catch (err) {
           // Stays queued and unsettled — counted as failed.
+          // Keep the first failure's identity for the log and
+          // the status UI (audit #15/#25).
+          c.firstFailure ??= SyncRowFailure(
+            table: table,
+            syncId: e.syncId,
+            message: err.toString(),
+          );
         }
       }
       return;

@@ -151,6 +151,9 @@ void main() {
       'sync_pushed',
       'sync_conflicts',
       'sync_log',
+      // v19 addition — it must go too, or the v19 migration's
+      // createIndex for it fails as a duplicate on reopen.
+      'sync_dead_letters',
     ]) {
       await seedDb.customStatement('DROP TABLE IF EXISTS $table');
     }

@@ -5,6 +5,7 @@ import '../utils/sync_payload.dart';
 import 'app_prefs.dart';
 import 'sync_apply.dart';
 import 'sync_remote.dart';
+import 'sync_row_failure.dart';
 import 'sync_serialiser.dart';
 
 /// What one pull run did. Skips are not failures: a row skipped
@@ -24,6 +25,7 @@ class SyncPullResult {
     this.failed = 0,
     this.notSignedIn = false,
     this.error,
+    this.firstFailure,
   });
 
   /// Rows fetched from the server (all tables).
@@ -67,7 +69,20 @@ class SyncPullResult {
   /// re-fetched on the next run.
   final Object? error;
 
+  /// The first row that failed to apply this run, when any did —
+  /// the identity the log and the status UI name (audit #15/#25).
+  /// Null on a clean run.
+  final SyncRowFailure? firstFailure;
+
   bool get hasFailures => failed > 0 || error != null;
+
+  /// Rows deliberately left on the server this run (not failures):
+  /// the reason a pull may apply nothing while the cursor holds.
+  int get skipped =>
+      skippedAccountOff +
+      skippedPendingOutbox +
+      skippedUnresolved +
+      overwrittenWithoutRecord;
 }
 
 class _PullCounters {
@@ -80,6 +95,9 @@ class _PullCounters {
   int skippedUnresolved = 0;
   int overwrittenWithoutRecord = 0;
   int failed = 0;
+
+  /// The first row that failed to apply this run (audit #15/#25).
+  SyncRowFailure? firstFailure;
 
   /// Canonical (`...Z`) `server_updated_at` of every applied row.
   final appliedTimestamps = <String>[];
@@ -270,6 +288,7 @@ class SyncPullService {
       overwrittenWithoutRecord: c.overwrittenWithoutRecord,
       failed: c.failed,
       error: fatalError,
+      firstFailure: c.firstFailure,
     );
   }
 
@@ -377,10 +396,18 @@ class SyncPullService {
       // the row (the cursor holds it back).
       c.skippedUnresolved++;
       c.noteSkipped(ts);
-    } catch (_) {
+    } catch (e) {
       // A malformed row must not nuke the page: skip it, hold
       // the cursor back, and surface the failure in the result.
+      // Keep the first failure's identity for the log and the
+      // status UI (audit #15/#25): a poison row must be nameable,
+      // not just counted.
       c.failed++;
+      c.firstFailure ??= SyncRowFailure(
+        table: table,
+        syncId: syncId,
+        message: e.toString(),
+      );
       c.noteSkipped(ts);
     }
   }

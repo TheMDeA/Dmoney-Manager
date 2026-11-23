@@ -706,6 +706,56 @@ class SyncLog extends Table {
   /// The raw error message, if any (truncated at write time).
   /// Kept for debugging; the UI shows the named mode.
   TextColumn get error => text().nullable()();
+
+  /// How long the run took, in milliseconds. Null for rows
+  /// written before v19.
+  IntColumn get durationMs => integer().nullable()();
+
+  /// Which half of the cycle this row covers: 'push', 'pull' or
+  /// 'both' (a full orchestrator cycle). Null for rows written
+  /// before v19.
+  TextColumn get phase => text().nullable()();
+
+  /// Entries deliberately left queued this run (account off,
+  /// off-Wi-Fi photos, unresolvable rows, parked dead letters) —
+  /// not failures, but the reason a pending count may not drain.
+  /// Null for rows written before v19.
+  IntColumn get skipped => integer().nullable()();
+
+  /// The first row that failed to push or apply this run, when
+  /// any did — the table and sync id that block the queue. Null
+  /// on a clean run (and for rows written before v19).
+  TextColumn get firstFailedTable => text().nullable()();
+  TextColumn get firstFailedSyncId => text().nullable()();
+}
+
+/// Parked sync entries (schema v19): an outbox entry that can
+/// never succeed as it stands — today, a receipt photo whose
+/// local file is gone — is moved here instead of failing every
+/// cycle forever. The photo row itself stays local, so the entry
+/// can be retried (if the file reappears, e.g. after a backup
+/// restore) or deleted from Settings. One entry per (table,
+/// sync id) — re-parking refreshes the timestamp. Local-only
+/// bookkeeping: never synced, no outbox entry.
+@TableIndex(
+  name: 'idx_sync_dead_letters_row',
+  columns: {#targetTable, #syncId},
+  unique: true,
+)
+class SyncDeadLetters extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// The outbox entry's table (today always 'transaction_photos').
+  TextColumn get targetTable => text()();
+  TextColumn get syncId => text()();
+
+  /// Why it was parked: 'photo_file_missing' (the only reason
+  /// today — the local receipt file is gone).
+  TextColumn get reason => text()();
+
+  /// When it was (last) parked.
+  DateTimeColumn get parkedAt =>
+      dateTime().withDefault(currentDateAndTime)();
 }
 
 // ---------------------------------------------------------------------------
@@ -782,6 +832,7 @@ typedef DerivedReconcileResult = ({
     SyncPushed,
     SyncConflicts,
     SyncLog,
+    SyncDeadLetters,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -791,7 +842,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -995,6 +1046,37 @@ class AppDatabase extends _$AppDatabase {
         await m.createIndex(idxTransactionTemplatesSyncId);
         await m.createIndex(idxCategoryKeywordsSyncId);
         await m.createIndex(idxInstallmentPlansSyncId);
+      }
+      if (from < 19) {
+        // Sync failure diagnostics (audit round 2, #15/#18/#25):
+        // dead-letter parking for entries that can never succeed
+        // as they stand, plus diagnostic columns on the sync log.
+        // All new log columns are nullable, so no default is
+        // needed (a non-constant default in ADD COLUMN throws —
+        // see the v17→v18 lesson in AGENTS.md).
+        await m.createTable(syncDeadLetters);
+        await m.createIndex(idxSyncDeadLettersRow);
+        // `sync_log` is created by the v18 step above with the
+        // CURRENT definition — drift's createTable uses today's
+        // columns — so on a 17→19 upgrade these columns already
+        // exist and a plain addColumn would throw "duplicate
+        // column name". Add only the ones that are missing.
+        for (final entry in <(String, GeneratedColumn)>[
+          ('duration_ms', syncLog.durationMs),
+          ('phase', syncLog.phase),
+          ('skipped', syncLog.skipped),
+          ('first_failed_table', syncLog.firstFailedTable),
+          ('first_failed_sync_id', syncLog.firstFailedSyncId),
+        ]) {
+          final existing = await customSelect(
+            "SELECT COUNT(*) AS c FROM pragma_table_info('sync_log') "
+            "WHERE name = '${entry.$1}'",
+            readsFrom: {syncLog},
+          ).getSingle();
+          if (existing.read<int>('c') == 0) {
+            await m.addColumn(syncLog, entry.$2);
+          }
+        }
       }
     },
   );
@@ -1327,6 +1409,11 @@ class AppDatabase extends _$AppDatabase {
     required int failed,
     String? failureMode,
     String? error,
+    int? durationMs,
+    String? phase,
+    int? skipped,
+    String? firstFailedTable,
+    String? firstFailedSyncId,
   }) async {
     final trimmed = error == null
         ? null
@@ -1340,6 +1427,11 @@ class AppDatabase extends _$AppDatabase {
           failed: Value(failed),
           failureMode: Value(failureMode),
           error: Value(trimmed),
+          durationMs: Value(durationMs),
+          phase: Value(phase),
+          skipped: Value(skipped),
+          firstFailedTable: Value(firstFailedTable),
+          firstFailedSyncId: Value(firstFailedSyncId),
         ),
       );
       await customStatement(
@@ -1348,6 +1440,61 @@ class AppDatabase extends _$AppDatabase {
       );
     });
   }
+
+  /// Live list of parked sync entries, newest park first.
+  Stream<List<SyncDeadLetter>> watchDeadLetters() =>
+      (select(syncDeadLetters)
+            ..orderBy([(d) => OrderingTerm.desc(d.parkedAt)]))
+          .watch();
+
+  /// Parks an outbox entry that can never succeed as it stands
+  /// (schema v19, audit #18): a receipt photo whose local file
+  /// is gone. One entry per (table, sync id) — re-parking
+  /// refreshes the timestamp. The caller acks the outbox entry
+  /// itself, so the parked row stops failing every cycle.
+  Future<void> recordDeadLetter({
+    required String targetTable,
+    required String syncId,
+    required String reason,
+  }) async {
+    final existing =
+        await (select(syncDeadLetters)
+              ..where((d) => d.targetTable.equals(targetTable))
+              ..where((d) => d.syncId.equals(syncId)))
+            .getSingleOrNull();
+    final now = DateTime.now();
+    if (existing == null) {
+      await into(syncDeadLetters).insert(
+        SyncDeadLettersCompanion.insert(
+          targetTable: targetTable,
+          syncId: syncId,
+          reason: reason,
+          parkedAt: Value(now),
+        ),
+      );
+    } else {
+      await (update(
+        syncDeadLetters,
+      )..where((d) => d.id.equals(existing.id))).write(
+        SyncDeadLettersCompanion(
+          reason: Value(reason),
+          parkedAt: Value(now),
+        ),
+      );
+    }
+  }
+
+  /// Deletes one parked entry (user retried or deleted it).
+  /// Local bookkeeping only — no outbox entry.
+  Future<void> deleteDeadLetter(int id) =>
+      (delete(syncDeadLetters)..where((d) => d.id.equals(id))).go();
+
+  /// Drops parked entries for a row that is gone (its photo was
+  /// deleted) so a stale entry never lingers in Settings.
+  Future<void> deleteDeadLettersForSyncId(String syncId) =>
+      (delete(
+        syncDeadLetters,
+      )..where((d) => d.syncId.equals(syncId))).go();
 
   /// The newest sync-log rows, newest first, for the Settings
   /// "Recent syncs" list (P6).
@@ -2324,6 +2471,7 @@ class AppDatabase extends _$AppDatabase {
             transactionPhotos,
           )..where((p) => p.transactionId.equals(feeRow.id))).get()) {
             await _enqueueOutbox('transaction_photos', photo.syncId, 'delete');
+            await deleteDeadLettersForSyncId(photo.syncId);
           }
           await (delete(
             transactionPhotos,
@@ -2339,6 +2487,7 @@ class AppDatabase extends _$AppDatabase {
         transactionPhotos,
       )..where((p) => p.transactionId.equals(id))).get()) {
         await _enqueueOutbox('transaction_photos', photo.syncId, 'delete');
+        await deleteDeadLettersForSyncId(photo.syncId);
       }
       await (delete(
         transactionPhotos,
@@ -2565,6 +2714,7 @@ class AppDatabase extends _$AppDatabase {
         transactionPhotos,
       )..where((p) => p.id.equals(photoId))).go();
       await _enqueueOutbox('transaction_photos', row.syncId, 'delete');
+      await deleteDeadLettersForSyncId(row.syncId);
     });
     try {
       final docs = await getApplicationDocumentsDirectory();

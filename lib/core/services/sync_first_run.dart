@@ -175,6 +175,7 @@ class SyncFirstRunService {
           pulled: result.pulled,
           conflicts: pull.conflicts,
           failed: pull.failed,
+          phase: 'pull',
         );
       } catch (_) {
         // Best-effort: see above.
@@ -192,6 +193,7 @@ class SyncFirstRunService {
           failed: 1,
           failureMode: syncFailureModeKey(mode),
           error: e.toString(),
+          phase: 'pull',
         );
       } catch (_) {
         // Best-effort: see above.

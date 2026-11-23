@@ -1527,6 +1527,60 @@ abstract class AppLocalizations {
   /// **'{count} to review'**
   String syncConflictsToReview(Object count);
 
+  /// No description provided for @syncDeadLetterDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete photo'**
+  String get syncDeadLetterDelete;
+
+  /// No description provided for @syncDeadLetterDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo deleted'**
+  String get syncDeadLetterDeleted;
+
+  /// No description provided for @syncDeadLetterGone.
+  ///
+  /// In en, this message translates to:
+  /// **'That photo is gone — removed from the list'**
+  String get syncDeadLetterGone;
+
+  /// No description provided for @syncDeadLetterPhotoMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt photo — file missing'**
+  String get syncDeadLetterPhotoMissing;
+
+  /// No description provided for @syncDeadLetterRetried.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo queued for sync again'**
+  String get syncDeadLetterRetried;
+
+  /// No description provided for @syncDeadLetterRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get syncDeadLetterRetry;
+
+  /// No description provided for @syncDeadLetterStillMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The photo file is still missing on this device'**
+  String get syncDeadLetterStillMissing;
+
+  /// No description provided for @syncDeadLettersSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'A receipt photo\'s file is missing on this device, so it can\'t be uploaded. Re-attach the file and retry, or delete the photo.'**
+  String get syncDeadLettersSubtitle;
+
+  /// No description provided for @syncDeadLettersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos that couldn\'t sync'**
+  String get syncDeadLettersTitle;
+
   /// No description provided for @syncFailureAuthExpired.
   ///
   /// In en, this message translates to:
@@ -1538,6 +1592,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No connection — will retry'**
   String get syncFailureOffline;
+
+  /// No description provided for @syncFailurePartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Some changes couldn\'t sync — see Recent syncs'**
+  String get syncFailurePartial;
 
   /// No description provided for @syncFailureServerPaused.
   ///

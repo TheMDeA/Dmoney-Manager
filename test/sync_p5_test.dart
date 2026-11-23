@@ -627,7 +627,7 @@ void main() {
 class FakeP5Remote implements SyncRemote {
   final serverRows = <String, List<Map<String, dynamic>>>{};
   final upserts = <({String table, List<Map<String, dynamic>> rows})>[];
-  final tombstones = <({String table, List<String> syncIds})>[];
+  final tombstones = <({String table, List<String> syncIds, String ownerId})>[];
   final serverBySyncId = <String, Map<String, dynamic>>{};
   final objects = <String, Uint8List>{};
   final devices = <Map<String, dynamic>>[];
@@ -669,9 +669,10 @@ class FakeP5Remote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) async {
     calls.add('tombstone:$table');
-    tombstones.add((table: table, syncIds: syncIds));
+    tombstones.add((table: table, syncIds: syncIds, ownerId: ownerId));
   }
 
   @override
@@ -775,6 +776,7 @@ class _FailingRemote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) => throw Exception('down');
 
   @override

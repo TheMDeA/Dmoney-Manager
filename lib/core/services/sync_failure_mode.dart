@@ -32,6 +32,12 @@ enum SyncFailureMode {
 
   /// Something else failed; the raw message is kept in the log.
   unknown,
+
+  /// Some rows failed while the run itself completed — a per-row
+  /// (partial) failure with no fatal error (audit #15). The run
+  /// is not clean, but nothing aborted it; the log names the
+  /// first failing row and the status line points at it.
+  partial,
 }
 
 /// The storage key for a mode (its enum name).

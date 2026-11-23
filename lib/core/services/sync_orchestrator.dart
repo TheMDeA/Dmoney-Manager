@@ -8,6 +8,7 @@ import 'package:dmoney_manager/core/services/sync_prefs.dart';
 import 'package:dmoney_manager/core/services/sync_pull_service.dart';
 import 'package:dmoney_manager/core/services/sync_push_service.dart';
 import 'package:dmoney_manager/core/services/sync_remote.dart';
+import 'package:dmoney_manager/core/services/sync_row_failure.dart';
 import 'package:dmoney_manager/data/database/app_database.dart';
 
 /// One sync cycle's outcome: the push counts, the pull counts, the
@@ -41,6 +42,13 @@ class SyncCycleResult {
 
   /// The fatal error of either half, if any.
   Object? get error => push.error ?? pull.error;
+
+  /// The first row that failed in either half, when any did
+  /// (audit #15/#25) — push first, since it runs first.
+  SyncRowFailure? get firstFailure => push.firstFailure ?? pull.firstFailure;
+
+  /// Rows deliberately left queued by either half this run.
+  int get skipped => push.skipped + pull.skipped;
 
   /// Rows upserted or tombstoned on the server.
   int get pushed => push.pushed;
@@ -141,6 +149,7 @@ class SyncOrchestrator {
   }
 
   Future<SyncCycleResult> _runCycle() async {
+    final stopwatch = Stopwatch()..start();
     final ownerId = currentUserId;
     if (ownerId == null) return const SyncCycleResult.signedOut();
     // Push first: the pull's conflict gate trusts that anything
@@ -218,12 +227,27 @@ class SyncOrchestrator {
     // Named failure mode (§12) + raw message for the status UI,
     // and one log row for the run. All best-effort: logging must
     // never fail a cycle.
+    //
+    // A run with per-row failures but no fatal error is a
+    // PARTIAL failure (audit #15): it used to store no mode and
+    // clear the last error, so the snackbar rendered "Sync
+    // failed: " with nothing after the colon and the status card
+    // looked clean. The stored error names the first failing row
+    // (audit #25) when the services recorded one.
     final mode = result.error == null
-        ? null
+        ? (result.hasFailures ? SyncFailureMode.partial : null)
         : classifySyncError(result.error);
     final modeKey = mode == null ? null : syncFailureModeKey(mode);
+    final firstFailure = result.firstFailure;
+    final errorText = result.error?.toString() ??
+        (firstFailure != null
+            ? firstFailure.toString()
+            : (result.hasFailures
+                ? '${result.push.failed + result.pull.failed} '
+                    'rows failed to sync'
+                : null));
     try {
-      await AppPrefs.setSyncLastError(result.error?.toString());
+      await AppPrefs.setSyncLastError(errorText);
       await AppPrefs.setSyncFailureMode(modeKey);
       await db.recordSyncLog(
         pushed: result.pushed,
@@ -231,7 +255,12 @@ class SyncOrchestrator {
         conflicts: result.pull.conflicts,
         failed: result.push.failed + result.pull.failed,
         failureMode: modeKey,
-        error: result.error?.toString(),
+        error: errorText,
+        durationMs: stopwatch.elapsedMilliseconds,
+        phase: 'both',
+        skipped: result.skipped,
+        firstFailedTable: firstFailure?.table,
+        firstFailedSyncId: firstFailure?.syncId,
       );
     } catch (_) {
       // Best-effort: see above.

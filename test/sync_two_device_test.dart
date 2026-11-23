@@ -453,8 +453,9 @@ class SharedFakeServer extends p5.FakeP5Remote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) async {
-    await super.tombstone(table, syncIds, deletedAt);
+    await super.tombstone(table, syncIds, deletedAt, ownerId);
     final served = serverRows[table];
     if (served == null) return;
     final stamp = _nextStamp();

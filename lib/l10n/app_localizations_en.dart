@@ -895,10 +895,43 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get syncDeadLetterDelete => 'Delete photo';
+
+  @override
+  String get syncDeadLetterDeleted => 'Photo deleted';
+
+  @override
+  String get syncDeadLetterGone => 'That photo is gone — removed from the list';
+
+  @override
+  String get syncDeadLetterPhotoMissing => 'Receipt photo — file missing';
+
+  @override
+  String get syncDeadLetterRetried => 'Photo queued for sync again';
+
+  @override
+  String get syncDeadLetterRetry => 'Retry';
+
+  @override
+  String get syncDeadLetterStillMissing =>
+      'The photo file is still missing on this device';
+
+  @override
+  String get syncDeadLettersSubtitle =>
+      'A receipt photo\'s file is missing on this device, so it can\'t be uploaded. Re-attach the file and retry, or delete the photo.';
+
+  @override
+  String get syncDeadLettersTitle => 'Photos that couldn\'t sync';
+
+  @override
   String get syncFailureAuthExpired => 'Sign-in expired — sign in again';
 
   @override
   String get syncFailureOffline => 'No connection — will retry';
+
+  @override
+  String get syncFailurePartial =>
+      'Some changes couldn\'t sync — see Recent syncs';
 
   @override
   String get syncFailureServerPaused =>

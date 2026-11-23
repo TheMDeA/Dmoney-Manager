@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:dmoney_manager/core/services/app_prefs.dart';
+import 'package:dmoney_manager/core/services/sync_dead_letters_service.dart';
 import 'package:dmoney_manager/core/services/sync_photos.dart';
 import 'package:dmoney_manager/core/services/sync_pull_service.dart';
 import 'package:dmoney_manager/core/services/sync_push_service.dart';
@@ -293,7 +294,7 @@ void main() {
       expect(await outboxCount(), 0);
     });
 
-    test('missing local file leaves the entry queued and fails only that entry',
+    test('missing local file parks the entry as a dead letter instead of failing the run',
         () async {
       final remote = FakePhotoRemote();
       final gate = FakePhotoUploadGate(true);
@@ -303,19 +304,33 @@ void main() {
       final result = await pusher(remote, gate).pushNow();
 
       expect(result.pushed, 2); // wallet + expense still push
-      expect(result.failed, 1); // the photo entry, unsettled
+      expect(result.failed, 0); // parked, not failed
+      expect(result.hasFailures, isFalse);
+      expect(result.skippedMissingFiles, 1);
       expect(remote.uploadCalls, 0);
-      expect(await outboxCount(), 1);
-      expect((await outbox()).single.targetTable, 'transaction_photos');
+      expect(await outboxCount(), 0);
+      final letters = await db.select(db.syncDeadLetters).get();
+      expect(letters, hasLength(1));
+      expect(letters.single.targetTable, 'transaction_photos');
+      expect(letters.single.syncId, photo.photoSyncId);
+      expect(letters.single.reason, 'photo_file_missing');
       // The row itself is untouched — sync never drops a photo.
       expect(await db.select(db.transactionPhotos).get(), hasLength(1));
 
-      // The file reappears (e.g. after a backup restore) — the
-      // next push uploads it.
+      // The file reappearing does not auto-retry a parked entry —
+      // the dead letter is retried from Settings instead.
       await File(photo.storedPath).writeAsBytes([1, 2, 3]);
+      final plain = await pusher(remote, gate).pushNow();
+      expect(plain.pushed, 0);
+      expect(remote.uploadCalls, 0);
+      expect(
+        await SyncDeadLetterService(db).retryDeadLetter(letters.single),
+        SyncDeadLetterService.retryQueued,
+      );
       final retry = await pusher(remote, gate).pushNow();
       expect(retry.pushed, 1);
       expect(retry.failed, 0);
+      expect(remote.uploadCalls, 1);
       expect(await outboxCount(), 0);
     });
 
@@ -577,6 +592,7 @@ class FakePhotoRemote implements SyncRemote {
     String table,
     List<String> syncIds,
     DateTime deletedAt,
+    String ownerId,
   ) async {
     if (fatalNextCount > 0) {
       fatalNextCount--;
