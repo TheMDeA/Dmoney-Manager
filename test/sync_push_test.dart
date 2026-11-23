@@ -346,6 +346,29 @@ void main() {
       expect(remote.upserts, isEmpty);
       expect(await outboxCount(), 0);
     });
+
+    test('pushed then deleted row whose server copy is gone sends no '
+        'tombstone', () async {
+      final remote = FakeSyncRemote();
+      final wallet = await makeWallet('Cash', 'cash');
+      final syncId = await walletSyncId(wallet);
+      await pusher(remote).pushNow();
+      expect((await pushedHashes()).length, 1);
+      // The server copy is gone (dashboard TRUNCATE, Reset sync
+      // data) while the pushed hash still says "sent": a tombstone
+      // upsert would INSERT and fail on every NOT NULL column
+      // (wallet_id, ...) — 23502, retried forever.
+      remote.serverRows.remove(syncId);
+
+      expect(await db.deleteWallet(wallet), isTrue);
+      final result = await pusher(remote).pushNow();
+
+      expect(result.droppedNeverPushed, 1);
+      expect(result.pushed, 0);
+      expect(result.failed, 0);
+      expect(remote.tombstones, isEmpty);
+      expect(await outboxCount(), 0);
+    });
   });
 
   group('per-account toggle (idea #3)', () {

@@ -54,8 +54,11 @@ class SyncPushResult {
   /// Entries whose row is gone with no delete entry to follow — acked.
   final int skippedStale;
 
-  /// Delete entries for rows the server never saw (created and
-  /// deleted before their first push) — dropped, no tombstone sent.
+  /// Delete entries for rows the server has no copy of — created and
+  /// deleted before their first push, or pushed once but the server
+  /// copy is gone (dashboard TRUNCATE, Reset sync data). Dropped, no
+  /// tombstone sent: a tombstone upsert for a server-missing row
+  /// INSERTs and fails on every other NOT NULL column.
   final int droppedNeverPushed;
 
   /// `transaction_photos` rows whose local file is gone — parked
@@ -254,7 +257,42 @@ class SyncPushService {
             c.droppedNeverPushed++;
             c.settled++;
           } else {
-            tombstones.add(entry);
+            // The row was pushed once, but the server may no longer
+            // have it (dashboard TRUNCATE, Reset sync data). A
+            // tombstone upsert carries only sync_id/deleted_at/
+            // owner_id; for a server-missing row Postgres INSERTs
+            // and fails on every other NOT NULL column
+            // (wallet_id, ...) — 23502, retried forever. If the
+            // server has no row there is nothing to mark deleted,
+            // so the entry is dropped like a never-pushed row. The
+            // other device cannot hold a copy either: it could
+            // only have gotten the row from the server. (3.0.2
+            // fixed only the owner_id half of this.)
+            bool serverMissing;
+            try {
+              serverMissing =
+                  await remote.fetchRow(entry.targetTable, entry.syncId) ==
+                      null;
+            } on SyncFatalException catch (e) {
+              // Auth/transport failure during the check: abort the
+              // run (the group pushes below are skipped too) — the
+              // entry stays queued, never dropped on an uncertain
+              // read.
+              fatalError = e;
+              break;
+            } catch (_) {
+              // The check itself failed: fall through to the
+              // normal tombstone path, which records the failure
+              // per row.
+              serverMissing = false;
+            }
+            if (serverMissing) {
+              await _ack([entry.id]);
+              c.droppedNeverPushed++;
+              c.settled++;
+            } else {
+              tombstones.add(entry);
+            }
           }
           continue;
         }

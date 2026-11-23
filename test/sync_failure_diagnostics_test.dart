@@ -311,6 +311,10 @@ class _DiagFakeRemote implements SyncRemote {
   final upserts = <({String table, List<Map<String, dynamic>> rows})>[];
   final tombstones =
       <({String table, List<String> syncIds, String ownerId})>[];
+  // Server rows (sync id → last upserted payload), so fetchRow
+  // answers like the real server: a row the push sent is present,
+  // anything else is missing.
+  final serverRows = <String, Map<String, dynamic>>{};
   int uploadCalls = 0;
   bool failUpserts = false;
 
@@ -321,6 +325,9 @@ class _DiagFakeRemote implements SyncRemote {
   ) async {
     if (failUpserts) throw Exception('upsert failed');
     upserts.add((table: table, rows: rows));
+    for (final row in rows) {
+      serverRows[row['sync_id'] as String] = row;
+    }
   }
 
   @override
@@ -356,7 +363,7 @@ class _DiagFakeRemote implements SyncRemote {
   Future<Map<String, dynamic>?> fetchRow(
     String table,
     String syncId,
-  ) async => null;
+  ) async => serverRows[syncId];
 
   @override
   Future<int> countRows(String table) async => 0;
