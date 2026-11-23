@@ -89,6 +89,79 @@ abstract class SyncRemote {
 
   /// Upserts the owner's `sync_prefs` row, keyed by `owner_id`.
   Future<void> upsertPrefs(Map<String, dynamic> row);
+
+  /// Deletes ALL of the signed-in owner's server data — every row
+  /// in the 16 sync tables, plus the receipt photos in Storage
+  /// whose keys are passed in — for the Settings "Reset sync data"
+  /// action. The deletes are owner-scoped by RLS
+  /// (`auth.uid() = owner_id`), so another account's data is never
+  /// touched. A table delete only ever removes rows the caller
+  /// owns; the photo removal is best-effort (a missing object is
+  /// a no-op, a Storage failure is counted, not thrown). Throws
+  /// [SyncFatalException] for auth/transport failures — a wipe
+  /// that fails halfway leaves a partial server, and the caller
+  /// must re-enqueue the local book before reporting it.
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys);
+}
+
+/// The outcome of [SyncRemote.wipeServerData]: how many rows were
+/// deleted per table, and how many receipt photos were removed
+/// from Storage (out of how many were attempted).
+class ServerWipeResult {
+  const ServerWipeResult({
+    required this.deletedRows,
+    required this.photosRemoved,
+    required this.photosAttempted,
+  });
+
+  /// Deleted rows per server table.
+  final Map<String, int> deletedRows;
+
+  /// Receipt photos removed from Storage.
+  final int photosRemoved;
+
+  /// Receipt photos the wipe tried to remove.
+  final int photosAttempted;
+
+  /// Rows deleted across all tables.
+  int get totalRows => deletedRows.values.fold(0, (a, b) => a + b);
+}
+
+/// One step of the server wipe (see
+/// [SupabaseSyncRemote.wipeOperations]): either an UPDATE that
+/// clears a self-referencing column before its table is deleted,
+/// or a DELETE of every row the caller owns.
+sealed class ServerWipeOperation {
+  const ServerWipeOperation();
+}
+
+/// Sets [column] to NULL on every row of [table] the caller owns.
+/// The transfer pair references each other
+/// (`A.transfer_id = B`, `B.transfer_id = A`), so the link must
+/// be cleared before the table's DELETE — otherwise the single
+/// DELETE trips its own foreign key.
+class WipeClearColumn extends ServerWipeOperation {
+  const WipeClearColumn(this.table, this.column);
+
+  final String table;
+  final String column;
+}
+
+/// Deletes every row of [table] the caller owns — rows whose
+/// [filterColumn] is not empty (every synced row carries a
+/// non-empty `sync_id`; `devices` is keyed by `device_id`,
+/// `sync_prefs` by `owner_id`).
+class WipeDeleteTable extends ServerWipeOperation {
+  const WipeDeleteTable(this.table, this.filterColumn, {this.childrenFirst = false});
+
+  final String table;
+  final String filterColumn;
+
+  /// Delete rows with a parent first, then the rest — for
+  /// self-referencing tables (`categories.parent_id`): a single
+  /// DELETE can trip the foreign key when a parent row is removed
+  /// while its child still exists.
+  final bool childrenFirst;
 }
 
 /// Thrown (or wrapped) by the remote for errors that must abort the
@@ -270,6 +343,89 @@ class SupabaseSyncRemote implements SyncRemote {
   Future<void> upsertPrefs(Map<String, dynamic> row) {
     return _guard<void>(
       () => _client.from('sync_prefs').upsert(row, onConflict: 'owner_id'),
+    );
+  }
+
+  /// The server wipe, as a pure plan (no network): the operations
+  /// in the order they must run. Child-first, so no DELETE ever
+  /// trips a foreign key — `transaction_photos` before
+  /// `transactions`, `transactions` before every table it
+  /// references, `categories` after every table that references a
+  /// category, `wallets` before `accounts`. The transfer link is
+  /// cleared before the `transactions` DELETE (see
+  /// [WipeClearColumn]), and `categories` deletes its children
+  /// first (see [WipeDeleteTable.childrenFirst]).
+  static List<ServerWipeOperation> wipeOperations() => const [
+    WipeClearColumn('transactions', 'transfer_id'),
+    WipeDeleteTable('transaction_photos', 'sync_id'),
+    WipeDeleteTable('transactions', 'sync_id'),
+    WipeDeleteTable('category_keywords', 'sync_id'),
+    WipeDeleteTable('transaction_templates', 'sync_id'),
+    WipeDeleteTable('budgets', 'sync_id'),
+    WipeDeleteTable('recurring_transactions', 'sync_id'),
+    WipeDeleteTable('goal_deposits', 'sync_id'),
+    WipeDeleteTable('debt_payments', 'sync_id'),
+    WipeDeleteTable('debts', 'sync_id'),
+    WipeDeleteTable('installment_plans', 'sync_id'),
+    WipeDeleteTable('categories', 'sync_id', childrenFirst: true),
+    WipeDeleteTable('goals', 'sync_id'),
+    WipeDeleteTable('wallets', 'sync_id'),
+    WipeDeleteTable('accounts', 'sync_id'),
+    WipeDeleteTable('devices', 'device_id'),
+    WipeDeleteTable('sync_prefs', 'owner_id'),
+  ];
+
+  @override
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys) async {
+    final deleted = <String, int>{};
+    for (final op in wipeOperations()) {
+      switch (op) {
+        case WipeClearColumn(:final table, :final column):
+          await _guard<void>(
+            () => _client
+                .from(table)
+                .update({column: null})
+                .neq('sync_id', ''),
+          );
+        case WipeDeleteTable(
+          :final table,
+          :final filterColumn,
+          :final childrenFirst,
+        ):
+          var count = 0;
+          if (childrenFirst) {
+            final children = await _guard(
+              () =>
+                  _client.from(table).delete().not('parent_id', 'is', null),
+            );
+            count += (children as List).length;
+          }
+          final rows = await _guard(
+            () => _client.from(table).delete().neq(filterColumn, ''),
+          );
+          count += (rows as List).length;
+          deleted[table] = count;
+      }
+    }
+    // Receipt photos: best-effort — a missing object is a no-op
+    // and a Storage failure must not fail the wipe (the rows are
+    // already gone; an orphaned object is invisible to the app).
+    // The count is reported honestly: 0 removed with keys present
+    // means the Storage policy is still blocking the client
+    // (audit #1 — the `receipts/` key prefix).
+    var photosRemoved = 0;
+    for (final key in photoKeys) {
+      try {
+        await deletePhotoObject(key);
+        photosRemoved++;
+      } catch (_) {
+        // Best-effort: see above.
+      }
+    }
+    return ServerWipeResult(
+      deletedRows: deleted,
+      photosRemoved: photosRemoved,
+      photosAttempted: photoKeys.length,
     );
   }
 

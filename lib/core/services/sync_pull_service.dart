@@ -65,8 +65,9 @@ class SyncPullResult {
 
   /// The error that aborted the run, if any (fetch or local
   /// database failure). Pages applied before the abort stay
-  /// applied; the cursor does not advance, so the rest is
-  /// re-fetched on the next run.
+  /// applied, and each table's cursor already holds their
+  /// progress (schema v20), so the next run resumes per table
+  /// instead of re-fetching the whole library.
   final Object? error;
 
   /// The first row that failed to apply this run, when any did —
@@ -145,6 +146,19 @@ class _PullCounters {
 /// idempotent upsert by sync id, and the conflict check only
 /// fires when content actually differs.
 ///
+/// Per-table cursors (schema v20): the cursor used to be one
+/// global timestamp that only advanced on a fully clean pull, so
+/// a pull that timed out part-way through a big library
+/// re-fetched everything next run — and on a slow connection it
+/// could never finish. Each table now keeps its own cursor,
+/// advanced after every page, so a timed-out pull resumes where
+/// it left off. A per-table cursor may move BACKWARD when a
+/// later page reveals a skipped row older than the rows already
+/// applied — that is safe (it only re-fetches that table's own
+/// rows) and required, or the skipped row would never be re-seen.
+/// The global cursor is still written on a fully clean pull as
+/// the fallback for tables that have never pulled a page.
+///
 /// No triggers, no status UI, no device heartbeat — those are P5.
 class SyncPullService {
   SyncPullService({
@@ -188,12 +202,20 @@ class SyncPullService {
 
   /// One pull run over every table. Never throws for remote or
   /// row errors — they are reported in the result.
-  Future<SyncPullResult> pullNow() async {
+  ///
+  /// [shouldStop] lets a caller stop the run between pages — the
+  /// launch pull in main.dart sets it when its 30 s timeout
+  /// fires, so the detached pull stops after its current page
+  /// instead of racing the trigger cycle's own pull. A stopped
+  /// run is not a failure: the per-table cursors already hold
+  /// the applied pages' progress, and the next cycle resumes
+  /// from them.
+  Future<SyncPullResult> pullNow({bool Function()? shouldStop}) async {
     if (ownerId == null) {
       return const SyncPullResult(notSignedIn: true);
     }
     final state = await db.select(db.syncState).getSingle();
-    final startCursor = state.lastPullCursor;
+    final globalStartCursor = state.lastPullCursor;
     final maps = await PullReferenceMaps.load(db);
     final serialiserMaps = await SyncReferenceMaps.load(db);
     final serialiser = SyncSerialiser(
@@ -202,16 +224,37 @@ class SyncPullService {
       ownerId: ownerId!,
     );
     final applier = SyncRowApplier(db);
-    final c = _PullCounters();
+    // Run-level counters for the result (and the global cursor
+    // on a clean run); each table keeps its own counters for its
+    // per-table cursor.
+    final totals = _PullCounters();
+    var c = _PullCounters();
+    var currentMerged = true;
     Object? fatalError;
+    var stopped = false;
 
     try {
       for (final table in _pullTables) {
+        if (stopped) break;
+        // A table without its own cursor falls back to the
+        // global one — the v20 upgrade path, and tables the
+        // server has never returned a row for. The global
+        // cursor is a valid lower bound for every table: it
+        // only ever advanced on a fully clean pull.
+        final tableStartCursor =
+            await db.pullCursorFor(table) ?? globalStartCursor;
+        c = _PullCounters();
+        currentMerged = false;
+        var tableCursor = tableStartCursor;
         var offset = 0;
         while (true) {
+          if (shouldStop?.call() == true) {
+            stopped = true;
+            break;
+          }
           final page = await remote.pull(
             table,
-            startCursor,
+            tableStartCursor,
             offset,
             pageSize,
           );
@@ -240,24 +283,47 @@ class SyncPullService {
           for (final key in photoObjectsToDelete) {
             await _deletePhotoObjectBestEffort(key);
           }
+          // Advance this table's cursor now, not at the end of
+          // the run — a pull that aborts on a later page (or a
+          // later table) keeps this page's progress. The value
+          // may move backward to respect a skipped row revealed
+          // by this page; that only re-fetches this table's own
+          // rows, so it is safe. Best-effort: a failed write
+          // must not fail the pull — the next page (or the next
+          // run) recomputes and retries it.
+          final computed = _computeNewCursor(tableStartCursor, c);
+          if (computed != tableCursor) {
+            try {
+              await db.setPullCursor(table, computed);
+              tableCursor = computed;
+            } catch (_) {
+              // Best-effort: see above.
+            }
+          }
           if (page.length < pageSize) break;
           offset += page.length;
         }
+        _mergeInto(totals, c);
+        currentMerged = true;
       }
     } catch (e) {
       // A failed fetch or a failed page aborts the run. Pages
-      // already applied stay applied (the apply is idempotent);
-      // the cursor does not advance, so the rest is re-fetched
-      // on the next run.
+      // already applied stay applied (the apply is idempotent)
+      // and their per-table cursors already hold the progress,
+      // so the next run resumes per table. Merge the current
+      // table's counters first so the result counts the pages
+      // already applied.
+      if (!currentMerged) _mergeInto(totals, c);
       fatalError = e;
     }
 
-    if (c.applied + c.tombstoned > 0) {
+    if (totals.applied + totals.tombstoned > 0) {
       // Derived state is recomputed from the pulled ledger even
       // after a partial run — the applied subset must land on
       // consistent balances. A failure here is reported, not
-      // thrown: the applied rows stay applied and the cursor
-      // does not advance, so the next run re-fetches them.
+      // thrown: the applied rows stay applied and the per-table
+      // cursors hold their progress, so the next run resumes
+      // from them.
       try {
         await db.reconcileDerivedState();
       } catch (e) {
@@ -265,8 +331,14 @@ class SyncPullService {
       }
     }
 
-    if (fatalError == null) {
-      final newCursor = _computeNewCursor(startCursor, c);
+    // The global cursor (and last-synced stamp) only move on a
+    // run that finished every table cleanly — a stopped or
+    // aborted run may have unprocessed tables holding rows older
+    // than the computed value, so advancing it here would skip
+    // them forever. Per-table cursors already hold the partial
+    // progress.
+    if (fatalError == null && !stopped) {
+      final newCursor = _computeNewCursor(globalStartCursor, totals);
       await (db.update(
         db.syncState,
       )..where((s) => s.id.equals(1))).write(
@@ -278,24 +350,51 @@ class SyncPullService {
     }
 
     return SyncPullResult(
-      pulled: c.pulled,
-      applied: c.applied,
-      tombstoned: c.tombstoned,
-      conflicts: c.conflicts,
-      skippedAccountOff: c.skippedAccountOff,
-      skippedPendingOutbox: c.skippedPendingOutbox,
-      skippedUnresolved: c.skippedUnresolved,
-      overwrittenWithoutRecord: c.overwrittenWithoutRecord,
-      failed: c.failed,
+      pulled: totals.pulled,
+      applied: totals.applied,
+      tombstoned: totals.tombstoned,
+      conflicts: totals.conflicts,
+      skippedAccountOff: totals.skippedAccountOff,
+      skippedPendingOutbox: totals.skippedPendingOutbox,
+      skippedUnresolved: totals.skippedUnresolved,
+      overwrittenWithoutRecord: totals.overwrittenWithoutRecord,
+      failed: totals.failed,
       error: fatalError,
-      firstFailure: c.firstFailure,
+      firstFailure: totals.firstFailure,
     );
   }
 
-  /// Resets the pull cursor to the beginning (P5 first-run flow:
+  /// Folds one table's counters into the run totals.
+  void _mergeInto(_PullCounters totals, _PullCounters c) {
+    totals.pulled += c.pulled;
+    totals.applied += c.applied;
+    totals.tombstoned += c.tombstoned;
+    totals.conflicts += c.conflicts;
+    totals.skippedAccountOff += c.skippedAccountOff;
+    totals.skippedPendingOutbox += c.skippedPendingOutbox;
+    totals.skippedUnresolved += c.skippedUnresolved;
+    totals.overwrittenWithoutRecord += c.overwrittenWithoutRecord;
+    totals.failed += c.failed;
+    totals.firstFailure ??= c.firstFailure;
+    totals.appliedTimestamps.addAll(c.appliedTimestamps);
+    if (c.appliedMax != null &&
+        (totals.appliedMax == null ||
+            c.appliedMax!.compareTo(totals.appliedMax!) > 0)) {
+      totals.appliedMax = c.appliedMax;
+    }
+    if (c.skippedMin != null &&
+        (totals.skippedMin == null ||
+            c.skippedMin!.compareTo(totals.skippedMin!) < 0)) {
+      totals.skippedMin = c.skippedMin;
+    }
+  }
+
+  /// Resets the pull cursors to the beginning (P5 first-run flow:
   /// after wiping the local tables, the next pull fetches
-  /// everything from the server).
+  /// everything from the server). Clears the per-table cursors
+  /// as well as the global one.
   Future<void> resetPullCursor() async {
+    await db.clearPullCursors();
     await (db.update(
       db.syncState,
     )..where((s) => s.id.equals(1))).write(

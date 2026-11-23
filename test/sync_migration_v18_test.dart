@@ -154,6 +154,9 @@ void main() {
       // v19 addition — it must go too, or the v19 migration's
       // createIndex for it fails as a duplicate on reopen.
       'sync_dead_letters',
+      // v20 addition — same reason: the v20 migration's
+      // createTable for it fails as a duplicate on reopen.
+      'sync_pull_cursors',
     ]) {
       await seedDb.customStatement('DROP TABLE IF EXISTS $table');
     }

@@ -1023,6 +1023,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get syncPreviewTitle => 'Your data on the server';
 
   @override
+  String get syncResetConfirmBody =>
+      'This deletes everything on the server for this account, then re-uploads the data on this device. Your other devices must replace their data from the server afterwards — and only after this device finishes uploading.';
+
+  @override
+  String get syncResetConfirmTitle => 'Reset sync data?';
+
+  @override
+  String syncResetDone(Object queued) {
+    return 'Server cleared — $queued rows re-uploading in the background. Wait until the pending count hits zero before resetting your other device.';
+  }
+
+  @override
+  String syncResetFailed(Object error) {
+    return 'Couldn\'t reset sync: $error';
+  }
+
+  @override
+  String get syncResetPhotosLeft =>
+      'Some receipt photos could not be cleared from the server — they stay stored but unlinked.';
+
+  @override
+  String get syncResetRunning => 'Resetting sync…';
+
+  @override
   String get syncSettingsAccountsSubtitle =>
       'Choose which accounts sync to your other devices. Rows of an unselected account stay on this device until you turn it back on.';
 
@@ -1084,6 +1108,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncSettingsReplaceTitle => 'Replace this device\'s data';
+
+  @override
+  String get syncSettingsResetSubtitle =>
+      'Clear the server copy and re-upload this device\'s data. A local backup is made first.';
+
+  @override
+  String get syncSettingsResetTitle => 'Reset sync data';
 
   @override
   String get syncSettingsSignIn => 'Sign in with Google';

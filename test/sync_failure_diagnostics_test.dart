@@ -372,4 +372,8 @@ class _DiagFakeRemote implements SyncRemote {
 
   @override
   Future<void> upsertPrefs(Map<String, dynamic> row) async {}
+
+  @override
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys) async =>
+      const ServerWipeResult(deletedRows: {}, photosRemoved: 0, photosAttempted: 0);
 }

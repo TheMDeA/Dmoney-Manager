@@ -634,6 +634,25 @@ class SyncState extends Table {
   DateTimeColumn get lastSyncAt => dateTime().nullable()();
 }
 
+/// One pull cursor per table (schema v20): where the last pull
+/// stopped for that table alone. The old single global cursor
+/// only advanced on a fully clean pull, so a pull that timed out
+/// part-way through a big library re-fetched everything next run
+/// — and on a slow connection it could never finish. A per-table
+/// cursor advances after every page, so a timed-out pull resumes
+/// where it left off. A table without a row here falls back to
+/// the global cursor (the v20 upgrade path, and tables the server
+/// has never returned a row for). `targetTable` — not `tableName`,
+/// which collides with Drift's `Table.tableName` (same trap as
+/// the outbox, P2).
+class SyncPullCursors extends Table {
+  TextColumn get targetTable => text()();
+  TextColumn get cursor => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {targetTable};
+}
+
 /// Last payload pushed to Supabase per sync id (schema v18, P2).
 /// The push compares a row's current payload hash against this
 /// record and skips the server call when nothing changed — the
@@ -833,6 +852,7 @@ typedef DerivedReconcileResult = ({
     SyncConflicts,
     SyncLog,
     SyncDeadLetters,
+    SyncPullCursors,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -842,7 +862,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -1078,6 +1098,15 @@ class AppDatabase extends _$AppDatabase {
           }
         }
       }
+      if (from < 20) {
+        // Per-table pull cursors (sync stall fix): a pull that
+        // aborts part-way resumes per table instead of re-fetching
+        // the whole library. A plain createTable is safe here —
+        // the table is new, so no earlier step could have created
+        // it at the current definition (the v19 `sync_log` trap
+        // does not apply).
+        await m.createTable(syncPullCursors);
+      }
     },
   );
 
@@ -1221,6 +1250,10 @@ class AppDatabase extends _$AppDatabase {
       variables: const [],
       updates: {syncState},
     );
+    // The per-table pull cursors (v20) reset too — otherwise the
+    // next pull would resume from a cursor that points past the
+    // restored rows and skip server rows newer than the backup.
+    await customStatement('DELETE FROM sync_pull_cursors');
   }
 
   /// Watches the sync_state row (P5 status UI): last pull cursor +
@@ -1267,6 +1300,10 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('DELETE FROM sync_outbox');
       await customStatement('DELETE FROM sync_pushed');
       await customStatement('DELETE FROM sync_conflicts');
+      // The per-table pull cursors (v20) go too — the migration
+      // pulls from the beginning, and a stale per-table cursor
+      // would skip server rows the wipe just made "new" again.
+      await customStatement('DELETE FROM sync_pull_cursors');
       await customUpdate(
         'UPDATE sync_state SET last_pull_cursor = NULL, '
         'last_sync_at = NULL WHERE id = 1',
@@ -1440,6 +1477,44 @@ class AppDatabase extends _$AppDatabase {
       );
     });
   }
+
+  /// The per-table pull cursor for [targetTable] (schema v20),
+  /// or null when the table has never pulled a page.
+  Future<String?> pullCursorFor(String targetTable) async {
+    final row =
+        await (select(
+          syncPullCursors,
+        )..where((c) => c.targetTable.equals(targetTable))).getSingleOrNull();
+    return row?.cursor;
+  }
+
+  /// Stores the per-table pull cursor (upsert by table). A null
+  /// cursor clears the row's value; the caller decides the value
+  /// — see [SyncPullService] for the skip rule.
+  Future<void> setPullCursor(String targetTable, String? cursor) async {
+    final existing =
+        await (select(
+          syncPullCursors,
+        )..where((c) => c.targetTable.equals(targetTable))).getSingleOrNull();
+    if (existing == null) {
+      await into(syncPullCursors).insert(
+        SyncPullCursorsCompanion.insert(
+          targetTable: targetTable,
+          cursor: Value(cursor),
+        ),
+      );
+    } else {
+      await (update(
+        syncPullCursors,
+      )..where((c) => c.targetTable.equals(targetTable))).write(
+        SyncPullCursorsCompanion(cursor: Value(cursor)),
+      );
+    }
+  }
+
+  /// Drops every per-table pull cursor (first-run wipe: the next
+  /// pull fetches everything from the server again).
+  Future<void> clearPullCursors() => delete(syncPullCursors).go();
 
   /// Live list of parked sync entries, newest park first.
   Stream<List<SyncDeadLetter>> watchDeadLetters() =>

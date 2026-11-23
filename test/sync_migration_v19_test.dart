@@ -143,11 +143,13 @@ void main() {
     expect(latest.phase, 'both');
     expect(latest.firstFailedSyncId, 'abc');
 
-    // The migration leaves the database at v19.
+    // The migration leaves the database at the current schema
+    // version — reopening a v18 file runs every migration step
+    // up to it (v20 today), not just the v19 step.
     final version = (await db.customSelect(
       'PRAGMA user_version',
     ).getSingle()).read<int>('user_version');
-    expect(version, 19);
+    expect(version, 20);
     await db.close();
   });
 }

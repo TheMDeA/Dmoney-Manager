@@ -8,6 +8,7 @@ import '../../core/services/sync_dead_letters_service.dart';
 import '../../core/services/sync_devices.dart';
 import '../../core/services/sync_failure_mode.dart';
 import '../../core/services/sync_first_run.dart';
+import '../../core/services/sync_reset_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/database/app_database.dart';
@@ -34,6 +35,7 @@ class SyncSettingsScreen extends ConsumerStatefulWidget {
 class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
   bool _syncing = false;
   bool _migrating = false;
+  bool _resetting = false;
   String? _lastError;
   SyncFailureMode? _lastFailureMode;
   List<SyncDeviceRow>? _devices;
@@ -48,6 +50,11 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
   }
 
   SyncFirstRunService get _firstRun => SyncFirstRunService(
+    db: ref.read(databaseProvider),
+    orchestrator: ref.read(syncOrchestratorProvider),
+  );
+
+  SyncResetService get _resetService => SyncResetService(
     db: ref.read(databaseProvider),
     orchestrator: ref.read(syncOrchestratorProvider),
   );
@@ -360,6 +367,82 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
     _showMigrationDialog(preview, firstRun: false);
   }
 
+  /// "Reset sync data": confirm, then the service backs up
+  /// locally, wipes the server, re-enqueues this device's book
+  /// and pushes the first chunk. A large book keeps uploading in
+  /// background cycles — the result says so, and warns that the
+  /// other device must wait for the pending count to hit zero
+  /// before it replaces its data.
+  Future<void> _showResetFlow() async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.syncResetConfirmTitle),
+        content: Text(l10n.syncResetConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              l10n.syncSettingsResetTitle,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _resetting = true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            Expanded(child: Text(l10n.syncResetRunning)),
+          ],
+        ),
+      ),
+    );
+    SyncResetResult? result;
+    Object? error;
+    try {
+      result = await _resetService.runReset();
+    } catch (e) {
+      error = e;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // the progress dialog
+    setState(() => _resetting = false);
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.syncResetFailed(error?.toString() ?? '')),
+        ),
+      );
+      return;
+    }
+    _loadDevices();
+    if (!mounted) return;
+    var message = l10n.syncResetDone(result.queued);
+    if (result.wipe.photosAttempted > result.wipe.photosRemoved) {
+      message += '\n${l10n.syncResetPhotosLeft}';
+    }
+    if (result.cycleError != null) {
+      message +=
+          '\n${l10n.syncSettingsSyncFailed(result.cycleError.toString())}';
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -635,6 +718,31 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
                     )
                   : const Icon(Icons.chevron_right),
               onTap: _migrating ? null : _showReplaceFlow,
+            ),
+            _sectionHeader(l10n.syncSettingsResetTitle),
+            ListTile(
+              leading: Icon(
+                Icons.delete_forever_outlined,
+                color: Theme.of(context).colorScheme.error,
+              ),
+              title: Text(
+                l10n.syncSettingsResetTitle,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              subtitle: Text(
+                l10n.syncSettingsResetSubtitle,
+                style: TextStyle(color: context.textMuted, fontSize: 12),
+              ),
+              trailing: _resetting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.chevron_right),
+              onTap: (_resetting || _migrating || !signedIn)
+                  ? null
+                  : _showResetFlow,
             ),
           ],
         ],

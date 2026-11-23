@@ -616,7 +616,70 @@ void main() {
       triggers.stop();
       await connectivity.close();
     });
+
+    test('a cycle that fails with a timeout retries with backoff',
+        () async {
+      final connectivity = StreamController<List<ConnectivityResult>>.broadcast();
+      // The launch cycle's first pull call times out; the push
+      // before it succeeds, so the outbox is empty and nothing
+      // else schedules a follow-up — only the retry does.
+      remote.failPulls = 1;
+      final triggers = SyncTriggerService(
+        db: db,
+        orchestrator: orchestrator,
+        debounce: const Duration(milliseconds: 50),
+        retryBaseDelay: const Duration(milliseconds: 100),
+        connectivityStream: connectivity.stream,
+      );
+      triggers.start();
+      await waitForPullCalls(1);
+      // The cycle stores the failure mode when it ends — poll
+      // for it instead of assuming the cycle finished with the
+      // call count.
+      await waitForFailureMode('offline');
+      // The retry fires after the backoff and pulls clean.
+      await waitForPullCalls(15);
+      expect(remote.pullCalls, 15);
+      expect(AppPrefs.syncFailureMode, isNull);
+
+      triggers.stop();
+      await connectivity.close();
+    });
+
+    test('a cycle that fails with auth does not retry', () async {
+      final connectivity = StreamController<List<ConnectivityResult>>.broadcast();
+      remote.failPulls = 1;
+      remote.failPullError = SyncFatalException('401 Unauthorized');
+      final triggers = SyncTriggerService(
+        db: db,
+        orchestrator: orchestrator,
+        debounce: const Duration(milliseconds: 50),
+        retryBaseDelay: const Duration(milliseconds: 100),
+        connectivityStream: connectivity.stream,
+      );
+      triggers.start();
+      await waitForPullCalls(1);
+      await waitForFailureMode('authExpired');
+      // No retry: no further pull calls after the backoff window.
+      await Future.delayed(const Duration(milliseconds: 500));
+      expect(remote.pullCalls, 1);
+
+      triggers.stop();
+      await connectivity.close();
+    });
   });
+}
+
+/// Waits until the stored sync failure mode is [mode], or fails.
+/// The trigger tests poll instead of sleeping a fixed time so a
+/// slow machine can't flake them.
+Future<void> waitForFailureMode(String mode) async {
+  for (var i = 0; i < 100; i++) {
+    if (AppPrefs.syncFailureMode == mode) return;
+    await Future.delayed(const Duration(milliseconds: 20));
+  }
+  fail('failure mode did not become $mode '
+      '(got ${AppPrefs.syncFailureMode})');
 }
 
 /// Fake [SyncRemote] for P5: serves canned server rows with
@@ -632,6 +695,13 @@ class FakeP5Remote implements SyncRemote {
   final objects = <String, Uint8List>{};
   final devices = <Map<String, dynamic>>[];
   Map<String, dynamic>? prefsRow;
+
+  /// Pull calls to fail before succeeding (transient timeout by
+  /// default — the trigger retry's happy path). [failPullError]
+  /// overrides the thrown error (e.g. an auth failure, which
+  /// must NOT retry).
+  int failPulls = 0;
+  Object? failPullError;
 
   /// Every remote call in order ('upsert:table' / 'pull:table'),
   /// for the push-before-pull assertion.
@@ -684,6 +754,14 @@ class FakeP5Remote implements SyncRemote {
   ) async {
     calls.add('pull:$table');
     pullCalls++;
+    if (failPulls > 0) {
+      failPulls--;
+      throw failPullError ??
+          SyncFatalException(
+            'pull timed out',
+            TimeoutException('pull timed out'),
+          );
+    }
     var rows = <Map<String, dynamic>>[...(serverRows[table] ?? [])];
     if (updatedAfter != null) {
       rows = rows
@@ -763,6 +841,10 @@ class FakeP5Remote implements SyncRemote {
   Future<void> upsertPrefs(Map<String, dynamic> row) async {
     prefsRow = {...row, 'server_updated_at': _tick()};
   }
+
+  @override
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys) async =>
+      const ServerWipeResult(deletedRows: {}, photosRemoved: 0, photosAttempted: 0);
 }
 
 /// A remote that fails every prefs call, for the best-effort test.
@@ -817,5 +899,9 @@ class _FailingRemote implements SyncRemote {
 
   @override
   Future<void> upsertPrefs(Map<String, dynamic> row) =>
+      throw Exception('down');
+
+  @override
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys) =>
       throw Exception('down');
 }

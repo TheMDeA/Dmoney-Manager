@@ -1024,6 +1024,30 @@ class AppLocalizationsId extends AppLocalizations {
   String get syncPreviewTitle => 'Data Anda di server';
 
   @override
+  String get syncResetConfirmBody =>
+      'Ini menghapus semua data di server untuk akun ini, lalu mengunggah ulang data di perangkat ini. Perangkat lain harus mengganti datanya dari server setelahnya — dan hanya setelah perangkat ini selesai mengunggah.';
+
+  @override
+  String get syncResetConfirmTitle => 'Reset data sinkronisasi?';
+
+  @override
+  String syncResetDone(Object queued) {
+    return 'Server dibersihkan — $queued baris sedang diunggah ulang di latar belakang. Tunggu hingga jumlah pending menjadi nol sebelum mereset perangkat lain.';
+  }
+
+  @override
+  String syncResetFailed(Object error) {
+    return 'Gagal mereset sinkronisasi: $error';
+  }
+
+  @override
+  String get syncResetPhotosLeft =>
+      'Beberapa foto struk tidak bisa dihapus dari server — foto tetap tersimpan tetapi tidak terhubung.';
+
+  @override
+  String get syncResetRunning => 'Mereset sinkronisasi…';
+
+  @override
   String get syncSettingsAccountsSubtitle =>
       'Pilih akun mana yang disinkronkan ke perangkat lain. Baris dari akun yang tidak dipilih tetap di perangkat ini sampai Anda mengaktifkannya kembali.';
 
@@ -1085,6 +1109,13 @@ class AppLocalizationsId extends AppLocalizations {
 
   @override
   String get syncSettingsReplaceTitle => 'Ganti data perangkat ini';
+
+  @override
+  String get syncSettingsResetSubtitle =>
+      'Hapus salinan di server dan unggah ulang data dari perangkat ini. Cadangan lokal dibuat terlebih dahulu.';
+
+  @override
+  String get syncSettingsResetTitle => 'Reset data sinkronisasi';
 
   @override
   String get syncSettingsSignIn => 'Masuk dengan Google';

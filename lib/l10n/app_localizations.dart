@@ -1737,6 +1737,42 @@ abstract class AppLocalizations {
   /// **'Your data on the server'**
   String get syncPreviewTitle;
 
+  /// No description provided for @syncResetConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This deletes everything on the server for this account, then re-uploads the data on this device. Your other devices must replace their data from the server afterwards — and only after this device finishes uploading.'**
+  String get syncResetConfirmBody;
+
+  /// No description provided for @syncResetConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset sync data?'**
+  String get syncResetConfirmTitle;
+
+  /// No description provided for @syncResetDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Server cleared — {queued} rows re-uploading in the background. Wait until the pending count hits zero before resetting your other device.'**
+  String syncResetDone(Object queued);
+
+  /// No description provided for @syncResetFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reset sync: {error}'**
+  String syncResetFailed(Object error);
+
+  /// No description provided for @syncResetPhotosLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Some receipt photos could not be cleared from the server — they stay stored but unlinked.'**
+  String get syncResetPhotosLeft;
+
+  /// No description provided for @syncResetRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Resetting sync…'**
+  String get syncResetRunning;
+
   /// No description provided for @syncSettingsAccountsSubtitle.
   ///
   /// In en, this message translates to:
@@ -1838,6 +1874,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Replace this device\'s data'**
   String get syncSettingsReplaceTitle;
+
+  /// No description provided for @syncSettingsResetSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear the server copy and re-upload this device\'s data. A local backup is made first.'**
+  String get syncSettingsResetSubtitle;
+
+  /// No description provided for @syncSettingsResetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset sync data'**
+  String get syncSettingsResetTitle;
 
   /// No description provided for @syncSettingsSignIn.
   ///

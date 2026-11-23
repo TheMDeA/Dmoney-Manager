@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -61,6 +62,12 @@ void main() {
   /// Canonical server timestamp, ordered by [minute].
   String ts(int minute) =>
       '2026-11-23T10:${minute.toString().padLeft(2, '0')}:00.000Z';
+
+  /// Canonical server timestamp, ordered by [seconds] — one
+  /// distinct timestamp per second, for the 250-row paging
+  /// tests (the minute helper only spans an hour).
+  String tsSec(int seconds) =>
+      DateTime.utc(2026, 11, 23, 10).add(Duration(seconds: seconds)).toIso8601String();
 
   Future<int> makeAccount(String name) =>
       db.addAccount(AccountsCompanion.insert(name: name, kind: 'personal'));
@@ -479,8 +486,10 @@ void main() {
 
       expect(result.error, isA<SyncFatalException>());
       // The accounts page stayed applied (the apply is
-      // idempotent); the cursor did not move, so the wallets
-      // rows are re-fetched on the next run, not lost.
+      // idempotent); the GLOBAL cursor did not move, so the
+      // wallets rows are re-fetched on the next run, not lost.
+      // (The accounts table's own cursor did advance — only the
+      // global one waits for a fully clean pull.)
       expect(
         await (db.select(
           db.accounts,
@@ -488,6 +497,135 @@ void main() {
         hasLength(1),
       );
       expect(await pullCursor(), isNull);
+    });
+
+    test('a pull that aborts mid-table resumes from its per-table cursor',
+        () async {
+      final remote = FakePullRemote();
+      final accountSync = await accountSyncId(1);
+      // 250 wallets, one distinct timestamp per second: pages
+      // are 100 / 100 / 50. The 5th pull call (wallets page 3)
+      // times out — pages 1–2 (200 rows) stay applied.
+      remote.seed('wallets', [
+        for (var i = 0; i < 250; i++)
+          walletRow('srv-wallet-$i', accountSync, tsSec(i), name: 'W$i'),
+      ]);
+      final foodSync = await categorySyncId(await foodId());
+      remote.seed('transactions', [
+        for (var i = 0; i < 50; i++)
+          txRow(
+            'srv-tx-$i',
+            'srv-wallet-$i',
+            foodSync,
+            tsSec(300 + i),
+            amount: 1000 + i,
+          ),
+      ]);
+      remote.failPullOnCall = 5;
+      remote.failPullError = SyncFatalException(
+        'pull timed out',
+        TimeoutException('pull timed out'),
+      );
+
+      final first = await puller(remote).pullNow();
+
+      expect(first.error, isA<SyncFatalException>());
+      expect(first.applied, 200);
+      // The wallets cursor advanced past the two applied pages;
+      // transactions never started, and the global cursor (which
+      // only moves on a fully clean pull) did not move — nor did
+      // last sync stamp.
+      expect(await db.pullCursorFor('wallets'), tsSec(199));
+      expect(await db.pullCursorFor('transactions'), isNull);
+      expect(await pullCursor(), isNull);
+      expect(
+        (await db.select(db.syncState).getSingle()).lastSyncAt,
+        isNull,
+      );
+
+      // The next run resumes the wallets from their cursor (not
+      // from offset 200) and pulls the transactions in full.
+      remote.failPullOnCall = null;
+      final second = await puller(remote).pullNow();
+
+      expect(second.error, isNull);
+      expect(second.applied, 100);
+      final walletPulls = [
+        for (final p in remote.pulls)
+          if (p.table == 'wallets') p,
+      ];
+      // First run: pages at offsets 0, 100 (then the timeout —
+      // the failed 3rd page counts as an attempted pull).
+      // Second run: one page from the cursor, offset 0.
+      expect(walletPulls.length, 4);
+      expect(walletPulls.last.updatedAfter, tsSec(199));
+      expect(walletPulls.last.offset, 0);
+      // A clean run stamps the global cursor and last sync.
+      expect(await pullCursor(), tsSec(349));
+      expect(
+        (await db.select(db.syncState).getSingle()).lastSyncAt,
+        isNotNull,
+      );
+      expect(
+        await (db.select(db.wallets)).get().then((rows) => rows.length),
+        250,
+      );
+    });
+
+    test('wipe and restore clear the per-table cursors', () async {
+      await db.setPullCursor('wallets', tsSec(100));
+      await db.setPullCursor('transactions', tsSec(200));
+
+      await db.wipeLocalDataForSync();
+
+      expect(await db.pullCursorFor('wallets'), isNull);
+      expect(await db.pullCursorFor('transactions'), isNull);
+      expect(await pullCursor(), isNull);
+
+      // Same for the restore path: it re-enqueues the restored
+      // rows and resets the cursors, so the next pull starts
+      // from the beginning instead of resuming past them.
+      await db.setPullCursor('wallets', tsSec(100));
+      await db.transaction(() async {
+        await db.resetSyncAfterRestore();
+      });
+      expect(await db.pullCursorFor('wallets'), isNull);
+      expect(await pullCursor(), isNull);
+    });
+
+    test('shouldStop stops between pages and the next run resumes',
+        () async {
+      final remote = FakePullRemote();
+      final accountSync = await accountSyncId(1);
+      remote.seed('wallets', [
+        for (var i = 0; i < 250; i++)
+          walletRow('srv-wallet-$i', accountSync, tsSec(i), name: 'W$i'),
+      ]);
+
+      // Stop after the 4th pull call (accounts, categories,
+      // wallets pages 1–2): 200 wallets applied, no error.
+      final stopped = await puller(remote).pullNow(
+        shouldStop: () => remote.pulls.length >= 4,
+      );
+
+      expect(stopped.error, isNull);
+      expect(stopped.applied, 200);
+      expect(await db.pullCursorFor('wallets'), tsSec(199));
+      expect(
+        (await db.select(db.syncState).getSingle()).lastSyncAt,
+        isNull,
+      );
+
+      final resumed = await puller(remote).pullNow();
+
+      expect(resumed.error, isNull);
+      expect(resumed.applied, 50);
+      final walletPulls = [
+        for (final p in remote.pulls)
+          if (p.table == 'wallets') p,
+      ];
+      expect(walletPulls.last.updatedAfter, tsSec(199));
+      expect(walletPulls.last.offset, 0);
     });
   });
 
@@ -796,9 +934,12 @@ void main() {
       final synced = await puller(remote).pullNow();
 
       // The ts(20) category row is not re-fetched (its timestamp
-      // equals the cursor) — only the two newer rows apply.
-      expect(synced.applied, 2);
-      expect(await pullCursor(), ts(22));
+      // equals the cursor) — and neither is the ts(22) one: the
+      // categories table's own cursor is already past it, so a
+      // skip in the wallets table no longer holds other tables
+      // back. Only the wallet applies.
+      expect(synced.applied, 1);
+      expect(await pullCursor(), ts(21));
     });
 
     test('unresolvable FK is skipped and held back', () async {
@@ -1141,6 +1282,10 @@ class FakePullRemote implements SyncRemote {
   final serverRows = <String, List<Map<String, dynamic>>>{};
   final pulls = <({String table, String? updatedAfter, int offset, int limit})>[];
   final failTables = <String>{};
+  /// Fail the Nth pull call (1-based) with [failPullError] —
+  /// the per-table cursor tests fail a page mid-table.
+  int? failPullOnCall;
+  Object? failPullError;
   // P4: in-memory Storage objects (key → bytes).
   final objects = <String, Uint8List>{};
 
@@ -1161,6 +1306,9 @@ class FakePullRemote implements SyncRemote {
       offset: offset,
       limit: limit,
     ));
+    if (failPullOnCall != null && pulls.length == failPullOnCall) {
+      throw failPullError ?? SyncFatalException('fake pull failure');
+    }
     if (failTables.contains(table)) {
       throw SyncFatalException('fake pull failure on $table');
     }
@@ -1267,6 +1415,10 @@ class FakePullRemote implements SyncRemote {
       'server_updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
+
+  @override
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys) async =>
+      const ServerWipeResult(deletedRows: {}, photosRemoved: 0, photosAttempted: 0);
 }
 
 /// Push-only recording fake for the conflict Restore test: the
@@ -1329,4 +1481,8 @@ class _RecordingRemote implements SyncRemote {
 
   @override
   Future<void> upsertPrefs(Map<String, dynamic> row) async {}
+
+  @override
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys) async =>
+      const ServerWipeResult(deletedRows: {}, photosRemoved: 0, photosAttempted: 0);
 }

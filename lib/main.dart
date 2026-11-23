@@ -72,15 +72,23 @@ Future<void> main() async {
   //    save-debounce watchers).
   WidgetsBinding.instance.addPostFrameCallback((_) async {
     var pullSettled = SupabaseAuthService.currentUserId == null;
+    // Set when the launch pull's 30 s timeout fires: the timed-out
+    // future keeps running detached (Dart futures are not
+    // cancellable), so the pull checks this between pages and
+    // stops after its current one — otherwise it races the
+    // trigger cycle's own pull for the whole remaining library
+    // on a slow connection, doubling the timeout risk.
+    var launchPullStopped = false;
     if (!pullSettled) {
       try {
         await SyncPullService(
           db: db,
           remote: syncOrchestrator.remote,
           ownerId: SupabaseAuthService.currentUserId,
-        ).pullNow().timeout(const Duration(seconds: 30));
+        ).pullNow(shouldStop: () => launchPullStopped).timeout(const Duration(seconds: 30));
         pullSettled = true;
       } on TimeoutException {
+        launchPullStopped = true;
         debugPrint('Launch pull timed out — skipping recurring generation this launch');
       } catch (e) {
         // Fast failure (offline / auth): known state, generate on

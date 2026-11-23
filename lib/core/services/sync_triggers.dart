@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:dmoney_manager/core/services/sync_failure_mode.dart';
 import 'package:dmoney_manager/core/services/sync_orchestrator.dart';
 import 'package:dmoney_manager/data/database/app_database.dart';
 
@@ -19,6 +21,12 @@ import 'package:dmoney_manager/data/database/app_database.dart';
 ///   edits (or a bulk delete) runs one cycle, never one per edit.
 ///   Only growth schedules — the push acking entries (or a
 ///   pull-side apply, which enqueues nothing) never re-triggers.
+/// - A cycle that fails with a transient error (timeout, offline,
+///   paused server) retries with backoff — previously nothing
+///   re-scheduled it, so a timed-out pull sat dead until a manual
+///   resync, a resume, or a local edit. Auth failures and
+///   per-row data errors do not retry: the first needs the user,
+///   the second fails the same way every time.
 /// - The launch sync runs after the first frame (start() is called
 ///   from a post-frame callback in main) and never blocks startup:
 ///   a failure lands in the result / the status UI, never in a
@@ -32,8 +40,10 @@ class SyncTriggerService with WidgetsBindingObserver {
     required this.db,
     required this.orchestrator,
     Duration debounce = const Duration(seconds: 2),
+    Duration retryBaseDelay = const Duration(seconds: 10),
     Stream<List<ConnectivityResult>>? connectivityStream,
   }) : _debounce = debounce,
+       _retryBaseDelay = retryBaseDelay,
        _connectivityStream =
            connectivityStream ?? Connectivity().onConnectivityChanged;
 
@@ -43,6 +53,12 @@ class SyncTriggerService with WidgetsBindingObserver {
   /// How long to wait after the last trigger event before running
   /// a cycle. Injectable (short in tests).
   final Duration _debounce;
+
+  /// Base delay before retrying a failed cycle; doubled per
+  /// consecutive failure, capped at 60 s. Injectable (short in
+  /// tests).
+  final Duration _retryBaseDelay;
+
   final Stream<List<ConnectivityResult>> _connectivityStream;
 
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -63,6 +79,10 @@ class SyncTriggerService with WidgetsBindingObserver {
   /// — the seed's rows are pushed by the running cycle, so they
   /// leave nothing behind, while a user edit made mid-cycle does.
   bool _growthDuringCycle = false;
+
+  /// Consecutive trigger-run cycles that ended with failures —
+  /// drives the retry backoff. Reset by a clean cycle.
+  int _consecutiveFailures = 0;
 
   /// The last outbox count seen — a cycle is scheduled only when
   /// the count GROWS (a new local change). The push acking entries
@@ -112,6 +132,7 @@ class SyncTriggerService with WidgetsBindingObserver {
     _outboxSub = null;
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    _consecutiveFailures = 0;
   }
 
   @override
@@ -119,11 +140,34 @@ class SyncTriggerService with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _schedule();
   }
 
-  void _schedule() {
+  void _schedule() => _scheduleDelayed(_debounce);
+
+  void _scheduleDelayed(Duration delay) {
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(_debounce, () {
+    _debounceTimer = Timer(delay, () {
       unawaited(_run());
     });
+  }
+
+  /// Retryable failures are the transient ones: offline (a timeout
+  /// or transport failure) and a paused server. Auth needs the
+  /// user to sign in again, per-row (partial) failures are data
+  /// errors that fail the same way every time, and unknown errors
+  /// stay manual — retrying any of those would spin forever.
+  bool _isRetryable(SyncCycleResult result) {
+    final error = result.error;
+    if (error == null) return false;
+    final mode = classifySyncError(error);
+    return mode == SyncFailureMode.offline ||
+        mode == SyncFailureMode.serverPaused;
+  }
+
+  /// Backoff between retries of a failed cycle: base, doubled per
+  /// consecutive failure, capped at 60 s.
+  Duration _retryDelay() {
+    final shift = min(_consecutiveFailures - 1, 3);
+    final ms = min(_retryBaseDelay.inMilliseconds * (1 << shift), 60000);
+    return Duration(milliseconds: ms);
   }
 
   /// One cycle, guarded: signed out is a silent no-op, and the
@@ -132,25 +176,46 @@ class SyncTriggerService with WidgetsBindingObserver {
   Future<void> _run() async {
     if (orchestrator.currentUserId == null) return;
     _cycleRunning = true;
+    SyncCycleResult? result;
     try {
-      await orchestrator.syncNow();
+      result = await orchestrator.syncNow();
     } catch (_) {
       // Never crash the app from a background trigger.
+      result = null;
     } finally {
       _cycleRunning = false;
     }
+    // A thrown cycle is a programming error, not a sync failure:
+    // it neither counts toward the retry backoff nor resets it.
+    if (result != null) {
+      if (result.hasFailures) {
+        _consecutiveFailures++;
+      } else {
+        _consecutiveFailures = 0;
+      }
+    }
+    Duration? delay;
     // A user edit made mid-cycle left entries the running cycle
     // did not push (its push read the outbox first): follow up.
     // The seed's rows were pushed by the cycle itself, so the
     // outbox is empty and this stays quiet for them.
     if (_growthDuringCycle) {
       _growthDuringCycle = false;
-      if (await db.outboxCount() > 0) _schedule();
+      if (await db.outboxCount() > 0) delay = _debounce;
     }
     // A chunked initial push spans cycles: keep scheduling
     // follow-ups (debounced like any trigger) until the backlog
     // drains. Steady state never has a marker, so this is a
     // no-op outside an initial push.
-    if (orchestrator.initialPushPending) _schedule();
+    if (orchestrator.initialPushPending) delay = _debounce;
+    // A failed cycle otherwise schedules nothing — a timed-out
+    // pull (or plain push) would sit dead until a manual resync,
+    // a resume, or a local edit. Retry transient failures with
+    // backoff. A sooner follow-up above already covers the cycle,
+    // so the retry only fires when nothing else scheduled one.
+    if (delay == null && result != null && _isRetryable(result)) {
+      delay = _retryDelay();
+    }
+    if (delay != null) _scheduleDelayed(delay);
   }
 }

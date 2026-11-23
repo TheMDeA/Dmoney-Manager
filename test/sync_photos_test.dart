@@ -674,6 +674,10 @@ class FakePhotoRemote implements SyncRemote {
       'server_updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
+
+  @override
+  Future<ServerWipeResult> wipeServerData(List<String> photoKeys) async =>
+      const ServerWipeResult(deletedRows: {}, photosRemoved: 0, photosAttempted: 0);
 }
 
 /// Wi-Fi gate the test drives directly: no radio involved.
