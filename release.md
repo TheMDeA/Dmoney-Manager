@@ -1,8 +1,4 @@
-## [3.0.0] - 2026-11-23
-
-### Added
-- Your books now sync across your own devices — add a transaction on one device and it appears on the others, receipt photos included.
+## [3.0.1] - 2026-11-23
 
 ### Fixed
-- Opening the app no longer gets stuck on the splash screen while your books are prepared for sync.
-- The first sync no longer stalls forever on a slow connection — it now reports the problem and lets you retry.
+- Signing in no longer leaves sync stuck on "Syncing..." — the online sync now actually starts, and a failed step reports its reason instead of spinning forever.

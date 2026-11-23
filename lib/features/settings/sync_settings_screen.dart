@@ -84,34 +84,39 @@ class _SyncSettingsScreenState extends ConsumerState<SyncSettingsScreen> {
 
   Future<void> _syncNow() async {
     setState(() => _syncing = true);
-    final result = await ref.read(syncOrchestratorProvider).syncNow();
-    if (!mounted) return;
-    setState(() {
-      _syncing = false;
-      _lastError = AppPrefs.syncLastError;
-      _lastFailureMode = parseSyncFailureMode(AppPrefs.syncFailureMode);
-    });
-    _loadDevices();
-    final l10n = AppLocalizations.of(context)!;
-    final message = result.notSignedIn
-        ? l10n.syncSettingsNotSignedIn
-        : result.hasFailures
-        ? l10n.syncSettingsSyncFailed(
-            _lastFailureMode != null
-                ? _failureModeText(l10n, _lastFailureMode!)
-                : result.error?.toString() ?? '',
-          )
-        // gen-l10n orders parameters alphabetically: (pulled, pushed).
-        : l10n.syncSettingsSynced(result.pulled, result.pushed);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          result.prefs.languageChanged
-              ? '$message\n${l10n.syncSettingsLanguageDeferred}'
-              : message,
+    try {
+      final result = await ref.read(syncOrchestratorProvider).syncNow();
+      if (!mounted) return;
+      setState(() {
+        _lastError = AppPrefs.syncLastError;
+        _lastFailureMode = parseSyncFailureMode(AppPrefs.syncFailureMode);
+      });
+      _loadDevices();
+      final l10n = AppLocalizations.of(context)!;
+      final message = result.notSignedIn
+          ? l10n.syncSettingsNotSignedIn
+          : result.hasFailures
+          ? l10n.syncSettingsSyncFailed(
+              _lastFailureMode != null
+                  ? _failureModeText(l10n, _lastFailureMode!)
+                  : result.error?.toString() ?? '',
+            )
+          // gen-l10n orders parameters alphabetically: (pulled, pushed).
+          : l10n.syncSettingsSynced(result.pulled, result.pushed);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.prefs.languageChanged
+                ? '$message\n${l10n.syncSettingsLanguageDeferred}'
+                : message,
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      // A cycle that throws must never leave the button spinning:
+      // the failure is already recorded in the status UI.
+      if (mounted) setState(() => _syncing = false);
+    }
   }
 
   Future<void> _signIn() async {

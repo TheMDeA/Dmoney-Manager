@@ -74,11 +74,8 @@ class SyncOrchestrator {
     SyncInitialPushService? initialPushService,
     PhotoUploadGate? photoGate,
     String? Function()? currentUserId,
-  }) : assert(
-         remote != null || remoteFactory != null,
-         'SyncOrchestrator needs remote or remoteFactory',
-       ),
-       _remoteFactory = remoteFactory ?? (() => remote!),
+  }) : _remoteFactory =
+             remoteFactory ?? (() => remote ?? SupabaseSyncRemote()),
        _prefsService = prefsService,
        _deviceService = deviceService,
        _initialPushService = initialPushService,
@@ -197,12 +194,25 @@ class SyncOrchestrator {
     } catch (e) {
       pull = SyncPullResult(error: e);
     }
-    // Prefs are best-effort and never fail the cycle.
-    final prefs = await prefsService.syncPrefs(ownerId);
+    // Prefs are best-effort and never fail the cycle — including
+    // a remote that cannot even be built (Supabase not
+    // initialised): the data sync already ran, so a prefs failure
+    // is reported, never thrown.
+    SyncPrefsResult prefs;
+    try {
+      prefs = await prefsService.syncPrefs(ownerId);
+    } catch (_) {
+      prefs = const SyncPrefsResult(serverUnreachable: true);
+    }
     // Heartbeat only after a clean cycle — a device that only ever
-    // fails should not look freshly seen.
+    // fails should not look freshly seen. Best-effort like prefs:
+    // a heartbeat that cannot run must not fail the cycle.
     if (!push.hasFailures && !pull.hasFailures) {
-      await deviceService.heartbeat(ownerId);
+      try {
+        await deviceService.heartbeat(ownerId);
+      } catch (_) {
+        // Best-effort: see above.
+      }
     }
     final result = SyncCycleResult(push: push, pull: pull, prefs: prefs);
     // Named failure mode (§12) + raw message for the status UI,
