@@ -100,10 +100,22 @@ class SyncFatalException implements Exception {
 
 /// The real remote, over the Supabase REST client.
 class SupabaseSyncRemote implements SyncRemote {
-  SupabaseSyncRemote([SupabaseClient? client])
-    : _client = client ?? Supabase.instance.client;
+  SupabaseSyncRemote([SupabaseClient? client, Duration? requestTimeout])
+    : _client = client ?? Supabase.instance.client,
+      _requestTimeout = requestTimeout ?? _defaultRequestTimeout;
 
   final SupabaseClient _client;
+
+  /// Every Supabase call is bounded by this: the Dart http client
+  /// has no default timeout, so a stalled request used to hang the
+  /// cycle forever — "Syncing..." with no error, no log row and a
+  /// frozen pending count (first sync on a fresh device, 2026-11-23).
+  /// The only timeout in the sync path before this was the launch
+  /// pull's 30 s wrapper in main.dart. A timeout here surfaces as
+  /// [SyncFatalException] (see [_guard]) and the cycle ends with
+  /// the `offline` failure mode, like any other transport failure.
+  static const _defaultRequestTimeout = Duration(seconds: 30);
+  final Duration _requestTimeout;
 
   @override
   Future<void> upsert(String table, List<Map<String, dynamic>> rows) {
@@ -259,7 +271,7 @@ class SupabaseSyncRemote implements SyncRemote {
   /// FK violations, …) rethrow unchanged for the per-row fallback.
   Future<T> _guard<T>(Future<T> Function() call) async {
     try {
-      return await call();
+      return await call().timeout(_requestTimeout);
     } on PostgrestException catch (e) {
       final code = int.tryParse(e.code ?? '');
       if (code == 401 || code == 403) {

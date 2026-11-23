@@ -73,7 +73,14 @@ class MoneyManagerApp extends ConsumerWidget {
                     ? const LockScreen()
                     : const AppShell(),
             loading: () => const _BootSplash(),
-            error: (_, _) => const _BootSplash(),
+            // A database that fails to open must NEVER look like a
+            // loading screen: 3.0.0 showed the splash forever when
+            // the v17->v18 migration threw (2026-11-23). Surface the
+            // error with a retry instead.
+            error: (error, _) => _BootError(
+              error: error,
+              onRetry: () => ref.invalidate(accountsStreamProvider),
+            ),
           ),
         );
       },
@@ -97,6 +104,58 @@ class _BootSplash extends StatelessWidget {
             fontSize: 32,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown when the database fails to open (e.g. a migration throws):
+/// the raw error, so the cause is visible, plus a retry. Never a
+/// second splash — a failed open must not look like a slow one.
+class _BootError extends StatelessWidget {
+  const _BootError({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Dmoney',
+                style: TextStyle(
+                  color: context.accent,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Couldn't open your books.",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                error.toString(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
           ),
         ),
       ),

@@ -29,7 +29,16 @@ class Accounts extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -83,7 +92,16 @@ class Wallets extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -110,7 +128,16 @@ class Categories extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -169,7 +196,16 @@ class Transactions extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -205,7 +241,16 @@ class TransactionPhotos extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -228,7 +273,16 @@ class Budgets extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -251,7 +305,16 @@ class Goals extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -286,7 +349,16 @@ class Debts extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -311,7 +383,16 @@ class DebtPayments extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -336,7 +417,16 @@ class GoalDeposits extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -370,7 +460,16 @@ class RecurringTransactions extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -400,7 +499,16 @@ class TransactionTemplates extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -430,7 +538,16 @@ class CategoryKeywords extends Table {
   TextColumn get syncId => text().withDefault(const Constant(''))();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
@@ -462,7 +579,16 @@ class InstallmentPlans extends Table {
       text().withDefault(const Constant('')).clientDefault(_newSyncId)();
 
   /// Last local modification; refreshed by every write helper.
-  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+  // SQL default is the epoch (0): SQLite forbids non-constant defaults
+  // in ALTER TABLE ... ADD COLUMN, and the v17->v18 migration adds this
+  // column to non-empty tables — `currentDateAndTime` threw "Cannot add
+  // a column with non-constant default" on every first 3.0.0 launch,
+  // leaving the app on the boot splash forever (2026-11-23).
+  // The clientDefault still stamps "now" for inserts that omit it
+  // (e.g. the seed), so behaviour is unchanged.
+  DateTimeColumn get updatedAt => dateTime()
+      .withDefault(Constant(DateTime.fromMillisecondsSinceEpoch(0)))
+      .clientDefault(() => DateTime.now())();
 
   /// Soft-delete marker for sync. Local deletes still hard-delete the
   /// row — the outbox tombstone carries the sync id to the server.
