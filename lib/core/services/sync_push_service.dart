@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/database/app_database.dart';
 import '../utils/sync_payload.dart';
@@ -602,6 +603,19 @@ class SyncPushService {
         } on SyncFatalException {
           rethrow;
         } catch (err) {
+          if (err is PostgrestException && err.code == '23502') {
+            // The upsert took the INSERT path — the server has no
+            // row for this sync id (it vanished between the
+            // pre-check and the tombstone, e.g. a concurrent
+            // server wipe). The tombstone payload carries only
+            // sync_id/deleted_at/owner_id, so a 23502 here proves
+            // the row is gone: there is nothing to mark deleted,
+            // and retrying would fail forever. Drop the entry
+            // like a never-pushed row.
+            await _ackTombstone(e);
+            c.droppedNeverPushed++;
+            c.settled++;
+          }
           // Stays queued and unsettled — counted as failed.
           // Keep the first failure's identity for the log and
           // the status UI (audit #15/#25).

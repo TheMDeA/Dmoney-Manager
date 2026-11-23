@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:dmoney_manager/core/services/app_prefs.dart';
 import 'package:dmoney_manager/core/services/sync_photos.dart';
@@ -369,6 +370,29 @@ void main() {
       expect(remote.tombstones, isEmpty);
       expect(await outboxCount(), 0);
     });
+
+    test('tombstone that fails with 23502 is dropped — the row vanished '
+        'mid-push', () async {
+      final remote = FakeSyncRemote();
+      final wallet = await makeWallet('Cash', 'cash');
+      final syncId = await walletSyncId(wallet);
+      await pusher(remote).pushNow();
+      expect((await pushedHashes()).length, 1);
+      // The row existed when the push checked, but was gone by the
+      // time the tombstone landed (concurrent server wipe): the
+      // upsert INSERTs and fails 23502. The failure itself proves
+      // the server has no row, so the entry is dropped instead of
+      // failing every cycle.
+      remote.tombstone23502Ids.add(syncId);
+
+      expect(await db.deleteWallet(wallet), isTrue);
+      final result = await pusher(remote).pushNow();
+
+      expect(result.droppedNeverPushed, 1);
+      expect(result.pushed, 0);
+      expect(result.failed, 0);
+      expect(await outboxCount(), 0);
+    });
   });
 
   group('per-account toggle (idea #3)', () {
@@ -634,6 +658,10 @@ class FakeSyncRemote implements SyncRemote {
   bool failAll = false;
   bool failGroups = false;
   int fatalNextCount = 0;
+  // Sync ids whose tombstone upsert fails 23502 — the row existed
+  // when the push checked, but was gone by the time the tombstone
+  // landed (concurrent server wipe).
+  final tombstone23502Ids = <String>{};
 
   @override
   Future<void> upsert(
@@ -666,6 +694,14 @@ class FakeSyncRemote implements SyncRemote {
       throw SyncFatalException('fatal (test)');
     }
     if (failAll) throw Exception('tombstone failed');
+    if (syncIds.any(tombstone23502Ids.contains)) {
+      throw const PostgrestException(
+        message:
+            'null value in column "wallet_id" of relation "transactions" violates not-null constraint',
+        code: '23502',
+        details: 'Bad Request',
+      );
+    }
     tombstones.add((table: table, syncIds: syncIds, ownerId: ownerId));
   }
 
